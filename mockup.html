@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UniClass Mockup - Testing Pages</title>
+<style>
+  :root {
+    --cream: #fdf6e3;
+    --ink: #17162b;
+    --clay-purple: #7c6aef;
+    --clay-pink: #e056a0;
+    --clay-sun: #f5c542;
+    --clay-coral: #e85d4a;
+    --clay-lime: #6ac46a;
+    --clay-sky: #4a90d9;
+    --primary: #7c6aef;
+    --destructive: #e85d4a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--cream); color: var(--ink); line-height: 1.6; }
+  .mockup-section { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+  .mockup-section h2 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--clay-purple); border-bottom: 3px solid var(--clay-purple); padding-bottom: 0.5rem; }
+  .mockup-section h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; color: var(--ink); }
+  .mockup-frame { border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; background: white; box-shadow: 4px 4px 0 var(--ink); }
+  .mockup-frame iframe { width: 100%; height: 600px; border: none; background: var(--cream); }
+  .mockup-frame.static { padding: 2rem; min-height: 400px; }
+  .mockup-nav { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
+  .mockup-nav a { padding: 0.5rem 1rem; background: var(--clay-purple); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); transition: transform 0.1s; }
+  .mockup-nav a:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+  .card { border: 2px solid var(--ink); border-radius: 12px; padding: 1.5rem; background: white; box-shadow: 3px 3px 0 var(--ink); margin-bottom: 1rem; }
+  .card h4 { margin-bottom: 0.5rem; }
+  .btn { display: inline-block; padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); cursor: pointer; text-decoration: none; color: white; margin: 0.25rem; }
+  .btn-purple { background: var(--clay-purple); }
+  .btn-sky { background: var(--clay-sky); }
+  .btn-coral { background: var(--clay-coral); }
+  .btn-sun { background: var(--clay-sun); color: var(--ink); }
+  .btn-pink { background: var(--clay-pink); }
+  .btn-lime { background: var(--clay-lime); }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  .form-group input { width: 100%; padding: 0.6rem 1rem; border: 2px solid var(--ink); border-radius: 8px; font-size: 1rem; background: var(--cream); }
+  .form-group input:focus { outline: none; border-color: var(--clay-purple); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--ink); }
+  .badge-purple { background: var(--clay-purple); color: white; }
+  .badge-sky { background: var(--clay-sky); color: white; }
+  .badge-sun { background: var(--clay-sun); color: var(--ink); }
+  .badge-lime { background: var(--clay-lime); color: var(--ink); }
+  .badge-coral { background: var(--clay-coral); color: white; }
+  .mockup-header { background: var(--clay-purple); color: white; padding: 1rem 2rem; border-bottom: 3px solid var(--ink); display: flex; align-items: center; justify-content: space-between; }
+  .mockup-header h1 { font-size: 1.2rem; }
+  .mockup-sidebar { background: white; border-right: 2px solid var(--ink); padding: 1rem; width: 200px; min-height: 400px; }
+  .mockup-sidebar a { display: block; padding: 0.5rem; color: var(--ink); text-decoration: none; border-radius: 6px; margin-bottom: 0.25rem; font-size: 0.9rem; }
+  .mockup-sidebar a:hover, .mockup-sidebar a.active { background: var(--clay-purple); color: white; }
+  .mockup-main { padding: 1.5rem; flex: 1; }
+  .mockup-layout { display: flex; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; background: white; box-shadow: 3px 3px 0 var(--ink); margin-bottom: 2rem; }
+  .stat-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .stat-card { border: 2px solid var(--ink); border-radius: 10px; padding: 1rem; background: white; flex: 1; min-width: 120px; text-align: center; box-shadow: 2px 2px 0 var(--ink); }
+  .stat-card .value { font-size: 1.5rem; font-weight: 800; color: var(--clay-purple); }
+  .stat-card .label { font-size: 0.75rem; color: var(--ink); opacity: 0.7; }
+  .progress-bar { height: 8px; background: var(--cream); border-radius: 4px; overflow: hidden; border: 1px solid var(--ink); }
+  .progress-fill { height: 100%; background: var(--clay-purple); border-radius: 4px; }
+  .progress-fill.sun { background: var(--clay-sun); }
+  .progress-fill.coral { background: var(--clay-coral); }
+  .progress-fill.lime { background: var(--clay-lime); }
+  .table-wrap { overflow-x: auto; border: 2px solid var(--ink); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  th { background: var(--clay-purple); color: white; font-weight: 700; }
+  tr:hover { background: rgba(124,106,239,0.05); }
+  .toast { padding: 0.75rem 1rem; border-radius: 8px; border: 2px solid var(--ink); margin-bottom: 0.5rem; font-size: 0.9rem; box-shadow: 2px 2px 0 var(--ink); }
+  .toast-success { background: #d4edda; color: #155724; }
+  .toast-error { background: #f8d7da; color: #721c24; }
+  .toast-info { background: #d1ecf1; color: #0c5460; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--ink); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+  .chip { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--ink); }
+  .chip-purple { background: var(--clay-purple); color: white; }
+  .chip-sky { background: var(--clay-sky); color: white; }
+  .chip-sun { background: var(--clay-sun); color: var(--ink); }
+  .chip-coral { background: var(--clay-coral); color: white; }
+  .chip-lime { background: var(--clay-lime); color: var(--ink); }
+  @media (max-width: 768px) {
+    .mockup-layout { flex-direction: column; }
+    .mockup-sidebar { width: 100%; border-right: none; border-bottom: 2px solid var(--ink); }
+    .grid { grid-template-columns: 1fr; }
+    .stat-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-section">
+  <h1 style="font-size:2rem; margin-bottom:0.5rem;">&#127912; UniClass</h1>
+  <p style="margin-bottom:1.5rem; opacity:0.7;">Mockup Testing Pages — Open locally at <a href="http://localhost:5173">http://localhost:5173</a></p>
+
+  <div class="mockup-nav">
+    <a href="#landing">Landing</a>
+    <a href="#login">Login</a>
+    <a href="#register">Register</a>
+    <a href="#forgot-password">Forgot Password</a>
+    <a href="#reset-password">Reset Password</a>
+    <a href="#check-email">Check Email</a>
+    <a href="#dashboard">Teacher Dashboard</a>
+    <a href="#student-dashboard">Student Dashboard</a>
+    <a href="#leaderboard">Leaderboard</a>
+    <a href="#waiting">Waiting Approval</a>
+    <a href="#auth-callback">Auth Callback</a>
+    <a href="#signup-flow">Signup Flow</a>
+  </div>
+
+  <!-- LANDING -->
+  <div class="mockup-section" id="landing">
+    <h2>Landing Page</h2>
+    <div class="mockup-frame static" style="background: linear-gradient(135deg, var(--cream) 0%, #e8e0f7 100%);">
+      <div style="text-align:center; margin-bottom:2rem;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:96px; height:96px; border-radius:16px; background:var(--clay-purple); border:4px solid var(--ink); box-shadow:4px 4px 0 var(--ink); margin-bottom:1rem;">
+          <span style="font-size:2.5rem;">🎓</span>
+        </div>
+        <h1 style="font-size:2.5rem; font-weight:900;">UniClass</h1>
+        <p style="font-size:1.1rem; opacity:0.7; max-width:500px; margin:0.5rem auto;">Gamified classroom tracker with QR rewards &amp; gacha capsules.</p>
+      </div>
+      <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-bottom:2rem;">
+        <button class="btn btn-purple" style="font-size:1rem; padding:0.75rem 2rem;">Get started</button>
+        <button class="btn btn-sky" style="font-size:1rem; padding:0.75rem 2rem;">Teacher Login</button>
+      </div>
+      <div class="grid">
+        <div class="card" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">&#128205;</div>
+          <h4>QR Attendance</h4>
+          <p style="font-size:0.85rem; opacity:0.7;">Scan QR codes to mark attendance instantly.</p>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">&#127942;</div>
+          <h4>Gacha Rewards</h4>
+          <p style="font-size:0.85rem; opacity:0.7;">Students earn capsules through participation.</p>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">&#127776;</div>
+          <h4>AI Missions</h4>
+          <p style="font-size:0.85rem; opacity:0.7;">Generate missions with AI (OpenRouter + Gemini).</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:1.5rem; justify-content:center; margin-top:1.5rem; font-size:0.85rem;">
+        <span><span style="color:var(--clay-purple);">&#10003;</span> No credit card required</span>
+        <span><span style="color:var(--clay-purple);">&#10003;</span> Email-only auth</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="mockup-section" id="login">
+    <h2>Login Page</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <div style="width:56px; height:56px; border-radius:12px; background:var(--clay-purple); border:3px solid var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--ink);">
+          <span style="font-size:1.5rem;">&#128274;</span>
+        </div>
+        <div>
+          <h2 style="font-size:1.5rem; font-weight:900;">Welcome back</h2>
+          <p style="opacity:0.7;">Log in to your account</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" placeholder="you@example.com" value="teacher@school.edu">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" placeholder="••••••••" value="••••••••">
+      </div>
+      <button class="btn btn-purple" style="width:100%; padding:0.75rem;">Log in</button>
+      <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">
+        Don't have an account? <a href="#register" style="color:var(--primary); font-weight:600;">Create one</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div class="mockup-section" id="register">
+    <h2>Register Page</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <div style="width:56px; height:56px; border-radius:12px; background:var(--clay-purple); border:3px solid var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--ink);">
+          <span style="font-size:1.5rem;">&#128100;</span>
+        </div>
+        <div>
+          <h2 style="font-size:1.5rem; font-weight:900;">Create your account</h2>
+          <p style="opacity:0.7;">Sign up to get started</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-purple" style="width:100%; padding:0.75rem;">Create account</button>
+      <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">
+        Already have an account? <a href="#login" style="color:var(--primary); font-weight:600;">Log in</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD -->
+  <div class="mockup-section" id="forgot-password">
+    <h2>Forgot Password Page</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <div style="width:56px; height:56px; border-radius:12px; background:var(--clay-purple); border:3px solid var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--ink);">
+          <span style="font-size:1.5rem;">&#128231;</span>
+        </div>
+        <div>
+          <h2 style="font-size:1.5rem; font-weight:900;">Reset password</h2>
+          <p style="opacity:0.7;">We'll send you a link to reset it</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email address</label>
+        <input type="email" placeholder="you@example.com">
+      </div>
+      <button class="btn btn-purple" style="width:100%; padding:0.75rem;">Send reset link</button>
+      <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">
+        <a href="#login" style="color:var(--primary); font-weight:600;">&#8592; Back to log in</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- RESET PASSWORD -->
+  <div class="mockup-section" id="reset-password">
+    <h2>Reset Password Page</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <div style="width:56px; height:56px; border-radius:12px; background:var(--clay-purple); border:3px solid var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--ink);">
+          <span style="font-size:1.5rem;">&#128274;</span>
+        </div>
+        <div>
+          <h2 style="font-size:1.5rem; font-weight:900;">New password</h2>
+          <p style="opacity:0.7;">Enter your new password below</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-purple" style="width:100%; padding:0.75rem;">Reset password</button>
+    </div>
+  </div>
+
+  <!-- CHECK EMAIL -->
+  <div class="mockup-section" id="check-email">
+    <h2>Check Email Page</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <div style="width:56px; height:56px; border-radius:12px; background:var(--clay-purple); border:3px solid var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 var(--ink);">
+          <span style="font-size:1.5rem;">&#128231;</span>
+        </div>
+        <div>
+          <h2 style="font-size:1.5rem; font-weight:900;">Check your email</h2>
+          <p style="opacity:0.7;">Almost there!</p>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:80px; height:80px; border-radius:50%; background:var(--clay-sun); border:4px solid var(--ink); box-shadow:4px 4px 0 var(--ink); margin-bottom:1rem;">
+          <span style="font-size:2rem;">&#128231;</span>
+        </div>
+        <p style="opacity:0.7;">We sent a confirmation email to:</p>
+        <p style="font-weight:800; word-break:break-all;">you@example.com</p>
+        <p style="opacity:0.7; margin-top:0.5rem;">Click the confirmation link in your email to activate your account.</p>
+        <button class="btn btn-purple" style="margin-top:1rem;">Go to Login</button>
+        <p style="font-size:0.75rem; opacity:0.5; margin-top:0.5rem;">Didn't receive it? Check your Spam or Promotions folder.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEACHER DASHBOARD -->
+  <div class="mockup-section" id="dashboard">
+    <h2>Teacher Dashboard</h2>
+    <div class="mockup-layout">
+      <div class="mockup-sidebar">
+        <a href="#" class="active">Dashboard</a>
+        <a href="#">Analytics</a>
+        <a href="#">Score Import</a>
+        <a href="#">Roster</a>
+        <a href="#">QR Generator</a>
+        <a href="#">Missions</a>
+        <a href="#">Reward Catalog</a>
+        <a href="#">Accounts</a>
+        <a href="#">Announcements</a>
+        <a href="#">Activity Logs</a>
+        <a href="#">Export Data</a>
+        <a href="#">Mission Archive</a>
+        <a href="#">Class Setup</a>
+        <a href="#">Settings</a>
+        <a href="#">Help Guide</a>
+        <a href="#">&#127942; Leaderboard</a>
+        <a href="#" style="color:var(--clay-coral);">&#128682; Log out</a>
+      </div>
+      <div class="mockup-main">
+        <div class="mockup-header">
+          <h1>UniClass</h1>
+          <span style="font-size:0.85rem;">teacher@school.edu</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-card"><div class="value">4</div><div class="label">Classes</div></div>
+          <div class="stat-card"><div class="value">128</div><div class="label">Students</div></div>
+          <div class="stat-card"><div class="value">86%</div><div class="label">Attendance</div></div>
+          <div class="stat-card"><div class="value">342</div><div class="label">Points</div></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h4>Recent Activity</h4>
+            <div style="font-size:0.85rem;">
+              <p><span class="badge badge-purple">Attendance</span> Group 3 marked present</p>
+              <p><span class="badge badge-sky">Mission</span> "Math Quest" completed</p>
+              <p><span class="badge badge-sun">Reward</span> 5 capsules earned</p>
+            </div>
+          </div>
+          <div class="card">
+            <h4>Pending Approvals</h4>
+            <div style="font-size:0.85rem;">
+              <p><span class="avatar" style="width:24px;height:24px;font-size:0.6rem;">S</span> Smith, J. — Group 2</p>
+              <p><span class="avatar" style="width:24px;height:24px;font-size:0.6rem;">C</span> Chen, L. — Group 1</p>
+              <p><span class="avatar" style="width:24px;height:24px;font-size:0.6rem;">A</span> Alvarez, M. — Group 3</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDENT DASHBOARD -->
+  <div class="mockup-section" id="student-dashboard">
+    <h2>Student Dashboard</h2>
+    <div class="mockup-layout">
+      <div class="mockup-sidebar">
+        <a href="#" class="active">Dashboard</a>
+        <a href="#">Attendance</a>
+        <a href="#">Activity Scores</a>
+        <a href="#">Scan QR</a>
+        <a href="#">Badges</a>
+        <a href="#">Missions</a>
+        <a href="#">Rewards</a>
+        <a href="#">Leaderboard</a>
+        <a href="#">Help</a>
+        <a href="#" style="color:var(--clay-coral);">&#128682; Log out</a>
+      </div>
+      <div class="mockup-main">
+        <div class="mockup-header">
+          <h1>UniClass</h1>
+          <span style="font-size:0.85rem;">student@school.edu</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-card"><div class="value">92%</div><div class="label">Attendance</div></div>
+          <div class="stat-card"><div class="value">15</div><div class="label">Badges</div></div>
+          <div class="stat-card"><div class="value">8</div><div class="label">Missions</div></div>
+          <div class="stat-card"><div class="value">245</div><div class="label">Points</div></div>
+        </div>
+        <div class="card">
+          <h4>Your Group</h4>
+          <div style="display:flex; align-items:center; gap:1rem;">
+            <span class="chip chip-purple">Group 3</span>
+            <span class="chip chip-sky">Representative</span>
+            <span style="margin-left:auto; font-size:0.85rem;">24 pts this week</span>
+          </div>
+          <div class="progress-bar" style="margin-top:0.5rem;"><div class="progress-fill" style="width:75%;"></div></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h4>Recent Missions</h4>
+            <p style="font-size:0.85rem;">&#127919; Math Quest — Completed</p>
+            <p style="font-size:0.85rem;">&#129516; Science Lab — In Progress</p>
+            <p style="font-size:0.85rem;">&#127919; History Quiz — Completed</p>
+          </div>
+          <div class="card">
+            <h4>Rewards Unlocked</h4>
+            <p style="font-size:0.85rem;">&#127873; Bronze Badge</p>
+            <p style="font-size:0.85rem;">&#127881; Silver Badge</p>
+            <p style="font-size:0.85rem;">&#129421; Gacha Capsule x3</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="mockup-section" id="leaderboard">
+    <h2>Leaderboard</h2>
+    <div class="mockup-frame static">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+        <h2 style="font-size:1.2rem; font-weight:900;">Student Leaderboard</h2>
+        <span style="font-size:0.8rem; opacity:0.7;">Groups ranked by total participation points</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Group</th><th>Points</th><th>Missions</th><th>Progress</th></tr></thead>
+          <tbody>
+            <tr><td>&#129351;</td><td>Group 3</td><td><strong>245</strong></td><td>8</td><td><div class="progress-bar" style="width:100px;"><div class="progress-fill sun" style="width:90%;"></div></div></td></tr>
+            <tr><td>&#129352;</td><td>Group 1</td><td><strong>210</strong></td><td>6</td><td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:75%;"></div></div></td></tr>
+            <tr><td>&#129353;</td><td>Group 2</td><td><strong>185</strong></td><td>5</td><td><div class="progress-bar" style="width:100px;"><div class="progress-fill coral" style="width:65%;"></div></div></td></tr>
+            <tr><td>4</td><td>Group 4</td><td>150</td><td>4</td><td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:50%;"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAITING APPROVAL -->
+  <div class="mockup-section" id="waiting">
+    <h2>Waiting Approval Page</h2>
+    <div class="mockup-frame static" style="display:flex; align-items:center; justify-content:center;">
+      <div style="text-align:center; max-width:400px;">
+        <div style="font-size:4rem; margin-bottom:1rem;">&#128065;</div>
+        <h2 style="font-size:1.5rem; font-weight:900;">Waiting for approval</h2>
+        <p style="opacity:0.7;">Hi there! Your account has been registered.</p>
+        <p style="opacity:0.7;">Your teacher needs to approve your group before you can start.</p>
+        <p style="font-size:0.75rem; opacity:0.5;">This page checks automatically every 5 seconds.</p>
+        <button class="btn btn-coral" style="margin-top:1rem;">&#128682; Log out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTH CALLBACK -->
+  <div class="mockup-section" id="auth-callback">
+    <h2>Auth Callback (Loading)</h2>
+    <div class="mockup-frame static" style="display:flex; align-items:center; justify-content:center;">
+      <div style="display:flex; align-items:center; gap:1rem;">
+        <div style="width:20px; height:20px; border:2px solid var(--clay-purple); border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
+        <span style="font-weight:800;">Signing you in&hellip;</span>
+      </div>
+      <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+    </div>
+  </div>
+
+  <!-- SIGNUP CONFIRMATION FLOW -->
+  <div class="mockup-section" id="signup-flow">
+    <h2>Signup Flow: Confirmation Email (NOT OTP)</h2>
+    <div class="card">
+      <h3>&#128274; Signup Flow Verification</h3>
+      <table>
+        <thead><tr><th>Step</th><th>Action</th><th>Method</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>User submits email + password</td><td><code>supabase.auth.signUp()</code></td><td><span class="badge badge-lime">Active</span></td></tr>
+          <tr><td>2</td><td>Supabase sends confirmation email</td><td>Email with magic link</td><td><span class="badge badge-lime">Active</span></td></tr>
+          <tr><td>3</td><td>User clicks confirmation link</td><td>Redirects to <code>/auth/callback</code></td><td><span class="badge badge-lime">Active</span></td></tr>
+          <tr><td>4</td><td>App exchanges code for session</td><td><code>exchangeCodeForSession()</code></td><td><span class="badge badge-lime">Active</span></td></tr>
+          <tr><td>5</td><td>User redirected to home</td><td>Navigate to <code>/</code></td><td><span class="badge badge-lime">Active</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="border-color: var(--clay-lime);">
+      <h3>&#10003; No OTP / Phone Verification</h3>
+      <p style="font-size:0.9rem;">The signup flow uses <strong>email confirmation only</strong> — no SMS/OTP, no phone number required. This is confirmed by:</p>
+      <ul style="margin-top:0.5rem; padding-left:1.5rem; font-size:0.9rem;">
+        <li><code>Register.jsx</code> calls <code>supabase.auth.signUp()</code> — sends confirmation email</li>
+        <li>No <code>signInWithOtp</code> or <code>signInWithPhone</code> calls anywhere in the codebase</li>
+        <li><code>input-otp</code> component was unused and has been removed</li>
+        <li>Landing page explicitly states "Email-only auth"</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

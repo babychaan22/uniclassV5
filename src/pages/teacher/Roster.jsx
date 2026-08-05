@@ -1,0 +1,108 @@
+
+const db = globalThis.__B44_DB__;
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/AuthContext";
+import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomContext } from "@/lib/teacherClassroom";
+
+import ClayButton from "@/components/ClayButton";
+import ClayCard from "@/components/ClayCard";
+import ClayChip from "@/components/ClayChip";
+import { Users, Save, Loader2, UserCog } from "lucide-react";
+import { ROUTES } from '@/lib/routes';
+
+export default function Roster() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [classroom, setClassroom] = useState(null);
+  const [groups, setGroups] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [edit, setEdit] = useState({});
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => { load(); }, [user]);
+
+  async function load() {
+    if (!user) return;
+    const c = await getTeacherClassroom(user.id);
+    if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
+    setClassroom(c);
+    const [g, m, acc] = await Promise.all([
+      getClassroomGroups(c.id),
+      getClassroomMembers(c.id),
+      db.entities.GroupAccount.filter({ classroom_id: c.id }),
+    ]);
+    setGroups(g.sort((a, b) => a.group_number - b.group_number));
+    setMembers(m);
+    setAccounts(acc);
+  }
+
+  function startEdit(mem) { setEdit({ ...edit, [mem.id]: { last_name: mem.last_name, first_name: mem.first_name, group_id: mem.group_id } }); }
+  function cancel(id) { const n = { ...edit }; delete n[id]; setEdit(n); }
+
+  async function save(mem) {
+    const v = edit[mem.id];
+    setSaving(mem.id);
+    await db.entities.GroupMember.update(mem.id, { last_name: v.last_name.toUpperCase(), first_name: v.first_name.toUpperCase(), group_id: v.group_id });
+    invalidateClassroomContext();
+    setSaving(null);
+    cancel(mem.id);
+    load();
+  }
+
+  if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-5">
+      <div>
+        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Users className="w-6 h-6" /> Student Roster</h1>
+        <p className="text-ink/60 text-sm">Edit student names or reassign groups quickly.</p>
+      </div>
+
+      {groups.map((g) => {
+        const gm = members.filter((m) => m.group_id === g.id);
+        if (gm.length === 0) return null;
+        return (
+          <ClayCard key={g.id} className="p-4">
+            <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4" /> Group {g.group_number}{g.group_name ? ` — ${g.group_name}` : ""} <ClayChip color="cream">{gm.length}</ClayChip>
+            </h2>
+            <div className="space-y-2">
+              {gm.map((mem) => {
+                const v = edit[mem.id];
+                const editing = !!v;
+                return (
+                  <div key={mem.id} className="flex flex-wrap items-center gap-2 p-2 rounded-xl border-2 border-ink/15 bg-cream">
+                    {editing ? (
+                      <>
+                        <input className="clay-input text-sm w-32" value={v.last_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, last_name: e.target.value.toUpperCase() } })} placeholder="LAST" />
+                        <input className="clay-input text-sm w-32" value={v.first_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, first_name: e.target.value.toUpperCase() } })} placeholder="FIRST" />
+                        <select className="clay-input text-sm w-28" value={v.group_id} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, group_id: e.target.value } })}>
+                          {groups.map((gg) => <option key={gg.id} value={gg.id}>G{gg.group_number}</option>)}
+                        </select>
+                        <ClayButton size="sm" color="lime" onClick={() => save(mem)} disabled={saving === mem.id}>
+                          {saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        </ClayButton>
+                        <ClayButton size="sm" color="cream" onClick={() => cancel(mem.id)}>✕</ClayButton>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-display font-bold text-sm flex-1 min-w-0">{mem.last_name}, {mem.first_name}</span>
+                        {accounts.find((a) => a.group_member_id === mem.id)?.is_representative && <ClayChip color="purple">Rep</ClayChip>}
+                        {mem.is_account_holder && <ClayChip color="sky">Account</ClayChip>}
+                        <ClayButton size="sm" color="sky" onClick={() => startEdit(mem)}><UserCog className="w-4 h-4" /> Edit</ClayButton>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ClayCard>
+        );
+      })}
+    </div>
+  );
+}
+

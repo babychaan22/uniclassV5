@@ -1,0 +1,16 @@
+{
+  "name": "UniClass",
+  "short_name": "UniClass",
+  "description": "Gamified classroom management app with QR rewards and gacha capsules",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF8EF",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

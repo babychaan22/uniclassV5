@@ -1,0 +1,182 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 258 90% 66%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 199 91% 63%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 11 100% 67%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 243 31% 12%;
+    --input: 0 0% 89.8%;
+    --ring: 258 90% 66%;
+    --chart-1: 258 90% 66%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 340 100% 66%;
+    --radius: 1rem;
+    --font-heading: "Baloo 2", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-display: "Baloo 2", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    --clay-purple: #8B5CF6;
+    --clay-pink: #FF5FA8;
+    --clay-lime: #A6E22E;
+    --clay-sun: #FFD93D;
+    --clay-sky: #4FD1F2;
+    --clay-coral: #FF6B57;
+    --ink: #17162B;
+    --cream: #FFF8EF;
+  }
+
+  .dark {
+    --background: 243 31% 8%;
+    --foreground: 0 0% 98%;
+    --card: 243 31% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 243 31% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 258 90% 66%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 243 31% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 243 31% 15%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 199 91% 63%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 11 100% 67%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 243 31% 15%;
+    --input: 243 31% 15%;
+    --ring: 258 90% 66%;
+  }
+}
+
+@layer components {
+  .clay-card {
+    border: 3px solid #17162B;
+    border-radius: 22px;
+    box-shadow: 4px 4px 0 #17162B;
+    background: #FFF8EF;
+  }
+  .clay-btn {
+    border: 3px solid #17162B;
+    border-radius: 16px;
+    box-shadow: 4px 4px 0 #17162B;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    font-family: var(--font-display);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .clay-btn:active:not(:disabled) {
+    box-shadow: 1px 1px 0 #17162B;
+    transform: translate(3px, 3px);
+  }
+  .clay-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .xp-card { position: relative; overflow: visible; }
+  .xp-card::after { content: "+50 XP ✦"; position: absolute; right: 1rem; top: -0.8rem; opacity: 0; transform: translateY(8px) rotate(-4deg); pointer-events: none; color: #17162B; background: #A6E22E; border: 2px solid #17162B; border-radius: 999px; box-shadow: 2px 2px 0 #17162B; padding: 0.2rem 0.55rem; font: 800 0.7rem var(--font-display); }
+  .xp-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #17162B; }
+  .xp-card:hover::after { animation: xp-pop 650ms ease-out both; }
+  .clay-chip {
+    border: 2.5px solid #17162B;
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 #17162B;
+    font-family: var(--font-display);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .clay-input {
+    border: 3px solid #17162B;
+    border-radius: 14px;
+    background: #FFF8EF;
+    font-family: var(--font-body);
+    padding: 0.6rem 0.85rem;
+    width: 100%;
+    outline: none;
+    transition: box-shadow 0.08s ease;
+  }
+  .clay-input:focus {
+    box-shadow: 3px 3px 0 #17162B;
+  }
+  .clay-tile {
+    border: 3px solid #17162B;
+    border-radius: 22px;
+    box-shadow: 4px 4px 0 #17162B;
+    background-image: linear-gradient(145deg, rgba(255,255,255,0.45), rgba(0,0,0,0.08));
+  }
+  .clay-medallion {
+    border: 3px solid #17162B;
+    border-radius: 9999px;
+    box-shadow: 4px 4px 0 #17162B;
+    background-image: linear-gradient(145deg, rgba(255,255,255,0.5), rgba(0,0,0,0.12));
+  }
+}
+
+@keyframes xp-pop { 0% { opacity: 0; transform: translateY(10px) rotate(-4deg) scale(0.7); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-24px) rotate(4deg) scale(1.08); } }
+@keyframes nova-nap { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(3px); } }
+@keyframes nova-celebrate { 0%,100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-12px) rotate(-8deg); } 60% { transform: translateY(-4px) rotate(8deg); } }
+@keyframes nova-think { 0%,100% { transform: rotate(0); } 50% { transform: rotate(3deg) translateY(-2px); } }
+.nova-mascot.nova-waiting { animation: nova-nap 2.3s ease-in-out infinite; }
+.nova-mascot.nova-bounce { animation: nova-celebrate .7s ease-out 2; }
+.nova-mascot.nova-think { animation: nova-think 1.3s ease-in-out infinite; }
+.nova-mascot:enabled:active { transform: translate(3px, 3px) scale(.96); }
+.dark body, .dark .bg-cream { background-color: #201f35 !important; }
+.dark .bg-white { background-color: #302e4b !important; }
+.dark .text-ink { color: #fffdf6 !important; }
+.dark .text-ink\/60, .dark .text-ink\/70, .dark .text-ink\/75 { color: rgba(255,253,246,.72) !important; }
+.dark .clay-card, .dark .clay-tile, .dark .clay-input { background-color: #302e4b; color: #fffdf6; }
+.dark .clay-btn.bg-cream { background-color: #302e4b !important; color: #fffdf6; }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    background: #FFF8EF;
+    color: #17162B;
+    font-family: var(--font-body);
+  }
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-display);
+    font-weight: 800;
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .clay-card, .clay-btn, .clay-chip, .clay-tile, .clay-medallion {
+    box-shadow: none !important;
+    border-color: #000 !important;
+    background-image: none !important;
+    background: white !important;
+    color: black !important;
+  }
+}
