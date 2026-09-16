@@ -36,22 +36,6 @@ export default function PageNotFound() {
             </p>
           </div>
 
-          {isFetched && authData?.isAuthenticated && authData.user?.role === 'admin' && (
-            <div className="mt-8 p-4 bg-cream rounded-lg border-2 border-ink/15">
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-clay-sun/30 flex items-center justify-center mt-0.5">
-                  <div className="w-2 h-2 rounded-full bg-clay-sun"></div>
-                </div>
-                <div className="text-left space-y-1">
-                  <p className="text-sm font-display font-bold text-ink/80">Admin Note</p>
-                  <p className="text-sm text-ink/60 leading-relaxed">
-                    This page has not been implemented yet.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="pt-6">
             <button
               onClick={() => window.location.href = '/'}

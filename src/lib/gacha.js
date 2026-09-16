@@ -1,13 +1,9 @@
 
 export const GACHA_OUTCOMES = [
-  { mult: 0.25, mood: "sad", label: "BROKE", emoji: "😭" },
-  { mult: 0.5, mood: "sad", label: "REKT", emoji: "😢" },
-  { mult: 0.75, mood: "sad", label: "MID ROLL", emoji: "😕" },
-  { mult: 1, mood: "neutral", label: "EVEN STEVEN", emoji: "😐" },
-  { mult: 1.25, mood: "happy", label: "SLIGHT W", emoji: "🙂" },
-  { mult: 1.5, mood: "happy", label: "DECENT W", emoji: "😄" },
-  { mult: 1.75, mood: "happy", label: "BIG W", emoji: "🤩" },
-  { mult: 2, mood: "happy", label: "JACKPOT", emoji: "🎉" },
+  { mult: 0.5, mood: "sad", label: "Try again next time!", emoji: "🙂" },
+  { mult: 1, mood: "neutral", label: "Your points are safe!", emoji: "🛡️" },
+  { mult: 1.5, mood: "happy", label: "You lucky duck!", emoji: "🦆" },
+  { mult: 2, mood: "happy", label: "Jackpot! Wohoo!", emoji: "🎉" },
 ];
 
 export const MOOD_COLOR = {
@@ -79,4 +75,3 @@ export function playStamp() {
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
   osc.stop(ctx.currentTime + 0.1);
 }
-

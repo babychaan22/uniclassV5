@@ -3,12 +3,14 @@ const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import CapsulePop from "@/components/CapsulePop";
 import { redeemBadge } from "@/lib/badgeService";
+import { claimBadgeDefinition } from "@/lib/secureActions";
 import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { playStamp } from "@/lib/gacha";
 import { Award, Check, Loader2, Volume2, VolumeX } from "lucide-react";
@@ -30,6 +32,7 @@ export default function StudentBadges() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [soundOn, setSoundOn] = useState(false);
+  const [customBadges, setCustomBadges] = useState([]);
 
   const weekStart = getWeekStartManila();
   const endOfWeek = isEndOfWeekManila();
@@ -37,8 +40,8 @@ export default function StudentBadges() {
   useEffect(() => {
     async function load() {
       if (!user) return;
-      const acc = await db.entities.GroupAccount.filter({ user_id: user.id });
-      const a = acc[0];
+      const a = await getActiveStudentAccount(user.id);
+      if (!a) return;
       setAccount(a);
       const g = await db.entities.Group.get(a.group_id);
       setGroup(g);
@@ -49,6 +52,7 @@ export default function StudentBadges() {
       setClaimed(claimedMap);
 
       const classroomId = g.classroom_id;
+      setCustomBadges(await db.entities.BadgeDefinition.filter({ classroom_id: classroomId, is_active: true }));
       const [members, allGroups, allMembers, attendance, scores, activities, logs] = await Promise.all([
         db.entities.GroupMember.filter({ group_id: g.id }),
         db.entities.Group.filter({ classroom_id: classroomId }),
@@ -105,6 +109,16 @@ export default function StudentBadges() {
     setTimeout(() => setResult(null), 3000);
   }
 
+  async function claimCustom(definition) {
+    setRedeeming(definition.id); setError("");
+    try {
+      await claimBadgeDefinition(definition.id, group.id, definition.badge_scope === "personal" ? account.group_member_id : null);
+      setClaimed({ ...claimed, [`custom:${definition.id}`]: true });
+      setResult({ badgeType: "custom", points: definition.points, icon: definition.icon, title: definition.title });
+    } catch (err) { setError(err.message || "Could not claim badge."); }
+    setRedeeming(null);
+  }
+
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
@@ -122,7 +136,7 @@ export default function StudentBadges() {
       {result && (
         <CapsulePop trigger={Date.now()} className="flex justify-center">
           <div className="clay-medallion bg-clay-sun w-24 h-24 flex flex-col items-center justify-center">
-            <span className="text-3xl">{BADGE_INFO[result.badgeType].icon}</span>
+            <span className="text-3xl">{result.icon || BADGE_INFO[result.badgeType].icon}</span>
             <span className="font-display font-bold text-sm">+{result.points}</span>
           </div>
         </CapsulePop>
@@ -165,6 +179,13 @@ export default function StudentBadges() {
           );
         })}
       </div>
+      {customBadges.length > 0 && <>
+        <h2 className="font-display font-bold text-lg">Teacher badges</h2>
+        <div className="grid sm:grid-cols-2 gap-4">{customBadges.map((badge) => {
+          const key = `custom:${badge.id}`; const isClaimed = claimed[key];
+          return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Optional weekend badge"}</p></div></div><ClayChip color={isClaimed ? "lime" : "sun"}>{isClaimed ? "Claimed" : `${badge.badge_scope} · +${badge.points} pts`}</ClayChip>{endOfWeek && !isClaimed && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Claim badge"}</ClayButton>}</ClayCard>;
+        })}</div>
+      </>}
     </div>
   );
 }
@@ -174,4 +195,3 @@ function addDays(dateStr, days) {
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
-

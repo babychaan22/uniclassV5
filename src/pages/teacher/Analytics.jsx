@@ -32,7 +32,7 @@ export default function TeacherAnalytics() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['groups','attendance','logs']);
     const { attendance, logs, groups } = ds;
 
     const byWeek = {};
@@ -99,4 +99,3 @@ export default function TeacherAnalytics() {
     </div>
   );
 }
-

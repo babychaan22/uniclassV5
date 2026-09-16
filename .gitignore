@@ -31,3 +31,9 @@ dist-ssr
 .env
 .vite
 
+# Generated local test output
+/playwright-report
+/test-results
+
+# Supabase CLI local metadata
+/supabase/.temp

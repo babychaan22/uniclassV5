@@ -1,8 +1,6 @@
 
-const db = globalThis.__B44_DB__;
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 
 import ClayButton from "@/components/ClayButton";
@@ -11,10 +9,13 @@ import ClayChip from "@/components/ClayChip";
 import MascotWidget from "@/components/MascotWidget";
 import { Hash, Users, Plus, X, ArrowRight, Star, ShieldCheck, Info } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import { joinClassroom, lookupClassroomByJoinCode } from '@/lib/secureActions';
 
 export default function StudentOnboarding() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const addingClass = searchParams.get("add") === "1";
   const [step, setStep] = useState(1);
   const [joinCode, setJoinCode] = useState("");
   const [classroom, setClassroom] = useState(null);
@@ -28,34 +29,34 @@ export default function StudentOnboarding() {
   const [email, setEmail] = useState(user?.email || "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [existingAccounts, setExistingAccounts] = useState([]);
 
   useEffect(() => {
     async function check() {
       if (!user) return;
       const acc = await db.entities.GroupAccount.filter({ user_id: user.id });
-      if (acc.length > 0) {
+      setExistingAccounts(acc);
+      if (acc.length > 0 && !addingClass) {
         navigate(acc[0].is_approved ? ROUTES.STUDENT.DASHBOARD : ROUTES.WAITING_APPROVAL, { replace: true });
       }
     }
     check();
-  }, [user, navigate]);
+  }, [user, navigate, addingClass]);
 
   async function findClass(e) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const cr = await db.entities.Classroom.filter({ join_code: joinCode.toUpperCase().trim() });
-      if (cr.length === 0) { setError("Invalid join code. Check with your teacher."); setLoading(false); return; }
-      const c = cr[0];
-      setClassroom(c);
-      const [g, acc] = await Promise.all([
-        db.entities.Group.filter({ classroom_id: c.id }),
-        db.entities.GroupAccount.filter({ classroom_id: c.id }),
-      ]);
-      setGroups(g.sort((a, b) => a.group_number - b.group_number));
-      setAccounts(acc);
-      setStep(2);
+      const result = await lookupClassroomByJoinCode(joinCode.toUpperCase().trim());
+      setClassroom(result.classroom);
+      setGroups((result.groups || []).sort((a, b) => a.group_number - b.group_number));
+      setAccounts(result.accounts || []);
+      if (result.classroom.uses_groups === false) {
+        setSelectedGroup({ id: null, group_number: null });
+        setWantsRep(true);
+        setStep(3);
+      } else setStep(2);
     } catch (err) { setError(err.message); }
     setLoading(false);
   }
@@ -86,99 +87,20 @@ export default function StudentOnboarding() {
     const norm = (s) => (s || "").toUpperCase().trim();
 
     try {
-      // Re-fetch fresh data right before submitting to minimize race windows
-      // (two students joining the same group at almost the same moment).
-      const [classroomMembers, classroomAccounts] = await Promise.all([
-        db.entities.GroupMember.filter({ classroom_id: classroom.id }),
-        db.entities.GroupAccount.filter({ classroom_id: classroom.id }),
-      ]);
-
-      // A person (by name) can only enroll once across the whole classroom.
-      const dupNameAcc = classroomAccounts.find(
-        (a) => norm(a.last_name) === norm(lastName) && norm(a.first_name) === norm(firstName)
-      );
-      if (dupNameAcc) { setError("You may already be enrolled in this class."); setLoading(false); return; }
-
-      const dupEmail = classroomAccounts.find((a) => a.email && norm(a.email) === norm(email));
-      if (dupEmail) { setError("That email is already enrolled."); setLoading(false); return; }
-
-      const groupMembers = classroomMembers.filter((m) => m.group_id === selectedGroup.id);
-      const claimedMemberIds = new Set(classroomAccounts.filter((a) => a.group_member_id).map((a) => a.group_member_id));
-
-      // Try to match an existing (unclaimed) roster entry with the same name
-      // — e.g. the group's representative already listed this teammate.
-      const existingMatch = groupMembers.find(
-        (m) => norm(m.last_name) === norm(lastName) && norm(m.first_name) === norm(firstName)
-      );
-      if (existingMatch && claimedMemberIds.has(existingMatch.id)) {
-        setError("Someone already enrolled under that name in this group.");
-        setLoading(false);
-        return;
-      }
-
-      let myMember = existingMatch;
-      if (!myMember) {
-        myMember = await db.entities.GroupMember.create({
-          group_id: selectedGroup.id,
-          classroom_id: classroom.id,
-          last_name: norm(lastName),
-          first_name: norm(firstName),
-          is_account_holder: true,
-        });
-      } else if (!myMember.is_account_holder) {
-        await db.entities.GroupMember.update(myMember.id, { is_account_holder: true });
-      }
-
-      // Representatives can optionally pre-list teammates who haven't
-      // signed up yet, so attendance/scores can still be tracked for them.
-      if (wantsRep) {
-        for (const t of teammates) {
-          if (!t.last_name || !t.first_name) continue;
-          const dup = groupMembers.some(
-            (m) => norm(m.last_name) === norm(t.last_name) && norm(m.first_name) === norm(t.first_name)
-          ) || (norm(t.last_name) === norm(lastName) && norm(t.first_name) === norm(firstName));
-          if (dup) continue;
-          await db.entities.GroupMember.create({
-            group_id: selectedGroup.id,
-            classroom_id: classroom.id,
-            last_name: norm(t.last_name),
-            first_name: norm(t.first_name),
-            is_account_holder: false,
-          });
-        }
-      }
-
-      try {
-        await db.entities.GroupAccount.create({
-          user_id: user.id,
-          group_id: selectedGroup.id,
-          classroom_id: classroom.id,
-          group_member_id: myMember.id,
-          last_name: norm(lastName),
-          first_name: norm(firstName),
-          email: email.trim(),
-          is_approved: false,
-          is_representative: wantsRep,
-        });
-      } catch (err) {
-        // Postgres unique_violation — someone else claimed the
-        // representative spot for this group a moment before us.
-        if (err?.code === "23505" && wantsRep) {
-          setError("Someone just claimed the representative role for this group. Joining you as a regular member instead — tap Join again.");
-          setWantsRep(false);
-          const acc = await db.entities.GroupAccount.filter({ classroom_id: classroom.id });
-          setAccounts(acc);
-          setLoading(false);
-          return;
-        }
-        throw err;
-      }
+      await joinClassroom({
+        p_join_code: joinCode.toUpperCase().trim(),
+        p_group_id: selectedGroup?.id || null,
+        p_last_name: norm(lastName),
+        p_first_name: norm(firstName),
+        p_email: email.trim(),
+        p_wants_representative: wantsRep || classroom.uses_groups === false,
+        p_teammates: teammates.filter((t) => t.last_name && t.first_name),
+      });
 
       navigate(ROUTES.WAITING_APPROVAL);
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
-      const acc = await db.entities.GroupAccount.filter({ classroom_id: classroom.id });
-      setAccounts(acc);
+      // The join operation is transactional; a retry starts from a clean state.
     }
     setLoading(false);
   }
@@ -186,8 +108,9 @@ export default function StudentOnboarding() {
   if (step === 1) {
     return (
       <div className="max-w-md mx-auto mt-6">
-        <h1 className="text-2xl font-display font-extrabold mb-1">Join your class</h1>
+        <h1 className="text-2xl font-display font-extrabold mb-1">{addingClass ? "Join another class" : "Join your class"}</h1>
         <p className="text-ink/60 mb-6">Enter the join code your teacher gave you.</p>
+        {addingClass && existingAccounts.length > 0 && <ClayCard className="p-4 mb-4"><p className="font-display font-bold text-sm mb-2">Your current class memberships</p><div className="space-y-1 text-xs text-ink/60">{existingAccounts.map((a) => <p key={a.id}>{a.is_approved ? "Approved" : "Waiting for approval"} · {a.is_representative ? "Representative" : "Member"}</p>)}</div><Link className="text-xs text-clay-purple underline mt-2 inline-block" to={ROUTES.STUDENT.DASHBOARD}>Return to dashboard</Link></ClayCard>}
         <ClayCard className="p-6">
           <form onSubmit={findClass} className="space-y-4">
             <div>
@@ -244,18 +167,20 @@ export default function StudentOnboarding() {
   return (
     <div className="max-w-lg mx-auto space-y-5">
       <div>
-        <button type="button" className="text-sm text-ink/50 mb-2" onClick={() => setStep(2)}>&larr; Change group</button>
-        <h1 className="text-2xl font-display font-extrabold mb-1">Join Group {selectedGroup.group_number}</h1>
+        {classroom.uses_groups !== false && <button type="button" className="text-sm text-ink/50 mb-2" onClick={() => setStep(2)}>&larr; Change group</button>}
+        <h1 className="text-2xl font-display font-extrabold mb-1">{classroom.uses_groups === false ? "Join as an individual student" : `Join Group ${selectedGroup.group_number}`}</h1>
         <p className="text-ink/60">{classroom.grade_level} · {classroom.section}</p>
       </div>
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-3">Your name</p>
         <div className="flex gap-2">
-          <input className="clay-input flex-1" placeholder="LAST NAME" value={lastName} onChange={(e) => setLastName(e.target.value.toUpperCase())} required />
-          <input className="clay-input flex-1" placeholder="FIRST NAME" value={firstName} onChange={(e) => setFirstName(e.target.value.toUpperCase())} required />
+          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">Last name</label><input className="clay-input w-full" placeholder="e.g. Santos" value={lastName} onChange={(e) => setLastName(e.target.value.toUpperCase())} required /></div>
+          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">First name</label><input className="clay-input w-full" placeholder="e.g. Ana" value={firstName} onChange={(e) => setFirstName(e.target.value.toUpperCase())} required /></div>
         </div>
       </ClayCard>
+
+      {classroom.uses_groups === false && <ClayCard className="p-5"><p className="font-display font-bold mb-1">Individual class access</p><p className="text-sm text-ink/60">This class does not use groups. You will manage your own attendance, activity scores, and evidence.</p></ClayCard>}
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-1">Your Email</p>
@@ -263,7 +188,7 @@ export default function StudentOnboarding() {
         <input type="email" className="clay-input" placeholder="you@school.edu" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </ClayCard>
 
-      <ClayCard className="p-5">
+      {classroom.uses_groups !== false && <ClayCard className="p-5">
         <p className="font-display font-bold mb-1 flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Group Representative</p>
         {existingRep ? (
           <div className="flex items-start gap-2 text-sm text-ink/70 mt-1">
@@ -279,7 +204,7 @@ export default function StudentOnboarding() {
             </button>
           </>
         )}
-      </ClayCard>
+      </ClayCard>}
 
       {wantsRep && !existingRep && (
         <ClayCard className="p-5">

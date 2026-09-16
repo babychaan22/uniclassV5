@@ -1,11 +1,13 @@
+import { AlertCircle, Brain, Clock3, Dices, GraduationCap, PartyPopper, Target, Smile } from "lucide-react";
+
 const STATE_ASSET = {
-  idle: "/mascots/nova-welcome.png",
-  waiting: "/mascots/nova-music.png",
-  excited: "/mascots/nova-success.png",
-  ai_thinking: "/mascots/nova-thinking.png",
-  quest: "/mascots/nova-quest.png",
-  gacha: "/mascots/nova-laptop.png",
-  error: "/mascots/nova-thinking.png",
+  idle: Smile,
+  waiting: Clock3,
+  excited: PartyPopper,
+  ai_thinking: Brain,
+  quest: Target,
+  gacha: Dices,
+  error: AlertCircle,
 };
 
 const STATE_COPY = {
@@ -18,14 +20,16 @@ const STATE_COPY = {
   error: "Nova is helping solve the problem",
 };
 
-export function MascotBadge({ skinKey = "nova" }) {
-  const src = skinKey === "cyber_nova" ? "/mascots/nova-laptop.png" : skinKey === "gold_crown" ? "/mascots/nova-success.png" : "/mascots/nova-welcome.png";
-  return <img src={src} alt="Nova avatar" className="h-9 w-9 object-contain" />;
+export function MascotBadge() {
+  return <GraduationCap aria-label="UniClass learning logo" className="h-6 w-6 text-white" />;
 }
 
 export default function MascotWidget({ state = "idle", size = "md", interactive = false, onClick, className = "" }) {
-  const dimensions = size === "sm" ? "h-14 w-14" : size === "lg" ? "h-48 w-48" : "h-28 w-28";
-  const img = <img src={STATE_ASSET[state] || STATE_ASSET.idle} alt={STATE_COPY[state] || STATE_COPY.idle} className="h-full w-full object-contain" />;
-  if (!interactive) return <div className={`nova-mascot nova-${state} inline-flex shrink-0 ${dimensions} ${state === "excited" ? "nova-bounce" : ""} ${state === "ai_thinking" ? "nova-think" : ""} ${className}`}>{img}</div>;
-  return <button type="button" onClick={onClick} aria-label={STATE_COPY[state] || STATE_COPY.idle} className={`nova-mascot nova-${state} inline-flex shrink-0 cursor-pointer ${dimensions} ${state === "excited" ? "nova-bounce" : ""} ${className}`}>{img}</button>;
+  const dimensions = size === "sm" ? "h-8 w-8" : size === "lg" ? "h-28 w-28" : "h-14 w-14";
+  const Icon = STATE_ASSET[state] || STATE_ASSET.idle;
+  const iconColor = state === "error" ? "text-clay-coral" : state === "excited" ? "text-clay-sun" : "text-clay-purple";
+  const img = <Icon aria-hidden="true" className={`h-3/5 w-3/5 ${iconColor}`} strokeWidth={2.5} />;
+  const sizeClass = `nova-size-${size}`;
+  if (!interactive) return <div className={`nova-mascot nova-${state} ${sizeClass} inline-flex shrink-0 ${dimensions} ${state === "excited" ? "nova-bounce" : ""} ${state === "ai_thinking" ? "nova-think" : ""} ${className}`}>{img}</div>;
+  return <button type="button" onClick={onClick} aria-label={STATE_COPY[state] || STATE_COPY.idle} className={`nova-mascot nova-${state} ${sizeClass} inline-flex shrink-0 cursor-pointer ${dimensions} ${state === "excited" ? "nova-bounce" : ""} ${className}`}>{img}</button>;
 }

@@ -9,12 +9,12 @@
 // Set the secret (Google AI Studio API key):
 //   supabase secrets set GEMINI_API_KEY=sk-...
 //
-// Optional: override the model (default: gemini-1.5-flash):
-//   supabase secrets set GEMINI_MODEL=gemini-2.0-flash
+// Optional: override the model (default: gemini-2.5-flash):
+//   supabase secrets set GEMINI_MODEL=gemini-2.5-flash
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-1.5-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const SYSTEM_PROMPT =
@@ -22,7 +22,7 @@ const SYSTEM_PROMPT =
   'No markdown code fences, no prose before or after the JSON object.';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? 'https://uniclass.app',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -65,6 +65,9 @@ Deno.serve(async (req: Request) => {
   }
   if (!prompt) {
     return json({ error: '"prompt" is required.' }, 400);
+  }
+  if (typeof prompt !== 'string' || prompt.length > 12000) {
+    return json({ error: 'Prompt is too long.' }, 413);
   }
 
   try {

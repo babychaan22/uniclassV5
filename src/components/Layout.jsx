@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ROUTES } from "@/lib/routes";
@@ -7,51 +7,55 @@ import { ROUTES } from "@/lib/routes";
 import {
   Home, Settings, FileText, QrCode, Award, ClipboardCheck,
   LogOut, Menu, X, Target, Gift, User,
-  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download,
+  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { MascotBadge } from "@/components/MascotWidget";
+import StudentClassSwitcher from "@/components/StudentClassSwitcher";
 
-const TEACHER_NAV_GROUPS = [
+const TEACHER_NAV_SECTIONS = [
   {
-    label: "Overview",
+    label: "Home",
+    icon: Home,
     items: [
       { label: "Dashboard",  path: ROUTES.TEACHER.DASHBOARD,  icon: Home },
       { label: "Analytics",  path: ROUTES.TEACHER.ANALYTICS,  icon: BarChart3 },
     ],
   },
   {
-    label: "Grading",
+    label: "Teach",
+    icon: Target,
     items: [
-      { label: "Score Import", path: ROUTES.TEACHER.SCORE_IMPORT, icon: Upload },
-      { label: "Roster",       path: ROUTES.TEACHER.ROSTER,       icon: Users },
-    ],
-  },
-  {
-    label: "Engagement",
-    items: [
-      { label: "QR Generator",   path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       { label: "Missions",       path: ROUTES.TEACHER.MISSIONS,     icon: Target },
+      { label: "QR Generator",   path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
+      { label: "Score Import", path: ROUTES.TEACHER.SCORE_IMPORT, icon: Upload },
       { label: "Reward Catalog", path: ROUTES.TEACHER.REWARDS,      icon: Gift },
+      { label: "Badges", path: ROUTES.TEACHER.BADGES, icon: Award },
     ],
   },
   {
     label: "Class",
+    icon: Users,
     items: [
+      { label: "Roster",         path: ROUTES.TEACHER.ROSTER,             icon: Users },
       { label: "Accounts",      path: ROUTES.TEACHER.STUDENT_MANAGEMENT, icon: UserCheck },
       { label: "Announcements", path: ROUTES.TEACHER.ANNOUNCEMENTS,      icon: Megaphone },
     ],
   },
   {
-    label: "Data",
+    label: "Reports",
+    icon: BarChart3,
     items: [
       { label: "Activity Logs",   path: ROUTES.TEACHER.ACTIVITY_LOGS,  icon: ClipboardList },
+      { label: "Activity Proof", path: ROUTES.TEACHER.EVIDENCE,        icon: Image },
       { label: "Export Data",     path: ROUTES.TEACHER.EXPORT_DATA,    icon: Download },
       { label: "Mission Archive", path: ROUTES.TEACHER.MISSION_ARCHIVE, icon: Archive },
+      { label: "Leaderboard",     path: ROUTES.LEADERBOARD,              icon: Trophy },
     ],
   },
   {
-    label: "Setup",
+    label: "More",
+    icon: Settings,
     items: [
       { label: "Class Setup", path: ROUTES.TEACHER.ONBOARDING, icon: Settings },
       { label: "Settings",    path: ROUTES.TEACHER.SETTINGS,   icon: User },
@@ -76,9 +80,22 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [openSection, setOpenSection] = useState("Home");
 
   const isTeacher = location.pathname.startsWith("/teacher") || location.pathname === ROUTES.LEADERBOARD;
-  const nav = isTeacher ? TEACHER_NAV_GROUPS.flatMap((g) => g.items) : STUDENT_NAV;
+  const nav = isTeacher
+    ? [
+        { label: "Home", path: ROUTES.TEACHER.DASHBOARD, icon: Home },
+        { label: "Teach", path: ROUTES.TEACHER.MISSIONS, icon: Target },
+        { label: "Class", path: ROUTES.TEACHER.ROSTER, icon: Users },
+        { label: "Reports", path: ROUTES.TEACHER.ANALYTICS, icon: BarChart3 },
+      ]
+    : STUDENT_NAV;
+
+  useEffect(() => {
+    const current = TEACHER_NAV_SECTIONS.find((section) => section.items.some((item) => item.path === location.pathname));
+    if (current) setOpenSection(current.label);
+  }, [location.pathname]);
 
   const handleLogout = async () => { await logout(true); };
 
@@ -86,10 +103,25 @@ export default function Layout() {
     const Icon = item.icon;
     const active = location.pathname === item.path;
     return (
-      <Link key={item.path} to={item.path} className={`clay-btn justify-start px-4 py-3 text-sm ${active ? "bg-clay-pink text-white" : "bg-cream text-ink"}`}>
+      <Link key={item.path} to={item.path} onClick={() => setOpen(false)} className={`clay-btn justify-start px-3 py-2 text-sm ${active ? "bg-clay-pink text-white" : "bg-cream text-ink"}`}>
         <Icon className="w-5 h-5" />
         {item.label}
       </Link>
+    );
+  };
+
+  const SectionMenu = ({ section }) => {
+    const Icon = section.icon;
+    const expanded = openSection === section.label;
+    return (
+      <div>
+        <button type="button" onClick={() => setOpenSection(expanded ? "" : section.label)} aria-expanded={expanded} className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-display font-extrabold ${expanded ? "bg-clay-purple text-white" : "text-ink/70 hover:bg-clay-purple/10"}`}>
+          <Icon className="w-4 h-4" />
+          <span className="flex-1 text-left">{section.label}</span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded && <div className="mt-1 ml-2 pl-2 border-l-2 border-ink/10 flex flex-col gap-1">{section.items.map((item) => <NavItem key={item.path} item={item} />)}</div>}
+      </div>
     );
   };
 
@@ -104,6 +136,7 @@ export default function Layout() {
             <span className="font-display font-extrabold text-lg sm:text-xl">UniClass</span>
           </Link>
           <div className="flex items-center gap-3">
+            {!isTeacher && <StudentClassSwitcher user={user} />}
             <span className="hidden sm:block text-sm font-display font-bold opacity-90">{user?.email}</span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-pink text-white px-2 py-2" aria-label="Menu">
@@ -117,23 +150,11 @@ export default function Layout() {
         <aside className="hidden lg:block w-56 shrink-0 no-print">
           <nav className="flex flex-col gap-3">
             {isTeacher ? (
-              TEACHER_NAV_GROUPS.map((group) => (
-                <div key={group.label}>
-                  <p className="text-[10px] font-display font-extrabold uppercase tracking-wider text-ink/40 px-4 mb-1">{group.label}</p>
-                  <div className="flex flex-col gap-1.5 mb-2">
-                    {group.items.map((item) => <NavItem key={item.path} item={item} />)}
-                  </div>
-                </div>
-              ))
+              TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
             ) : (
               <div className="flex flex-col gap-2">
                 {STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} />)}
               </div>
-            )}
-            {isTeacher && (
-              <Link to={ROUTES.LEADERBOARD} className={`clay-btn justify-start px-4 py-3 text-sm ${location.pathname === ROUTES.LEADERBOARD ? "bg-clay-pink text-white" : "bg-cream text-ink"}`}>
-                <Trophy className="w-5 h-5" /> Leaderboard
-              </Link>
             )}
             <button onClick={handleLogout} className="clay-btn justify-start px-4 py-3 text-sm bg-clay-coral text-white mt-2">
               <LogOut className="w-5 h-5" /> Log out
@@ -145,21 +166,9 @@ export default function Layout() {
           <div className="lg:hidden fixed inset-0 top-16 z-30 bg-cream/95 backdrop-blur no-print" onClick={() => setOpen(false)}>
             <nav className="flex flex-col gap-2 p-4">
               {isTeacher ? (
-                TEACHER_NAV_GROUPS.map((group) => (
-                  <div key={group.label}>
-                    <p className="text-[10px] font-display font-extrabold uppercase tracking-wider text-ink/40 px-4 mb-1">{group.label}</p>
-                    <div className="flex flex-col gap-1.5 mb-2">
-                      {group.items.map((item) => <NavItem key={item.path} item={item} />)}
-                    </div>
-                  </div>
-                ))
+                TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
               ) : (
                 STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} />)
-              )}
-              {isTeacher && (
-                <Link to={ROUTES.LEADERBOARD} onClick={() => setOpen(false)} className={`clay-btn justify-start px-4 py-3 text-sm ${location.pathname === ROUTES.LEADERBOARD ? "bg-clay-pink text-white" : "bg-cream text-ink"}`}>
-                  <Trophy className="w-5 h-5" /> Leaderboard
-                </Link>
               )}
               <button onClick={handleLogout} className="clay-btn justify-start px-4 py-3 text-sm bg-clay-coral text-white mt-4">
                 <LogOut className="w-5 h-5" /> Log out

@@ -57,41 +57,44 @@ export function getClassroomMembers(classroomId) {
   return promise;
 }
 
-let datasetCache = null;
+const datasetCache = new Map();
 const DATASET_TTL = 30 * 1000;
 
 export function invalidateClassroomDataset() {
-  datasetCache = null;
+  datasetCache.clear();
 }
 
-export function getClassroomDataset(classroomId) {
+const DATASET_QUERIES = {
+  settings: (id) => base44.entities.ClassSettings.filter({ classroom_id: id }, { columns: 'id,classroom_id,weight_attendance,weight_activity_scores,weight_quizzes,weight_major_exams,weight_performance_tasks,weight_participation' }),
+  terms: (id) => base44.entities.GradingTerm.filter({ classroom_id: id }, { columns: 'id,classroom_id,term_label,start_date,end_date,is_active' }),
+  attendance: (id) => base44.entities.Attendance.filter({ classroom_id: id }, { columns: 'id,classroom_id,group_id,group_member_id,attendance_date,status,marked_by' }),
+  scores: (id) => base44.entities.ActivityScore.filter({ classroom_id: id }, { columns: 'id,classroom_id,group_id,group_member_id,activity_id,score,encoded_by' }),
+  activities: (id) => base44.entities.Activity.filter({ classroom_id: id }, { columns: 'id,classroom_id,activity_number,title,max_score,week_label' }),
+  assessments: (id) => base44.entities.TeacherAssessment.filter({ classroom_id: id }, { columns: 'id,classroom_id,group_id,group_member_id,category,item_label,score,max_score,encoded_by' }),
+  logs: (id) => base44.entities.ParticipationLog.filter({ classroom_id: id }, { columns: 'id,created_date,classroom_id,group_id,group_member_id,qr_code_id,points_awarded,event_type,multiplier,note', orderBy: 'created_date', ascending: false }),
+  groupAccounts: (id) => base44.entities.GroupAccount.filter({ classroom_id: id }, { columns: 'id,classroom_id,group_id,group_member_id,user_id,last_name,first_name,email,is_approved,is_representative' }),
+  missions: (id) => base44.entities.Mission.filter({ classroom_id: id }, { columns: 'id,created_date,classroom_id,title,description,xp_reward,max_score,deadline,is_active,created_by,formative_type,ai_content,answer_key' }),
+  submissions: (id) => base44.entities.MissionSubmission.filter({ classroom_id: id }, { columns: 'id,created_date,mission_id,group_id,classroom_id,score,xp_earned,graded_by,answers', orderBy: 'created_date', ascending: false }),
+  rewards: (id) => base44.entities.Reward.filter({ classroom_id: id }, { columns: 'id,classroom_id,title,description,emoji,cost_points,is_active,created_by' }),
+  redemptions: (id) => base44.entities.RewardRedemption.filter({ classroom_id: id }, { columns: 'id,created_date,reward_id,reward_title,group_id,classroom_id,points_spent,redeemed_by', orderBy: 'created_date', ascending: false }),
+  badges: (id) => base44.entities.Badge.filter({ classroom_id: id }, { columns: 'id,created_date,group_id,classroom_id,badge_type,week_start_date,points_awarded,redeemed_by' }),
+  qrcodes: (id) => base44.entities.QRCode.filter({ classroom_id: id }, { columns: 'id,created_date,hash,classroom_id,qr_type,base_points,is_used,used_by_member_id,used_at,created_by', orderBy: 'created_date', ascending: false }),
+  announcements: (id) => base44.entities.Announcement.filter({ classroom_id: id }, { columns: 'id,created_date,classroom_id,title,body,is_pinned,created_by', orderBy: 'created_date', ascending: false }),
+};
+
+export function getClassroomDataset(classroomId, requested = Object.keys(DATASET_QUERIES)) {
   if (!classroomId) return Promise.resolve(null);
   const now = Date.now();
-  if (datasetCache && datasetCache.classroomId === classroomId && now - datasetCache.ts < DATASET_TTL) {
-    return datasetCache.promise;
+  const keys = [...new Set(requested)].filter((key) => DATASET_QUERIES[key] || key === 'groups' || key === 'members').sort();
+  const cacheKey = keys.join(',');
+  const cached = datasetCache.get(`${classroomId}:${cacheKey}`);
+  if (cached && now - cached.ts < DATASET_TTL) {
+    return cached.promise;
   }
-  const promise = Promise.all([
-    getClassroomGroups(classroomId),
-    getClassroomMembers(classroomId),
-    base44.entities.ClassSettings.filter({ classroom_id: classroomId }),
-    base44.entities.GradingTerm.filter({ classroom_id: classroomId }),
-    base44.entities.Attendance.filter({ classroom_id: classroomId }),
-    base44.entities.ActivityScore.filter({ classroom_id: classroomId }),
-    base44.entities.Activity.filter({ classroom_id: classroomId }),
-    base44.entities.TeacherAssessment.filter({ classroom_id: classroomId }),
-    base44.entities.ParticipationLog.filter({ classroom_id: classroomId }),
-    base44.entities.GroupAccount.filter({ classroom_id: classroomId }),
-    base44.entities.Mission.filter({ classroom_id: classroomId }),
-    base44.entities.MissionSubmission.filter({ classroom_id: classroomId }),
-    base44.entities.Reward.filter({ classroom_id: classroomId }),
-    base44.entities.RewardRedemption.filter({ classroom_id: classroomId }),
-    base44.entities.Badge.filter({ classroom_id: classroomId }),
-    base44.entities.QRCode.filter({ classroom_id: classroomId }),
-    base44.entities.Announcement.filter({ classroom_id: classroomId }),
-  ]).then(([groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts, missions, submissions, rewards, redemptions, badges, qrcodes, announcements]) => ({
-    groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts, missions, submissions, rewards, redemptions, badges, qrcodes, announcements,
-  }));
-  datasetCache = { classroomId, promise, ts: now };
-  promise.catch(() => { if (datasetCache && datasetCache.promise === promise) datasetCache = null; });
+  const promise = Promise.all(keys.map((key) => key === 'groups' ? getClassroomGroups(classroomId) : key === 'members' ? getClassroomMembers(classroomId) : DATASET_QUERIES[key](classroomId)))
+    .then((values) => Object.fromEntries(keys.map((key, index) => [key, values[index]])));
+  const cacheEntry = { promise, ts: now };
+  datasetCache.set(`${classroomId}:${cacheKey}`, cacheEntry);
+  promise.catch(() => { if (datasetCache.get(`${classroomId}:${cacheKey}`)?.promise === promise) datasetCache.delete(`${classroomId}:${cacheKey}`); });
   return promise;
 }

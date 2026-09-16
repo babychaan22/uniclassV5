@@ -3,11 +3,13 @@ const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Flame, Star, Trophy, Users, Megaphone } from "lucide-react";
+import { Flame, Star, Trophy, Users, Megaphone, Target, ArrowRight } from "lucide-react";
 import {
   computeAttendanceStreak, computeActivityPct, computeParticipationPoints,
   computeEngagementStreak,
@@ -25,12 +27,11 @@ export default function StudentDashboard() {
   useEffect(() => {
     async function load() {
       if (!user) return;
-      const accounts = await db.entities.GroupAccount.filter({ user_id: user.id });
-      const account = accounts[0];
+      const account = await getActiveStudentAccount(user.id);
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [members, allGroups, allMembers, attendance, scores, activities, logs, announcements] = await Promise.all([
+      const [members, allGroups, allMembers, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
         db.entities.GroupMember.filter({ group_id: group.id }),
         db.entities.Group.filter({ classroom_id: classroomId }),
         db.entities.GroupMember.filter({ classroom_id: classroomId }),
@@ -39,6 +40,7 @@ export default function StudentDashboard() {
         db.entities.Activity.filter({ classroom_id: classroomId }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
         db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
+        db.entities.Mission.filter({ classroom_id: classroomId, is_active: true }),
       ]);
 
       const memberCards = members.map((m) => {
@@ -64,7 +66,7 @@ export default function StudentDashboard() {
       const memberIds = members.map((m) => m.id);
       const groupPartStreak = computeEngagementStreak(memberIds, attendance, scores, getTodayManila());
 
-      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions, announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();
@@ -72,16 +74,16 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, announcements } = data;
+  const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupAvg = Math.max(...groupLeaderboard.map((g) => g.avg), 100);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold">Group {group.group_number} Dashboard</h1>
-        <p className="text-ink/60">Welcome, {account.first_name}!</p>
+      <div className="flex items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-display font-extrabold">Group {group.group_number} Dashboard</h1><p className="text-ink/60">Welcome, {account.first_name}!</p></div>
+        <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn bg-cream text-ink px-3 py-2 text-xs">Join another class</Link>
       </div>
 
       {announcements?.length > 0 && (
@@ -94,6 +96,22 @@ export default function StudentDashboard() {
           ))}
         </div>
       )}
+
+      <ClayCard color="sky" className="p-5">
+        <div className="flex items-start gap-3">
+          <div className="clay-medallion bg-clay-sun w-12 h-12 flex items-center justify-center shrink-0"><Target className="w-6 h-6" /></div>
+          <div className="flex-1">
+            <p className="font-display font-extrabold text-lg">Today&apos;s learning</p>
+            {missions?.length ? (
+              <>
+                <p className="text-sm text-ink/70">You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
+                <p className="text-xs text-ink/60 mt-1">Next up: {missions[0].title}</p>
+              </>
+            ) : <p className="text-sm text-ink/70">No active missions right now. Keep your group streak going.</p>}
+            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="inline-flex items-center gap-1 font-display font-bold text-sm mt-3 underline">Open missions <ArrowRight className="w-4 h-4" /></Link>}
+          </div>
+        </div>
+      </ClayCard>
 
       <ClayCard className="p-5 flex items-center gap-4">
         <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">
@@ -182,4 +200,3 @@ export default function StudentDashboard() {
     </div>
   );
 }
-

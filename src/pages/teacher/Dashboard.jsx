@@ -41,20 +41,21 @@ export default function TeacherDashboard() {
       if (!user) return;
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const ds = await getClassroomDataset(classroom.id);
+      const ds = await getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']);
       const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
       const term = terms.find((t) => t.is_active) || terms[0] || null;
       const weights = settings[0] || {};
 
+      const pointsByMember = Object.fromEntries(members.map((member) => [member.id, computeParticipationPoints(member.id, logs)]));
+      const maxPts = Math.max(...Object.values(pointsByMember), 1);
       const memberRows = members.map((m) => {
         const att = computeAttendanceRate(m.id, attendance, term);
         const act = computeActivityPct(m.id, scores, activities);
         const quiz = computeCategoryPct(m.id, assessments, "quiz", term);
         const exam = computeCategoryPct(m.id, assessments, "major_exam", term);
         const perf = computeCategoryPct(m.id, assessments, "performance_task", term);
-        const pts = computeParticipationPoints(m.id, logs);
-        const maxPts = Math.max(...members.map((mm) => computeParticipationPoints(mm.id, logs)), 1);
+        const pts = pointsByMember[m.id] || 0;
         const partNorm = (pts / maxPts) * 100;
         const categories = [
           { key: "attendance_rate", value: att.rate, count: att.count },
@@ -306,4 +307,3 @@ function weekEndOf(ws) {
   d.setDate(d.getDate() + 6);
   return d.toISOString().slice(0, 10);
 }
-

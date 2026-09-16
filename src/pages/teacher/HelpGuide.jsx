@@ -14,7 +14,7 @@ export default function HelpGuide() {
         <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Dices className="w-5 h-5" /> Gacha &amp; Tambiolo</h2>
         <ul className="list-disc list-inside space-y-1 text-sm text-ink/80">
           <li>Generate <b>gacha-type</b> QR codes from the QR Generator to add risk-reward spins.</li>
-          <li>When a student scans a gacha code, they choose to keep points safe or risk them for a multiplier (0.25×–2×).</li>
+          <li>When a student scans a gacha code, they choose to keep points safe or risk them for a 0.5×–2× multiplier. The 1.0× result is most likely.</li>
           <li>The <b>Tambiolo</b> tumbles balls labelled with each multiplier — slow, then fast, then slow — and the winning ball settles as the result.</li>
           <li>Outcomes use equal odds, so over time rewards stay fair while keeping things exciting.</li>
         </ul>
@@ -41,4 +41,3 @@ export default function HelpGuide() {
     </div>
   );
 }
-

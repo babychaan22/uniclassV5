@@ -5,10 +5,14 @@ built with **React + Vite + Supabase**.
 
 ## Prerequisites
 
-- Node.js 18+
+- [Node.js 18+](https://nodejs.org/)
 - A [Supabase](https://supabase.com) project
 
-## 1. Install dependencies
+## 1. Install Node.js
+
+See [`setup-node.ps1`](./setup-node.ps1) for an automated Windows installer script, or install manually from https://nodejs.org/.
+
+## 2. Install dependencies
 
 ```bash
 npm install
@@ -41,11 +45,11 @@ Supabase Dashboard → **Authentication → Providers → Google**. See
 ## 5. (Optional) AI mission generation — OpenRouter free tier
 
 The Teacher → Missions "Generate with AI" button uses free OpenRouter
-models. Get a free key at <https://openrouter.ai/keys> and add it to
-`.env.local`:
+models. Get a free key at <https://openrouter.ai/keys> and set it as
+a Supabase secret so it stays server-side:
 
 ```bash
-VITE_OPENROUTER_API_KEY=sk-or-...
+supabase secrets set OPENROUTER_API_KEY=sk-or-...
 ```
 
 Without a key, the rest of the app works fine — AI mission generation just
@@ -60,12 +64,33 @@ npm run dev
 
 Open the local URL printed by Vite.
 
+## Production hardening
+
+After the base schema and `20260802_rls_tighten.sql` are installed, run
+`supabase/migrations/20260913_hardening.sql`. This migration moves class
+joining, QR scans, mission submissions, XP redemption, and reward redemption
+into transactional database functions. Do not deploy the earlier permissive
+RLS block by itself in a production project.
+
+Set `APP_ORIGIN` as a Supabase secret to the exact deployed app origin before
+deploying the AI edge functions. The functions reject oversized prompts and
+should be protected with a per-user rate limit at the edge or gateway.
+
 ## Build for production
 
 ```bash
 npm run build
 npm run preview
 ```
+
+## Deploy to Vercel
+
+1. Push your repository to GitHub/GitLab/Bitbucket.
+2. Import the project at [vercel.com](https://vercel.com/new).
+3. Set the following environment variables in the Vercel dashboard:
+   - `VITE_SUPABASE_URL` — your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` — your Supabase anon key
+4. Deploy. Vercel automatically detects the Vite framework and runs `npm run build`.
 
 ## Project structure
 

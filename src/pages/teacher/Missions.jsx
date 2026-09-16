@@ -38,6 +38,27 @@ function missionPreviewContent(m) {
   return { ...c, answers: ak };
 }
 
+function questionStats(mission, submissions) {
+  if (!mission?.ai_content || !mission?.answer_key) return [];
+  let content; let answers;
+  try { content = JSON.parse(mission.ai_content); answers = JSON.parse(mission.answer_key); } catch { return []; }
+  const rows = mission.formative_type === "drag_drop"
+    ? Object.keys(answers || {}).map((key) => ({ prompt: key, correct: answers[key] }))
+    : (content.questions || []).map((q, i) => ({ prompt: q.prompt, correct: answers[i] }));
+  const attempts = submissions.filter((s) => s.mission_id === mission.id && s.answers);
+  return rows.map((row, index) => {
+    let correct = 0;
+    attempts.forEach((submission) => {
+      try {
+        const given = JSON.parse(submission.answers);
+        const value = mission.formative_type === "drag_drop" ? given[row.prompt] : given[index];
+        if (String(value) === String(row.correct)) correct++;
+      } catch {}
+    });
+    return { ...row, correct, total: attempts.length, pct: attempts.length ? Math.round((correct / attempts.length) * 100) : 0 };
+  });
+}
+
 export default function TeacherMissions() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +88,7 @@ export default function TeacherMissions() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['groups','missions','submissions']);
     setMissions([...ds.missions].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
     setSubmissions(ds.submissions);
@@ -236,6 +257,8 @@ export default function TeacherMissions() {
           try { aiParsed = JSON.parse(m.ai_content || "{}"); } catch {}
           try { akParsed = JSON.parse(m.answer_key || "{}"); } catch {}
         }
+        const stats = isAi ? questionStats(m, submissions) : [];
+        const hardest = [...stats].sort((a, b) => a.pct - b.pct).slice(0, 2);
         return (
           <ClayCard key={m.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
@@ -265,6 +288,21 @@ export default function TeacherMissions() {
                   {viewTemplateId === m.id ? "Hide template" : "View template"}
                 </button>
                 {viewTemplateId === m.id && <div className="mt-2"><MissionPreview type={m.formative_type} content={missionPreviewContent(m)} /></div>}
+                {stats.length > 0 && (
+                  <div className="mt-3 rounded-xl border-2 border-ink/15 bg-clay-sky/20 p-3">
+                    <p className="text-xs font-display font-bold">Learning signal</p>
+                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted group response{stats[0].total === 1 ? "" : "s"}.</p>
+                    <div className="mt-2 space-y-1.5">
+                      {hardest.map((q, i) => (
+                        <div key={`${q.prompt}-${i}`} className="flex items-center gap-2 text-xs">
+                          <span className="w-9 font-mono font-bold">{q.pct}%</span>
+                          <div className="h-2 flex-1 rounded-full bg-cream border border-ink/20 overflow-hidden"><div className={`h-full ${q.pct < 60 ? "bg-clay-coral" : q.pct < 80 ? "bg-clay-sun" : "bg-clay-lime"}`} style={{ width: `${q.pct}%` }} /></div>
+                          <span className="truncate max-w-[12rem]" title={q.prompt}>{q.prompt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div className="mt-3 border-t-2 border-ink/15 pt-3 space-y-2">

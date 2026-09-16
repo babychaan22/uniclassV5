@@ -29,7 +29,7 @@ export default function TeacherStudentManagement() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['groups','groupAccounts']);
     const accounts = ds.groupAccounts;
     setGroups(ds.groups);
     setPending(accounts.filter((a) => !a.is_approved));
@@ -92,7 +92,7 @@ export default function TeacherStudentManagement() {
                   {a.last_name}, {a.first_name}
                   {a.is_representative && <ClayChip color="purple">Rep</ClayChip>}
                 </p>
-                <p className="text-xs text-ink/60 font-mono">Group {gnum(a)}{a.email ? ` · ${a.email}` : ""}</p>
+                <p className="text-xs text-ink/60 font-mono">Group {gnum(a)} · Role: {a.is_representative ? "Representative" : "Member"}{a.email ? ` · ${a.email}` : ""}</p>
               </div>
               <div className="flex gap-2">
                 <ClayButton size="sm" color="lime" onClick={() => approve(a)}><Check className="w-4 h-4" /> Approve</ClayButton>
@@ -105,4 +105,3 @@ export default function TeacherStudentManagement() {
     </div>
   );
 }
-

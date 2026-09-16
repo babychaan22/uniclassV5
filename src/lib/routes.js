@@ -24,10 +24,12 @@ export const ROUTES = {
     ANALYTICS:          '/teacher/analytics',
     ROSTER:             '/teacher/roster',
     ACTIVITY_LOGS:      '/teacher/activity-logs',
+    EVIDENCE:            '/teacher/evidence',
     MISSION_ARCHIVE:    '/teacher/mission-archive',
     SCORE_IMPORT:       '/teacher/score-import',
     EXPORT_DATA:        '/teacher/export-data',
     HELP_GUIDE:         '/teacher/help-guide',
+    BADGES:             '/teacher/badges',
   },
 
   STUDENT: {
@@ -43,5 +45,3 @@ export const ROUTES = {
     LEADERBOARD:'/student/leaderboard',
   },
 };
-
-

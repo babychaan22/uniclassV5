@@ -100,7 +100,7 @@ export default function TeacherQRGenerator() {
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrIcon className="w-5 h-5" />}
               {generating ? "Generating..." : "Generate Batch"}
             </ClayButton>
-            {form.qr_type === "gacha" && <ClayChip color="purple">Gacha: 8 outcomes 0.25×–2×</ClayChip>}
+            {form.qr_type === "gacha" && <ClayChip color="purple">Gacha: 0.5×–2× · 1.0× is most likely</ClayChip>}
           </div>
         </form>
       </ClayCard>
@@ -131,4 +131,3 @@ export default function TeacherQRGenerator() {
     </div>
   );
 }
-

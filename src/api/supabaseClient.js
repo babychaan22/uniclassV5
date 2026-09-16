@@ -15,6 +15,8 @@ const ENTITY_TABLE_MAP = {
   Announcement:       'announcements',
   Attendance:         'attendances',
   Badge:              'badges',
+  BadgeDefinition:    'badge_definitions',
+  ActivityEvidence:   'activity_evidence',
   Classroom:          'classrooms',
   ClassSettings:      'class_settings',
   GradingTerm:        'grading_terms',
@@ -27,6 +29,7 @@ const ENTITY_TABLE_MAP = {
   QRCode:             'qr_codes',
   Reward:             'rewards',
   RewardRedemption:   'reward_redemptions',
+  LearningReview:     'learning_reviews',
   TeacherAssessment:  'teacher_assessments',
   User:               'profiles',
 };
@@ -40,14 +43,26 @@ const ENTITY_TABLE_MAP = {
 function createEntityHelper(tableName) {
   return {
     /** Return all rows matching all conditions (AND equality). */
-    async filter(conditions = {}) {
-      let q = supabase.from(tableName).select('*');
+    async filter(conditions = {}, options = {}) {
+      const columns = options.columns || '*';
+      let q = supabase.from(tableName).select(columns);
       for (const [key, value] of Object.entries(conditions)) {
         q = q.eq(key, value);
       }
+      if (options.orderBy) q = q.order(options.orderBy, { ascending: options.ascending !== false });
+      if (options.limit != null) q = q.limit(options.limit);
+      if (options.offset != null) q = q.range(options.offset, options.offset + (options.limit || 50) - 1);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
+    },
+
+    /** Paginated variant for high-volume classroom data. */
+    async page(conditions = {}, options = {}) {
+      const limit = Math.max(1, Math.min(options.limit || 50, 500));
+      const offset = Math.max(0, options.offset || 0);
+      const rows = await this.filter(conditions, { ...options, limit, offset });
+      return { rows, limit, offset, hasMore: rows.length === limit };
     },
 
     /** Return a single row by primary key. */

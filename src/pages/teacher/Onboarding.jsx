@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { invalidateTeacherClassroom, invalidateClassroomContext } from "@/lib/teacherClassroom";
+import { createClassroom } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -22,13 +23,22 @@ export default function TeacherOnboarding() {
   const [classrooms, setClassrooms] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8 });
+  const [form, setForm] = useState({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true });
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState([]);
   const [groups, setGroups] = useState([]);
   const [term, setTerm] = useState({ term_label: "Term 1", start_date: "", end_date: "" });
   const [terms, setTerms] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+
+  function withTimeout(promise, label, ms = 20000) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
 
   const active = classrooms.find((c) => c.id === activeId) || null;
 
@@ -38,50 +48,54 @@ export default function TeacherOnboarding() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const cr = await db.entities.Classroom.filter({ teacher_id: user.id });
-    cr.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || ""));
-    setClassrooms(cr);
-    if (cr.length > 0 && !activeId) setActiveId(cr[0].id);
-    setLoading(false);
+    try {
+      const cr = await withTimeout(db.entities.Classroom.filter({ teacher_id: user.id }), "Loading classes");
+      cr.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || ""));
+      setClassrooms(cr);
+      if (cr.length > 0 && !activeId) setActiveId(cr[0].id);
+    } catch (err) {
+      setError(err?.message || "Unable to load your classes.");
+    } finally { setLoading(false); }
   }
 
   async function loadDetails(classroomId) {
-    const [accounts, g, t] = await Promise.all([
-      db.entities.GroupAccount.filter({ classroom_id: classroomId, is_approved: false }),
-      db.entities.Group.filter({ classroom_id: classroomId }),
-      db.entities.GradingTerm.filter({ classroom_id: classroomId }),
-    ]);
-    setPending(accounts);
-    setGroups(g);
-    setTerms(t);
+    try {
+      const [accounts, g, t] = await withTimeout(Promise.all([
+        db.entities.GroupAccount.filter({ classroom_id: classroomId, is_approved: false }),
+        db.entities.Group.filter({ classroom_id: classroomId }),
+        db.entities.GradingTerm.filter({ classroom_id: classroomId }),
+      ]), "Loading class details");
+      setPending(accounts);
+      setGroups(g);
+      setTerms(t);
+    } catch (err) {
+      setError(err?.message || "Unable to load class details.");
+    }
   }
 
   async function createClass(e) {
     e.preventDefault();
     setCreating(true);
-    const joinCode = genJoinCode();
-    const cr = await db.entities.Classroom.create({
-      teacher_id: user.id,
-      grade_level: form.grade_level,
-      section: form.section,
-      subject: form.subject,
-      school_year: form.school_year,
-      num_groups: form.num_groups,
-      join_code: joinCode,
-    });
-    invalidateTeacherClassroom();
-    const gs = Array.from({ length: form.num_groups }, (_, i) => ({
-      classroom_id: cr.id,
-      group_number: i + 1,
-      group_name: `Group ${i + 1}`,
-    }));
-    await db.entities.Group.bulkCreate(gs);
-    invalidateClassroomContext();
-    await db.entities.ClassSettings.create({ classroom_id: cr.id });
-    setClassrooms((prev) => [cr, ...prev]);
-    setActiveId(cr.id);
-    setForm({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8 });
-    setCreating(false);
+    setError("");
+    try {
+      const joinCode = genJoinCode();
+      const cr = await withTimeout(createClassroom({
+        p_grade_level: form.grade_level,
+        p_section: form.section,
+        p_subject: form.subject,
+        p_school_year: form.school_year,
+        p_num_groups: form.uses_groups ? form.num_groups : 0,
+        p_uses_groups: form.uses_groups,
+        p_join_code: joinCode,
+      }), "Creating class");
+      invalidateTeacherClassroom();
+      invalidateClassroomContext();
+      setClassrooms((prev) => [cr, ...prev]);
+      setActiveId(cr.id);
+      setForm({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true });
+    } catch (err) {
+      setError(err?.message || "Class creation failed. Please try again.");
+    } finally { setCreating(false); }
   }
 
   async function approve(account) {
@@ -121,10 +135,12 @@ export default function TeacherOnboarding() {
         <p className="text-ink/60">Create a section class and subject, then share the class code with students.</p>
       </div>
 
+      {error && <ClayCard color="coral" className="p-4 text-sm" role="alert">{error}</ClayCard>}
+
       <ClayCard className="p-5">
         <h2 className="font-display font-bold text-sm mb-3">Create New Class</h2>
         <form onSubmit={createClass} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-display font-bold text-xs mb-1 block">Grade Level</label>
               <input className="clay-input" value={form.grade_level} onChange={(e) => setForm({ ...form, grade_level: e.target.value })} required />
@@ -145,9 +161,10 @@ export default function TeacherOnboarding() {
             </div>
             <div>
               <label className="font-display font-bold text-xs mb-1 block">Number of Groups</label>
-              <input type="number" min="1" max="12" className="clay-input" value={form.num_groups} onChange={(e) => setForm({ ...form, num_groups: Number(e.target.value) })} required />
+              <input type="number" min="1" max="12" className="clay-input" value={form.num_groups} onChange={(e) => setForm({ ...form, num_groups: Number(e.target.value) })} disabled={!form.uses_groups} required />
             </div>
           </div>
+          <div className="rounded-xl border-2 border-ink/15 bg-cream p-3"><label className="flex items-center gap-2 font-display font-bold text-sm"><input type="checkbox" checked={form.uses_groups} onChange={(e) => setForm({ ...form, uses_groups: e.target.checked })} /> This class uses groups</label><p className="text-xs text-ink/50 mt-1">Turn off for individual students. Each student will have their own private access to attendance, scores, uploads, and representative tools.</p></div>
           <ClayButton type="submit" color="purple" size="md" className="w-full" disabled={creating}>
             <Plus className="w-4 h-4" /> {creating ? "Creating..." : "Create Class & Code"}
           </ClayButton>

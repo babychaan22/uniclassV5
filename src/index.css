@@ -147,6 +147,40 @@
 .nova-mascot.nova-bounce { animation: nova-celebrate .7s ease-out 2; }
 .nova-mascot.nova-think { animation: nova-think 1.3s ease-in-out infinite; }
 .nova-mascot:enabled:active { transform: translate(3px, 3px) scale(.96); }
+.nova-mascot {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 3px solid #17162B;
+  border-radius: 28%;
+  background: linear-gradient(145deg, #FFFDF6 0%, #E8E0FF 55%, #B994F6 100%);
+  box-shadow: 5px 6px 0 #17162B, inset 4px 4px 0 rgba(255,255,255,.55), inset -5px -6px 0 rgba(23,22,43,.12);
+  transform: rotate(-2deg);
+  transform-style: preserve-3d;
+}
+.nova-mascot::before {
+  content: "";
+  position: absolute;
+  top: 9%;
+  left: 13%;
+  width: 42%;
+  height: 20%;
+  border-radius: 999px;
+  background: rgba(255,255,255,.7);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+.nova-mascot > svg { position: relative; z-index: 1; filter: drop-shadow(2px 3px 0 rgba(23,22,43,.22)); }
+.nova-mascot.nova-size-sm { border-width: 2px; border-radius: 25%; box-shadow: 2px 3px 0 #17162B, inset 2px 2px 0 rgba(255,255,255,.55), inset -2px -3px 0 rgba(23,22,43,.12); }
+.nova-mascot.nova-size-md { border-width: 2px; border-radius: 25%; box-shadow: 3px 4px 0 #17162B, inset 3px 3px 0 rgba(255,255,255,.55), inset -3px -4px 0 rgba(23,22,43,.12); }
+.nova-mascot.nova-size-lg { border-width: 3px; }
+.nova-mascot.nova-waiting { background: linear-gradient(145deg, #FFFDF6 0%, #D9F2FF 58%, #78C9E8 100%); }
+.nova-mascot.nova-excited { background: linear-gradient(145deg, #FFFDF6 0%, #FFF0A3 58%, #F6B936 100%); }
+.nova-mascot.nova-ai_thinking { background: linear-gradient(145deg, #FFFDF6 0%, #E5D5FF 58%, #A878E8 100%); }
+.nova-mascot.nova-gacha { background: linear-gradient(145deg, #FFFDF6 0%, #FFD5E9 58%, #F45FA8 100%); }
+.nova-mascot.nova-error { background: linear-gradient(145deg, #FFFDF6 0%, #FFD8CE 58%, #FF776A 100%); }
+.nova-mascot:hover { transform: translateY(-2px) rotate(1deg); }
 .dark body, .dark .bg-cream { background-color: #201f35 !important; }
 .dark .bg-white { background-color: #302e4b !important; }
 .dark .text-ink { color: #fffdf6 !important; }
@@ -179,4 +213,11 @@
     background: white !important;
     color: black !important;
   }
+}
+
+@media (max-width: 640px) {
+  body { overflow-x: hidden; }
+  .clay-btn { min-height: 44px; }
+  .clay-input { min-height: 44px; font-size: 16px; }
+  .clay-card { border-radius: 18px; }
 }

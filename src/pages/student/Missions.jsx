@@ -4,6 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -12,6 +13,7 @@ import { Target, Zap, Loader2, Rocket } from "lucide-react";
 import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
+import { completeLearningReview, redeemMissionPoints } from '@/lib/secureActions';
 
 export default function StudentMissions() {
   const { user } = useAuth();
@@ -25,22 +27,23 @@ export default function StudentMissions() {
 
   async function load() {
     if (!user) return;
-    const accs = await db.entities.GroupAccount.filter({ user_id: user.id });
-    const account = accs[0];
+    const account = await getActiveStudentAccount(user.id);
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [missions, subs, members, logs] = await Promise.all([
+    const [missions, subs, members, logs, reviews] = await Promise.all([
       db.entities.Mission.filter({ classroom_id: classroomId }),
       db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.GroupMember.filter({ group_id: group.id }),
       db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
+      db.entities.LearningReview.filter({ user_id: user.id }, { orderBy: 'next_review_at', ascending: true, limit: 20 }),
     ]);
     const active = missions.filter((m) => m.is_active);
     const earned = subs.reduce((s, x) => s + (x.xp_earned || 0), 0);
     const redeemed = logs.filter((l) => l.event_type === "mission_redemption").reduce((s, l) => s + (l.points_awarded || 0), 0);
     const available = Math.max(0, earned - redeemed);
-    setData({ account, group, missions, active, subs, members, earned, redeemed, available });
+    const dueReviews = reviews.filter((review) => new Date(review.next_review_at) <= new Date());
+    setData({ account, group, missions, active, subs, members, earned, redeemed, available, dueReviews });
   }
 
   async function redeem(e) {
@@ -52,14 +55,7 @@ export default function StudentMissions() {
     }
     setRedeeming(true);
     setMsg(null);
-    const memberCount = data.members.length || 1;
-    const per = amt / memberCount;
-    await db.entities.ParticipationLog.bulkCreate(
-      data.members.map((m) => ({
-        group_member_id: m.id, group_id: data.group.id, classroom_id: data.group.classroom_id,
-        points_awarded: per, event_type: "mission_redemption", multiplier: 1, note: "XP redemption",
-      }))
-    );
+    await redeemMissionPoints(amt);
     setRedeeming(false);
     setRedeemAmt("");
     setMsg({ ok: true, text: `Redeemed ${amt} XP into participation points!` });
@@ -67,9 +63,14 @@ export default function StudentMissions() {
     setTimeout(() => setMsg(null), 3000);
   }
 
+  async function markReviewed(review, correct) {
+    await completeLearningReview(review.id, correct);
+    setData((current) => ({ ...current, dueReviews: current.dueReviews.filter((item) => item.id !== review.id) }));
+  }
+
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, active, subs, earned, redeemed, available } = data;
+  const { group, active, subs, earned, redeemed, available, dueReviews } = data;
   const gradedCount = active.filter((m) => subs.find((s) => s.mission_id === m.id)).length;
 
   return (
@@ -106,6 +107,24 @@ export default function StudentMissions() {
 
       {msg && (
         <p className={`font-display font-bold text-sm text-center ${msg.ok ? "text-clay-lime" : "text-clay-coral"}`}>{msg.text}</p>
+      )}
+
+      {dueReviews?.length > 0 && (
+        <ClayCard color="sky" className="p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div><p className="font-display font-bold">Review queue</p><p className="text-xs text-ink/60">Short practice helps the tricky parts stick.</p></div>
+            <ClayChip color="sun">{dueReviews.length} due</ClayChip>
+          </div>
+          <div className="space-y-2">
+            {dueReviews.slice(0, 5).map((review) => (
+              <div key={review.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3">
+                <p className="text-sm font-display font-bold">{review.prompt_text}</p>
+                <p className="text-[11px] text-ink/50 mt-1">{review.review_count ? `Reviewed ${review.review_count} time${review.review_count === 1 ? "" : "s"}` : "Needs a first review"}</p>
+                <div className="flex gap-2 mt-2"><ClayButton size="sm" color="coral" onClick={() => markReviewed(review, false)}>Still tricky</ClayButton><ClayButton size="sm" color="lime" onClick={() => markReviewed(review, true)}>Got it</ClayButton></div>
+              </div>
+            ))}
+          </div>
+        </ClayCard>
       )}
 
       {active.length > 0 && (

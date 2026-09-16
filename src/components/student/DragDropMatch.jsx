@@ -6,7 +6,7 @@ import { Check, X, Layers } from "lucide-react";
 
 // Categorization drag-and-drop. Students drag item tiles into category panels;
 // multiple items may belong to the same panel. `answers` maps item -> category.
-export default function DragDropMatch({ left, right, answers, onSubmit }) {
+export default function DragDropMatch({ left, right, answers, onSubmit, submitting = false, error = "" }) {
   const [placed, setPlaced] = useState({});
   const [dragging, setDragging] = useState(null);
 
@@ -74,10 +74,10 @@ export default function DragDropMatch({ left, right, answers, onSubmit }) {
         ))}
       </div>
 
-      <ClayButton color="lime" size="md" className="w-full" onClick={submit} disabled={Object.keys(placed).length < items.length}>
-        <Check className="w-4 h-4" /> Submit
+      {error && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{error}</p>}
+      <ClayButton color="lime" size="md" className="w-full" onClick={submit} disabled={submitting || Object.keys(placed).length < items.length}>
+        {submitting ? <><span className="inline-block w-4 h-4 border-2 border-ink border-t-transparent rounded-full animate-spin" /> Grading…</> : <><Check className="w-4 h-4" /> Submit</>}
       </ClayButton>
     </ClayCard>
   );
 }
-

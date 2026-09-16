@@ -8,6 +8,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
 import { getTodayManila } from "@/lib/week";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 import { Check, X, ClipboardCheck, Lock } from "lucide-react";
 
 export default function StudentAttendance() {
@@ -23,8 +24,8 @@ export default function StudentAttendance() {
   useEffect(() => {
     async function load() {
       if (!user) return;
-      const acc = await db.entities.GroupAccount.filter({ user_id: user.id });
-      const a = acc[0];
+      const a = await getActiveStudentAccount(user.id);
+      if (!a) return;
       setAccount(a);
       const mem = await db.entities.GroupMember.filter({ group_id: a.group_id });
       setMembers(mem);

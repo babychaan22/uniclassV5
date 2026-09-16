@@ -27,7 +27,7 @@ export default function TeacherAnnouncements() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['announcements']);
     setItems([...ds.announcements].sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")));
   }
 
@@ -111,4 +111,3 @@ export default function TeacherAnnouncements() {
     </div>
   );
 }
-

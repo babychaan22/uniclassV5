@@ -1,7 +1,6 @@
 
-import { jsPDF } from "jspdf";
-
-export function downloadGroupPdf({ classroom, term, group, groupRow, memberRows, attendance, scores, activities, todayStr }) {
+export async function downloadGroupPdf({ classroom, term, group, groupRow, memberRows, attendance, scores, activities, todayStr }) {
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF();
   let y = 14;
 
@@ -50,4 +49,3 @@ export function downloadGroupPdf({ classroom, term, group, groupRow, memberRows,
 
   doc.save(`group-${group.group_number}-report.pdf`);
 }
-

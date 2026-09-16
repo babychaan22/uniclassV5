@@ -25,7 +25,7 @@ export default function MissionArchive() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['groups','missions','submissions']);
     setMissions([...ds.missions].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setSubmissions(ds.submissions);
     setGroups(ds.groups);
@@ -82,4 +82,3 @@ export default function MissionArchive() {
     </div>
   );
 }
-

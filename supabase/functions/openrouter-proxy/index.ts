@@ -8,26 +8,53 @@
 // Set the secret once (keep out of .env files / source control):
 //   supabase secrets set OPENROUTER_API_KEY=sk-or-...
 //
-// Optional: pin the first model tried (falls through to the chain below
-// if unavailable):
-//   supabase secrets set OPENROUTER_MODEL=deepseek/deepseek-chat-v3.1:free
+// Optional: override the router with a specific current free model:
+//   supabase secrets set OPENROUTER_MODEL=openrouter/free
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN') ?? 'https://uniclass.app';
 
-// Fallback chain — tried in order. Update from https://openrouter.ai/models?max_price=0
-const FREE_MODEL_CHAIN: string[] = [
-  Deno.env.get('OPENROUTER_MODEL') ?? '',
-  'deepseek/deepseek-chat-v3.1:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen3-235b-a22b:free',
-  'google/gemini-2.0-flash-exp:free',
-  'openrouter/free', // OpenRouter's own auto-router as last resort
-].filter(Boolean);
+const CONFIGURED_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? '';
+
+async function getFreeModelChain(apiKey: string): Promise<string[]> {
+  const chain = CONFIGURED_MODEL && CONFIGURED_MODEL !== 'openrouter/free'
+    ? [CONFIGURED_MODEL]
+    : [];
+  let catalogError = '';
+  // Prefer the user-filtered catalog. It reflects provider preferences and
+  // guardrails, unlike the public catalog which can contain stale entries.
+  for (const catalogUrl of [
+    'https://openrouter.ai/api/v1/models/user',
+    'https://openrouter.ai/api/v1/models',
+  ]) {
+    try {
+      const response = await fetch(catalogUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) {
+        catalogError = `OpenRouter model catalog returned HTTP ${response.status}.`;
+        continue;
+      }
+      const data = await response.json();
+      const freeModels = (data?.data ?? [])
+        .filter((model: { id?: string; pricing?: { prompt?: string; completion?: string } }) =>
+          model.id && model.id.endsWith(':free') &&
+          Number(model.pricing?.prompt) === 0 && Number(model.pricing?.completion) === 0)
+        .map((model: { id: string }) => model.id)
+        .slice(0, 8);
+      chain.push(...freeModels);
+      if (freeModels.length > 0) break;
+    } catch (error) {
+      catalogError = `Network error reading OpenRouter model catalog: ${(error as Error).message}`;
+    }
+  }
+  return [...new Set(chain)].filter(Boolean).concat(catalogError ? [`__catalog_error__:${catalogError}`] : []);
+}
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -77,11 +104,20 @@ Deno.serve(async (req: Request) => {
   if (!prompt) {
     return json({ error: '"prompt" is required.' }, 400);
   }
+  if (typeof prompt !== 'string' || prompt.length > 12000) {
+    return json({ error: 'Prompt is too long.' }, 413);
+  }
 
   // ── Model fallback chain ────────────────────────────────────────────────────
-  let lastError = 'All free OpenRouter models are currently unavailable. Try again shortly.';
+  let lastError = 'No currently available free OpenRouter model was found. Try again shortly.';
+  const failedModels: string[] = [];
 
-  for (const model of FREE_MODEL_CHAIN) {
+  const modelChain = await getFreeModelChain(apiKey);
+  for (const model of modelChain) {
+    if (model.startsWith('__catalog_error__:')) {
+      lastError = model.slice('__catalog_error__:'.length);
+      continue;
+    }
     let response: Response;
     try {
       response = await fetch(OPENROUTER_URL, {
@@ -89,7 +125,7 @@ Deno.serve(async (req: Request) => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://uniclass.app',
+          'HTTP-Referer': APP_ORIGIN,
           'X-Title': 'UniClass',
         },
         body: JSON.stringify({
@@ -114,6 +150,7 @@ Deno.serve(async (req: Request) => {
     // Retriable statuses → try the next model
     if ([400, 404, 429, 502, 503].includes(response.status)) {
       lastError = `Model "${model}" unavailable (HTTP ${response.status}).`;
+      failedModels.push(`${model}=${response.status}`);
       continue;
     }
 
@@ -134,5 +171,8 @@ Deno.serve(async (req: Request) => {
     return json({ text });
   }
 
-  return json({ error: lastError }, 503);
+  const details = failedModels.length > 0 ? ` Attempts: ${failedModels.join(', ')}.` : '';
+  return json({
+    error: `${lastError}${details} OpenRouter is returning no usable free model for this API key. Check the key's model access/credits in OpenRouter, or set OPENROUTER_MODEL to a model that succeeds in the OpenRouter playground.`,
+  }, 503);
 });

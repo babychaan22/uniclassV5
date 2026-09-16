@@ -28,7 +28,7 @@ export default function TeacherRewards() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['rewards']);
     setRewards([...ds.rewards].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
   }
 
@@ -127,4 +127,3 @@ export default function TeacherRewards() {
     </div>
   );
 }
-

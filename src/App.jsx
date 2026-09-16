@@ -30,6 +30,7 @@ const TeacherAnalytics = lazy(() => import('./pages/teacher/Analytics'));
 const TeacherScoreImport = lazy(() => import('./pages/teacher/ScoreImport'));
 const TeacherRoster = lazy(() => import('./pages/teacher/Roster'));
 const TeacherActivityLogs = lazy(() => import('./pages/teacher/ActivityLogs'));
+const TeacherEvidence = lazy(() => import('./pages/teacher/Evidence'));
 const TeacherMissionArchive = lazy(() => import('./pages/teacher/MissionArchive'));
 const TeacherHelpGuide = lazy(() => import('./pages/teacher/HelpGuide'));
 const TeacherExportData = lazy(() => import('./pages/teacher/ExportData'));
@@ -39,6 +40,7 @@ const StudentAttendance = lazy(() => import('./pages/student/Attendance'));
 const StudentScores = lazy(() => import('./pages/student/Scores'));
 const StudentScan = lazy(() => import('./pages/student/Scan'));
 const StudentBadges = lazy(() => import('./pages/student/Badges'));
+const TeacherBadges = lazy(() => import('./pages/teacher/Badges'));
 const StudentMissions = lazy(() => import('./pages/student/Missions'));
 const StudentRewards = lazy(() => import('./pages/student/Rewards'));
 const StudentHelp = lazy(() => import('./pages/student/Help'));
@@ -97,6 +99,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.TEACHER.ANALYTICS} element={<TeacherAnalytics />} />
           <Route path={ROUTES.TEACHER.ROSTER} element={<TeacherRoster />} />
           <Route path={ROUTES.TEACHER.ACTIVITY_LOGS} element={<TeacherActivityLogs />} />
+          <Route path={ROUTES.TEACHER.EVIDENCE} element={<TeacherEvidence />} />
           <Route path={ROUTES.TEACHER.MISSION_ARCHIVE} element={<TeacherMissionArchive />} />
           <Route path={ROUTES.TEACHER.SCORE_IMPORT} element={<TeacherScoreImport />} />
           <Route path={ROUTES.TEACHER.EXPORT_DATA} element={<TeacherExportData />} />
@@ -108,6 +111,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.STUDENT.SCORES} element={<StudentScores />} />
           <Route path={ROUTES.STUDENT.SCAN} element={<StudentScan />} />
           <Route path={ROUTES.STUDENT.BADGES} element={<StudentBadges />} />
+          <Route path={ROUTES.TEACHER.BADGES} element={<TeacherBadges />} />
           <Route path={ROUTES.STUDENT.MISSIONS} element={<StudentMissions />} />
           <Route path={ROUTES.STUDENT.REWARDS} element={<StudentRewards />} />
           <Route path={ROUTES.STUDENT.HELP} element={<StudentHelp />} />
@@ -134,4 +138,3 @@ function App() {
 }
 
 export default App
-

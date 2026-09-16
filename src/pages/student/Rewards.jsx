@@ -4,6 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -11,6 +12,7 @@ import ClayChip from "@/components/ClayChip";
 import { Gift, Loader2, Sparkles } from "lucide-react";
 import { computeParticipationPoints } from "@/lib/stats";
 import { ROUTES } from '@/lib/routes';
+import { redeemReward } from '@/lib/secureActions';
 
 export default function StudentRewards() {
   const { user } = useAuth();
@@ -23,8 +25,7 @@ export default function StudentRewards() {
 
   async function load() {
     if (!user) return;
-    const accs = await db.entities.GroupAccount.filter({ user_id: user.id });
-    const account = accs[0];
+    const account = await getActiveStudentAccount(user.id);
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
@@ -48,10 +49,7 @@ export default function StudentRewards() {
     }
     setRedeeming(r.id);
     setMsg(null);
-    await db.entities.RewardRedemption.create({
-      reward_id: r.id, reward_title: r.title, group_id: data.group.id, classroom_id: data.group.classroom_id,
-      points_spent: r.cost_points, redeemed_by: user.id,
-    });
+    await redeemReward(r.id);
     setRedeeming(null);
     setMsg({ ok: true, text: `Claimed "${r.title}"! Show your teacher 🎉` });
     load();
@@ -110,4 +108,3 @@ export default function StudentRewards() {
     </div>
   );
 }
-

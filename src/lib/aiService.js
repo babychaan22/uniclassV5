@@ -22,11 +22,14 @@ import { supabase } from '@/api/supabaseClient';
  * @returns {Promise<Object>} Parsed JSON object from the model.
  */
 export async function invokeLLM({ prompt }) {
-  let lastError = 'All AI models are currently unavailable. Try again shortly.';
+  const errors = [];
 
   const providers = [
     { name: 'openrouter-proxy', label: 'OpenRouter' },
-    { name: 'gemini-proxy', label: 'Gemini' },
+    // Gemini fallback is opt-in because model availability varies by account.
+    ...(import.meta.env.VITE_ENABLE_GEMINI_FALLBACK === 'true'
+      ? [{ name: 'gemini-proxy', label: 'Gemini' }]
+      : []),
   ];
 
   for (const provider of providers) {
@@ -36,28 +39,33 @@ export async function invokeLLM({ prompt }) {
       });
 
       if (error) {
-        lastError = `${provider.label} error: ${error.message}`;
+        let detail = '';
+        try {
+          const body = await error.context?.json();
+          detail = body?.error ? `: ${body.error}` : '';
+        } catch {}
+        errors.push(`${provider.label} error: ${error.message}${detail}`);
         continue;
       }
 
       if (data?.error) {
-        lastError = `${provider.label}: ${data.error}`;
+        errors.push(`${provider.label}: ${data.error}`);
         continue;
       }
 
       if (!data?.text) {
-        lastError = `${provider.label} returned an empty response.`;
+        errors.push(`${provider.label} returned an empty response.`);
         continue;
       }
 
       return parseJsonFromModel(data.text);
     } catch (err) {
-      lastError = `${provider.label}: ${err.message}`;
+      errors.push(`${provider.label}: ${err.message}`);
       continue;
     }
   }
 
-  throw new Error(lastError);
+  throw new Error(errors.join(' | ') || 'All AI models are currently unavailable. Try again shortly.');
 }
 
 /** Strip markdown fences and parse JSON, with a fallback regex extraction. */

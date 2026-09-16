@@ -9,7 +9,6 @@ import { getTeacherClassroom, getClassroomDataset } from "@/lib/teacherClassroom
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import { Download, FileText, Loader2 } from "lucide-react";
-import { jsPDF } from "jspdf";
 import { ROUTES } from '@/lib/routes';
 
 function downloadCSV(name, headers, rows) {
@@ -34,7 +33,7 @@ export default function ExportData() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const ds = await getClassroomDataset(c.id);
+    const ds = await getClassroomDataset(c.id, ['groups', 'members', 'attendance', 'assessments', 'missions', 'submissions']);
     const { members, groups, attendance, missions } = ds;
     const scores = ds.assessments;
     const subs = ds.submissions;
@@ -58,8 +57,9 @@ export default function ExportData() {
       data.subs.map((s) => [data.mmap[s.group_id] || "Group", data.mimap[s.mission_id] || "—", s.score, s.xp_earned, s.graded_by || ""]));
   }
 
-  function exportPDF() {
+  async function exportPDF() {
     setBusy("pdf");
+    const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text(`${data.c.grade_level} ${data.c.section} — Class Report`, 14, 18);
@@ -122,4 +122,3 @@ export default function ExportData() {
     </div>
   );
 }
-

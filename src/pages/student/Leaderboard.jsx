@@ -10,6 +10,7 @@ import ClayChip from "@/components/ClayChip";
 import { Trophy, Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
 import { computeActivityPct, computeParticipationPoints } from "@/lib/stats";
 import { ROUTES } from '@/lib/routes';
+import { getActiveStudentAccount } from '@/lib/studentContext';
 
 export default function StudentLeaderboard() {
   const { user } = useAuth();
@@ -21,8 +22,7 @@ export default function StudentLeaderboard() {
 
   async function load() {
     if (!user) return;
-    const accs = await db.entities.GroupAccount.filter({ user_id: user.id });
-    const account = accs[0];
+    const account = await getActiveStudentAccount(user.id);
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
@@ -92,7 +92,8 @@ export default function StudentLeaderboard() {
                 const r = podium[idx];
                 if (!r) return <div key={idx} />;
                 const place = idx;
-                const heights = ["h-24", "h-32", "h-20"];
+                // podiumOrder is [2nd, 1st, 3rd], so height must follow rank.
+                const heights = ["h-32", "h-24", "h-20"];
                 return (
                   <div key={r.group.id} className="text-center">
                     <div className="text-3xl mb-1">{medal[place]}</div>
@@ -161,4 +162,3 @@ export default function StudentLeaderboard() {
     </div>
   );
 }
-

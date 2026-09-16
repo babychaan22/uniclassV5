@@ -3,6 +3,7 @@ const db = globalThis.__B44_DB__;
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { getActiveStudentAccount } from "@/lib/studentContext";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -14,7 +15,6 @@ import { scanAndResolve } from "@/lib/scanService";
 import { GACHA_OUTCOMES, MOOD_COLOR } from "@/lib/gacha";
 import { getWeekStartManila } from "@/lib/week";
 import { QrCode as QrIcon, Camera, Keyboard, VolumeX, Volume2, Loader2, History, Star, Trophy } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
 
 export default function StudentScan() {
   const { user } = useAuth();
@@ -38,8 +38,8 @@ export default function StudentScan() {
   useEffect(() => {
     async function load() {
       if (!user) return;
-      const acc = await db.entities.GroupAccount.filter({ user_id: user.id });
-      const a = acc[0];
+      const a = await getActiveStudentAccount(user.id);
+      if (!a) return;
       setAccount(a);
       const mem = await db.entities.GroupMember.filter({ group_id: a.group_id });
       setMembers(mem);
@@ -134,6 +134,7 @@ export default function StudentScan() {
     setScanning(true);
     setTimeout(async () => {
       try {
+        const { Html5Qrcode } = await import("html5-qrcode");
         html5Ref.current = new Html5Qrcode("qr-reader");
         await html5Ref.current.start(
           { facingMode: "environment" },
@@ -248,14 +249,17 @@ export default function StudentScan() {
       {phase === "risk" && (
         <ClayCard color="purple" className="p-6 text-center">
           <p className="font-display font-bold text-lg text-white mb-2">Gacha Code Detected!</p>
-          <p className="text-white/80 mb-4">Risk your points for a multiplier (0.25× to 2×)?</p>
+          <p className="text-white/80 mb-4">Try your luck for a points multiplier?</p>
           <div className="flex flex-col gap-3">
             <ClayButton color="lime" size="lg" onClick={() => riskIt("safe")} disabled={resolving}>Keep it Safe</ClayButton>
             <ClayButton color="pink" size="lg" onClick={() => riskIt("risk")} disabled={resolving}>
               {resolving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Risk It! 🔥"}
             </ClayButton>
           </div>
-          <p className="text-white/50 text-xs mt-3">Equal odds for every multiplier (0.25× → 2×)!</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-left text-[11px] text-white/80">
+            <span>0.5× · Try again next time!</span><span>1.0× · Your points are safe!</span>
+            <span>1.5× · You lucky duck!</span><span>2.0× · Jackpot! Wohoo!</span>
+          </div>
         </ClayCard>
       )}
 

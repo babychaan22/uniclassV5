@@ -8,6 +8,7 @@ import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from "@/
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import ClayButton from "@/components/ClayButton";
 import { ScrollText, Award } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
@@ -27,20 +28,25 @@ export default function ActivityLogs() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => { load(); }, [user]);
 
-  async function load() {
+  async function load(nextPage = 0) {
     if (!user) return;
+    if (nextPage > 0) setLoadingMore(true);
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
+    const offset = nextPage * 100;
     const [logs, redemptions, badges, groups, members] = await Promise.all([
-      db.entities.ParticipationLog.filter({ classroom_id: c.id }),
-      db.entities.RewardRedemption.filter({ classroom_id: c.id }),
-      db.entities.Badge.filter({ classroom_id: c.id }),
-      getClassroomGroups(c.id),
-      getClassroomMembers(c.id),
+      db.entities.ParticipationLog.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      db.entities.RewardRedemption.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      db.entities.Badge.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      getClassroomGroups(c.id), getClassroomMembers(c.id),
     ]);
+    setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
 
@@ -48,7 +54,7 @@ export default function ActivityLogs() {
       id: `log-${l.id}`,
       type: l.event_type || "scan",
       points: l.points_awarded,
-      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : null,
+      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
       memberLabel: mmap[l.group_member_id] || null,
       note: l.note,
       created_date: l.created_date,
@@ -78,8 +84,13 @@ export default function ActivityLogs() {
       (a, b) => (b.created_date || "").localeCompare(a.created_date || "")
     );
 
-    setEntries(merged);
+    setEntries((current) => nextPage === 0
+      ? merged
+      : [...current, ...merged].filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index)
+    );
+    setPage(nextPage);
     setLoading(false);
+    setLoadingMore(false);
   }
 
   if (loading) {
@@ -141,7 +152,9 @@ export default function ActivityLogs() {
           </ClayCard>
         );
       })}
+      {hasMore && <ClayButton onClick={() => load(page + 1)} color="white" className="w-full" disabled={loadingMore}>
+        {loadingMore ? "Loading…" : "Load older activity"}
+      </ClayButton>}
     </div>
   );
 }
-
