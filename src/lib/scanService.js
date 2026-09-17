@@ -1,7 +1,7 @@
 
-export async function scanAndResolve(hash, groupMemberId, risk = false) {
-  if (!hash || !groupMemberId) {
-    return { error: "Missing hash or member." };
+export async function scanAndResolve(hash, groupMemberId, risk = false, recipientType = "member") {
+  if (!hash || (recipientType === "member" && !groupMemberId)) {
+    return { error: "Select a member or the whole group before scanning." };
   }
 
   try {
@@ -10,6 +10,7 @@ export async function scanAndResolve(hash, groupMemberId, risk = false) {
       p_hash: hash,
       p_group_member_id: groupMemberId,
       p_risk: risk,
+      p_recipient_type: recipientType,
     });
     if (error) throw error;
     return data;

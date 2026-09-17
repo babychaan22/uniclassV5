@@ -21,6 +21,7 @@ export default function StudentScan() {
   const [account, setAccount] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberId, setMemberId] = useState(null);
+  const [recipientType, setRecipientType] = useState("member");
   const [scanning, setScanning] = useState(false);
   const [manualHash, setManualHash] = useState("");
   const [phase, setPhase] = useState("idle");
@@ -63,7 +64,7 @@ export default function StudentScan() {
 
   // FIX 6: Calculate week total and rank after a successful scan
   const computeSummary = useCallback(async (pointsThisScan) => {
-    if (!account || !memberId) return;
+    if (!account) return;
     try {
       const classroomId = account.classroom_id;
       const weekStart = getWeekStartManila();
@@ -84,11 +85,16 @@ export default function StudentScan() {
           .filter((l) => l.group_member_id === m.id && inWeek(l.created_date))
           .reduce((s, l) => s + (l.points_awarded || 0), 0);
       }
-      const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-      const rank = sorted.findIndex(([id]) => id === memberId) + 1;
-      setSummary({ pointsThisScan, weekTotal: totals[memberId] || 0, rank: rank || "—" });
+      if (recipientType === "group") {
+        const groupTotal = allLogs.filter((log) => log.group_id === account.group_id && inWeek(log.created_date)).reduce((sum, log) => sum + (log.points_awarded || 0), 0);
+        setSummary({ pointsThisScan, weekTotal: groupTotal, rank: "Group" });
+      } else {
+        const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        const rank = sorted.findIndex(([id]) => id === memberId) + 1;
+        setSummary({ pointsThisScan, weekTotal: totals[memberId] || 0, rank: rank || "—" });
+      }
     } catch (e) { /* ignore */ }
-  }, [account, memberId]);
+  }, [account, memberId, recipientType]);
 
   async function handleScanTyped(hash) {
     if (resolving || phase !== "idle") return;
@@ -109,7 +115,7 @@ export default function StudentScan() {
       setPhase("risk");
     } else {
       setResolving(true);
-      const res = await scanAndResolve(hash, memberId, false);
+      const res = await scanAndResolve(hash, recipientType === "member" ? memberId : null, false, recipientType);
       setResolving(false);
       if (res.error) { setError(res.error); setPhase("idle"); setPendingHash(null); return; }
       setResult(res);
@@ -127,7 +133,7 @@ export default function StudentScan() {
     if (account) load();
   }
 
-  useEffect(() => { scannerRef.current = handleScanTyped; }, [memberId, account, resolving, phase, computeSummary]);
+  useEffect(() => { scannerRef.current = handleScanTyped; }, [memberId, recipientType, account, resolving, phase, computeSummary]);
 
   async function startCameraTyped() {
     setError("");
@@ -151,7 +157,7 @@ export default function StudentScan() {
   async function riskIt(choice) {
     if (!pendingHash) return;
     setResolving(true);
-    const res = await scanAndResolve(pendingHash, memberId, choice === "risk");
+    const res = await scanAndResolve(pendingHash, recipientType === "member" ? memberId : null, choice === "risk", recipientType);
     setResolving(false);
     if (res.error) { setError(res.error); setPhase("idle"); setPendingHash(null); return; }
     if (choice === "safe" || res.gacha === null) {
@@ -210,10 +216,15 @@ export default function StudentScan() {
       )}
 
       <ClayCard className="p-4">
-        <label className="font-display font-bold text-sm mb-1 block">Earning for member</label>
-        <select className="clay-input" value={memberId || ""} onChange={(e) => setMemberId(e.target.value)}>
+        <label className="font-display font-bold text-sm mb-1 block">Who earns these points?</label>
+        <select className="clay-input" value={recipientType === "group" ? "group" : memberId || ""} onChange={(e) => {
+          if (e.target.value === "group") setRecipientType("group");
+          else { setRecipientType("member"); setMemberId(e.target.value); }
+        }}>
+          <option value="group">Whole group</option>
           {members.map((m) => (<option key={m.id} value={m.id}>{m.last_name}, {m.first_name}</option>))}
         </select>
+        <p className="text-xs text-ink/50 mt-1">Choose a member for personal points, or the whole group for shared points.</p>
       </ClayCard>
 
       {phase === "idle" && (
