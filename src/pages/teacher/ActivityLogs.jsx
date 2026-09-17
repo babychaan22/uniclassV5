@@ -55,7 +55,7 @@ export default function ActivityLogs() {
       type: l.event_type || "scan",
       points: l.points_awarded,
       groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
-      memberLabel: mmap[l.group_member_id] || null,
+      memberLabel: l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null,
       note: l.note,
       created_date: l.created_date,
     }));

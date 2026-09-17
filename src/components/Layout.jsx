@@ -13,6 +13,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { MascotBadge } from "@/components/MascotWidget";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
 import TeacherClassSwitcher from "@/components/TeacherClassSwitcher";
+import OfflineStatus from "@/components/OfflineStatus";
 
 const TEACHER_NAV_SECTIONS = [
   {
@@ -128,6 +129,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-cream">
+      <OfflineStatus />
       <header className="sticky top-0 z-40 bg-clay-purple text-white border-b-[3px] border-ink no-print">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to={isTeacher ? ROUTES.TEACHER.DASHBOARD : ROUTES.STUDENT.DASHBOARD} className="flex items-center gap-2">

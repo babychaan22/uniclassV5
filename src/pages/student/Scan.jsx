@@ -314,7 +314,7 @@ export default function StudentScan() {
               const color = log.event_type === "gacha_win" ? "lime" : log.event_type === "gacha_loss" ? "coral" : log.event_type === "gacha_even" ? "sun" : "sky";
               return (
                 <div key={log.id} className="flex items-center justify-between text-sm border-b border-ink/10 pb-1.5">
-                  <span className="font-body truncate">{m ? `${m.last_name}, ${m.first_name[0]}.` : "—"}</span>
+                  <span className="font-body truncate">{log.recipient_type === "group" || !log.group_member_id ? "WHOLE GROUP" : m ? `${m.last_name}, ${m.first_name[0]}.` : "—"}</span>
                   <ClayChip color={color}>+{log.points_awarded}{log.multiplier && log.multiplier !== 1 ? ` (${log.multiplier}×)` : ""}</ClayChip>
                 </div>
               );

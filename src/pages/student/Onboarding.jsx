@@ -184,7 +184,7 @@ export default function StudentOnboarding() {
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-1">Your Email</p>
-        <p className="text-xs text-ink/50 mb-2">Confirms your enrollment. You can only enroll once.</p>
+        <p className="text-xs text-ink/50 mb-2">Confirms your enrollment. If your representative already added your name, use the same spelling so your new account connects to that existing student record.</p>
         <input type="email" className="clay-input" placeholder="you@school.edu" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </ClayCard>
 

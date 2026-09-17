@@ -175,6 +175,7 @@ export default function StudentBadges() {
                   </ClayButton>
                 )}
               </div>
+              <p className="text-[11px] text-ink/50 mt-2">One redemption per group. Points go to the group total.</p>
             </ClayCard>
           );
         })}
@@ -183,7 +184,7 @@ export default function StudentBadges() {
         <h2 className="font-display font-bold text-lg">Teacher badges</h2>
         <div className="grid sm:grid-cols-2 gap-4">{customBadges.map((badge) => {
           const key = `custom:${badge.id}`; const isClaimed = claimed[key];
-          return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Optional weekend badge"}</p></div></div><ClayChip color={isClaimed ? "lime" : "sun"}>{isClaimed ? "Claimed" : `${badge.badge_scope} · +${badge.points} pts`}</ClayChip>{endOfWeek && !isClaimed && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Claim badge"}</ClayButton>}</ClayCard>;
+          return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Weekend badge"}</p></div></div><ClayChip color={isClaimed ? "lime" : "sun"}>{isClaimed ? "Claimed" : `${badge.badge_scope} · +${badge.points} pts`}</ClayChip>{badge.badge_scope === "group" && <p className="text-[11px] text-ink/50 mt-2">One redemption per group. Points go to the group total.</p>}{endOfWeek && !isClaimed && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Claim badge"}</ClayButton>}</ClayCard>;
         })}</div>
       </>}
     </div>
