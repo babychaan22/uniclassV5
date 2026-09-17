@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { invalidateTeacherClassroom, invalidateClassroomContext } from "@/lib/teacherClassroom";
 import { createClassroom } from "@/lib/secureActions";
+import { deleteClassroom } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -112,6 +113,21 @@ export default function TeacherOnboarding() {
     if (activeId) loadDetails(activeId);
   }
 
+  async function removeClass(classroom) {
+    if (!window.confirm(`Delete ${classroom.grade_level} · ${classroom.section}? This removes its class data and cannot be undone.`)) return;
+    setError("");
+    try {
+      await deleteClassroom(classroom.id);
+      invalidateTeacherClassroom();
+      invalidateClassroomContext();
+      const remaining = classrooms.filter((item) => item.id !== classroom.id);
+      setClassrooms(remaining);
+      setActiveId(remaining[0]?.id || null);
+    } catch (err) {
+      setError(err?.message || "Class could not be deleted. Check that you are the class teacher.");
+    }
+  }
+
   async function createTerm(e) {
     e.preventDefault();
     for (const t of terms) { if (t.is_active) await db.entities.GradingTerm.update(t.id, { is_active: false }); }
@@ -184,7 +200,10 @@ export default function TeacherOnboarding() {
                     <span className="font-display font-bold">{c.grade_level} · {c.section}{c.subject ? ` · ${c.subject}` : ""}</span>
                     <span className="flex items-center gap-2">
                       <span className="font-mono text-xs">{c.join_code}</span>
-                      {sel && <ChevronRight className="w-4 h-4" />}
+                      <span className="flex items-center gap-2">
+                        {sel && <ChevronRight className="w-4 h-4" />}
+                        <span role="button" tabIndex={0} className="text-xs underline text-clay-coral" onClick={(event) => { event.stopPropagation(); removeClass(c); }} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); removeClass(c); } }}>Delete</span>
+                      </span>
                     </span>
                   </div>
                 </button>

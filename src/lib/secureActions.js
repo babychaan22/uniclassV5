@@ -12,6 +12,18 @@ export async function createClassroom(payload) {
   return data;
 }
 
+export async function deleteClassroom(classroomId) {
+  const { data, error } = await supabase.rpc('delete_classroom', { p_classroom_id: classroomId });
+  if (error) throw error;
+  return data;
+}
+
+export async function removeStudentFromClass(groupAccountId) {
+  const { data, error } = await supabase.rpc('remove_student_from_class', { p_group_account_id: groupAccountId });
+  if (error) throw error;
+  return data;
+}
+
 export async function lookupClassroomByJoinCode(joinCode) {
   const { data, error } = await supabase.rpc('lookup_classroom_by_join_code', {
     p_join_code: joinCode,

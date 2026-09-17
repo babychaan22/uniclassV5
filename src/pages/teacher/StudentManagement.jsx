@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { removeStudentFromClass } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -19,6 +20,7 @@ export default function TeacherStudentManagement() {
   const [classroom, setClassroom] = useState(null);
   const [pending, setPending] = useState([]);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [approved, setApproved] = useState([]);
   const [groups, setGroups] = useState([]);
   const [busy, setBusy] = useState(false);
 
@@ -33,7 +35,9 @@ export default function TeacherStudentManagement() {
     const accounts = ds.groupAccounts;
     setGroups(ds.groups);
     setPending(accounts.filter((a) => !a.is_approved));
-    setApprovedCount(accounts.filter((a) => a.is_approved).length);
+    const approvedAccounts = accounts.filter((a) => a.is_approved);
+    setApproved(approvedAccounts);
+    setApprovedCount(approvedAccounts.length);
     setLoading(false);
   }
 
@@ -57,6 +61,16 @@ export default function TeacherStudentManagement() {
     setBusy(false);
     invalidateClassroomDataset();
     load();
+  }
+
+  async function removeStudent(account) {
+    if (!window.confirm(`Remove ${account.last_name}, ${account.first_name} from this class? Their login and other class memberships stay intact.`)) return;
+    setBusy(true);
+    try {
+      await removeStudentFromClass(account.id);
+      invalidateClassroomDataset();
+      await load();
+    } finally { setBusy(false); }
   }
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
@@ -101,6 +115,23 @@ export default function TeacherStudentManagement() {
             </ClayCard>
           ))}
         </div>
+      )}
+
+      {approved.length > 0 && (
+        <ClayCard className="p-5">
+          <h2 className="font-display font-bold text-base mb-3">Approved students</h2>
+          <div className="space-y-2">
+            {approved.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl border-2 border-ink/15 bg-cream p-3">
+                <div>
+                  <p className="font-display font-bold">{a.last_name}, {a.first_name}</p>
+                  <p className="text-xs text-ink/60 font-mono">Group {gnum(a)} · {a.is_representative ? "Representative" : "Member"}{a.email ? ` · ${a.email}` : ""}</p>
+                </div>
+                <ClayButton size="sm" color="coral" onClick={() => removeStudent(a)} disabled={busy}><X className="w-4 h-4" /> Remove</ClayButton>
+              </div>
+            ))}
+          </div>
+        </ClayCard>
       )}
     </div>
   );
