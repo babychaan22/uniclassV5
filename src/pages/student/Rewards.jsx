@@ -30,7 +30,7 @@ export default function StudentRewards() {
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
     const [rewards, members, logs, redemptions] = await Promise.all([
-      db.entities.Reward.filter({ classroom_id: classroomId }),
+      db.entities.Reward.filter({ is_active: true }),
       db.entities.GroupMember.filter({ group_id: group.id }),
       db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.RewardRedemption.filter({ group_id: group.id }),
@@ -38,8 +38,10 @@ export default function StudentRewards() {
     const gross = members.reduce((s, m) => s + computeParticipationPoints(m.id, logs), 0);
     const spent = redemptions.reduce((s, r) => s + (r.points_spent || 0), 0);
     const available = Math.max(0, gross - spent);
-    const active = rewards.filter((r) => r.is_active).sort((a, b) => a.cost_points - b.cost_points);
-    setData({ account, group, members, active, gross, spent, available });
+    const active = rewards
+      .filter((r) => r.classroom_id === classroomId || r.applies_to_all_classes)
+      .sort((a, b) => a.cost_points - b.cost_points);
+    setData({ account, group, classroomId, members, active, gross, spent, available });
   }
 
   async function redeem(r) {
@@ -49,7 +51,7 @@ export default function StudentRewards() {
     }
     setRedeeming(r.id);
     setMsg(null);
-    await redeemReward(r.id);
+    await redeemReward(r.id, data.classroomId);
     setRedeeming(null);
     setMsg({ ok: true, text: `Claimed "${r.title}"! Show your teacher 🎉` });
     load();
@@ -63,7 +65,7 @@ export default function StudentRewards() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Rewards Shop</h1>
-        <p className="text-ink/60 text-sm">Trade your group's participation points for rewards.</p>
+        <p className="text-ink/60 text-sm">Trade your group&apos;s participation points for rewards available across your enrolled classes.</p>
       </div>
 
       <ClayCard color="purple" className="p-5">

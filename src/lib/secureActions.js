@@ -48,9 +48,10 @@ export async function claimBadgeDefinition(definitionId, groupId, memberId = nul
   return data;
 }
 
-export async function redeemReward(rewardId) {
+export async function redeemReward(rewardId, classroomId = null) {
   const { data, error } = await supabase.rpc('redeem_reward', {
     p_reward_id: rewardId,
+    p_classroom_id: classroomId,
   });
   if (error) throw error;
   return data;

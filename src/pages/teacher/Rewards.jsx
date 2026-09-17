@@ -28,8 +28,8 @@ export default function TeacherRewards() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id, ['rewards']);
-    setRewards([...ds.rewards].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    const catalog = await db.entities.Reward.filter({ created_by: user.id });
+    setRewards([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
   }
 
   async function createReward(e) {
@@ -43,6 +43,7 @@ export default function TeacherRewards() {
       cost_points: Number(form.cost_points),
       is_active: true,
       created_by: user.id,
+      applies_to_all_classes: true,
     });
     setForm({ title: "", description: "", emoji: "🎁", cost_points: 50 });
     setCreating(false);
@@ -68,7 +69,7 @@ export default function TeacherRewards() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Rewards Shop</h1>
-        <p className="text-ink/60 text-sm">Define rewards students can claim with participation points.</p>
+        <p className="text-ink/60 text-sm">Define rewards students can claim with participation points in any of your classes.</p>
       </div>
 
       <ClayCard className="p-5">
@@ -110,6 +111,7 @@ export default function TeacherRewards() {
                 {r.description && <p className="text-xs text-ink/60 mt-0.5">{r.description}</p>}
                 <div className="flex flex-wrap gap-2 mt-2">
                   <ClayChip color="sun">{r.cost_points} pts</ClayChip>
+                  <ClayChip color="sky">All your classes</ClayChip>
                   <ClayChip color={r.is_active ? "lime" : "cream"}>{r.is_active ? "Available" : "Hidden"}</ClayChip>
                 </div>
               </div>
