@@ -14,12 +14,12 @@ export default function TeacherBadges() {
   const [saving, setSaving] = useState(false);
   async function load() {
     const c = await getTeacherClassroom(user.id); setClassroom(c);
-    if (c) setBadges(await db.entities.BadgeDefinition.filter({ classroom_id: c.id }, { orderBy: "created_at", ascending: false }));
+    if (c) setBadges(await db.entities.BadgeDefinition.filter({ created_by: user.id }, { orderBy: "created_at", ascending: false }));
   }
   useEffect(() => { if (user) load(); }, [user]);
   async function create(e) {
     e.preventDefault(); setSaving(true);
-    await db.entities.BadgeDefinition.create({ ...form, points: Number(form.points), classroom_id: classroom.id, created_by: user.id });
+    await db.entities.BadgeDefinition.create({ ...form, points: Number(form.points), classroom_id: classroom.id, created_by: user.id, applies_to_all_classes: true });
     setForm({ title: "", description: "", icon: "🏅", badge_scope: "group", points: 10 }); setSaving(false); load();
   }
   async function remove(id) { await db.entities.BadgeDefinition.update(id, { is_active: false }); load(); }

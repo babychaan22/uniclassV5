@@ -40,7 +40,7 @@ export default function StudentDashboard() {
         db.entities.Activity.filter({ classroom_id: classroomId }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
         db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
-        db.entities.Mission.filter({ classroom_id: classroomId, is_active: true }),
+        db.entities.Mission.filter({ is_active: true }),
       ]);
 
       const memberCards = members.map((m) => {
@@ -66,7 +66,7 @@ export default function StudentDashboard() {
       const memberIds = members.map((m) => m.id);
       const groupPartStreak = computeEngagementStreak(memberIds, attendance, scores, getTodayManila());
 
-      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions, announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions: missions.filter((m) => m.classroom_id === classroomId || m.applies_to_all_classes), announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();

@@ -14,7 +14,7 @@ import { Target, Plus, Trash2, Loader2, Sparkles } from "lucide-react";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
-import { invokeLLM } from "@/lib/aiService";
+import { generateMissionImage, invokeLLM } from "@/lib/aiService";
 import MascotWidget from "@/components/MascotWidget";
 
 const PROMPT_TEMPLATES = {
@@ -71,6 +71,10 @@ export default function TeacherMissions() {
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState(null);
+  const [missionImage, setMissionImage] = useState(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [imageGenerations, setImageGenerations] = useState(0);
+  const [draftKey] = useState(() => crypto.randomUUID());
   const [grading, setGrading] = useState(null);
   const [gradeVal, setGradeVal] = useState("");
   const [savingGrade, setSavingGrade] = useState(false);
@@ -88,8 +92,11 @@ export default function TeacherMissions() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const ds = await getClassroomDataset(c.id, ['groups','missions','submissions']);
-    setMissions([...ds.missions].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    const [ds, catalog] = await Promise.all([
+      getClassroomDataset(c.id, ['groups','submissions']),
+      db.entities.Mission.filter({ created_by: user.id }),
+    ]);
+    setMissions([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
     setSubmissions(ds.submissions);
   }
@@ -107,6 +114,8 @@ export default function TeacherMissions() {
       deadline: form.deadline || undefined,
       is_active: false,
       created_by: user.id,
+      applies_to_all_classes: true,
+      image_url: missionImage || undefined,
       formative_type: form.formative_type,
       ai_content: isAi && aiContent
         ? JSON.stringify(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right } : { questions: aiContent.questions })
@@ -115,10 +124,28 @@ export default function TeacherMissions() {
     });
     setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "" });
     setAiContent(null);
+    setMissionImage(null);
+    setImageGenerations(0);
     setGenMsg(null);
     setCreating(false);
     invalidateClassroomDataset();
     load();
+  }
+
+  async function generateImage() {
+    if (!form.title || !form.content) { setGenMsg("Add a title and topic first."); return; }
+    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
+    setGeneratingImage(true); setGenMsg(null);
+    try {
+      const imageUrl = await generateMissionImage({
+        draftKey,
+        prompt: `Create a clear, age-appropriate educational illustration for a classroom mission titled "${form.title}" about ${form.content}. No words, labels, numbers, logos, or watermark. Use a friendly learning-app style.`,
+      });
+      setMissionImage(imageUrl);
+      setImageGenerations((count) => count + 1);
+      setGenMsg("Image generated. Review it before creating the mission.");
+    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
+    setGeneratingImage(false);
   }
 
   async function generateAI(e) {
@@ -218,6 +245,9 @@ export default function TeacherMissions() {
               <ClayButton type="button" color="sky" size="sm" className="w-full" disabled={generating} onClick={generateAI}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}
               </ClayButton>
+              <ClayButton type="button" color="lime" size="sm" className="w-full" disabled={generatingImage || imageGenerations >= 3} onClick={generateImage}>
+                {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate mission image ({imageGenerations}/3)</>}
+              </ClayButton>
               <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state={generating ? "ai_thinking" : "quest"} size="sm" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
               {genMsg && <p className={`text-xs font-display font-bold ${genMsg.includes("failed") || genMsg.includes("Add") ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
               {aiContent && (
@@ -225,6 +255,7 @@ export default function TeacherMissions() {
                   <MissionPreview type={form.formative_type} content={aiContent} />
                 </div>
               )}
+              {missionImage && <div className="rounded-xl border-2 border-ink overflow-hidden"><img src={missionImage} alt="Generated mission illustration" className="w-full max-h-64 object-cover" /></div>}
             </>
           )}
           <div className="grid grid-cols-3 gap-3">
@@ -265,6 +296,7 @@ export default function TeacherMissions() {
               <div className="min-w-0">
                 <p className="font-display font-bold">{m.title}</p>
                 {m.description && <p className="text-xs text-ink/60 mt-0.5">{m.description}</p>}
+                {m.image_url && <img src={m.image_url} alt={`${m.title} illustration`} className="mt-2 max-h-32 w-full rounded-xl border-2 border-ink object-cover" loading="lazy" />}
                 <div className="flex flex-wrap gap-2 mt-2">
                   <ClayChip color="sun">+{m.xp_reward} XP</ClayChip>
                   <ClayChip color="purple">/{m.max_score} max</ClayChip>

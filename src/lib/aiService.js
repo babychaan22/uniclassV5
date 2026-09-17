@@ -69,6 +69,20 @@ export async function invokeLLM({ prompt }) {
   throw new Error(errors.join(' | ') || 'All AI models are currently unavailable. Try again shortly.');
 }
 
+export async function generateMissionImage({ prompt, draftKey }) {
+  const { data, error } = await supabase.functions.invoke('openrouter-proxy', {
+    body: { kind: 'image', prompt, draftKey },
+  });
+  if (error) {
+    let detail = '';
+    try { const body = await error.context?.json(); detail = body?.error ? `: ${body.error}` : ''; } catch {}
+    throw new Error(`${error.message}${detail}`);
+  }
+  if (data?.error) throw new Error(data.error);
+  if (!data?.imageUrl) throw new Error('The image provider returned no image.');
+  return data.imageUrl;
+}
+
 /** Strip markdown fences and parse JSON, with a fallback regex extraction. */
 function parseJsonFromModel(text) {
   const cleaned = text

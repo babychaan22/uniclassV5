@@ -17,6 +17,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const APP_ORIGIN = Deno.env.get('APP_ORIGIN') ?? 'https://uniclass.app';
 
 const CONFIGURED_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? '';
+const IMAGE_MODEL = Deno.env.get('OPENROUTER_IMAGE_MODEL') ?? 'google/gemini-3.1-flash-image-preview';
 
 async function getFreeModelChain(apiKey: string): Promise<string[]> {
   const chain = CONFIGURED_MODEL && CONFIGURED_MODEL !== 'openrouter/free'
@@ -56,6 +57,48 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
     }
   }
   return [...new Set(chain)].filter(Boolean).concat(catalogError ? [`__catalog_error__:${catalogError}`] : []);
+}
+
+async function generateImage(apiKey: string, prompt: string, draftKey: string, userId: string, supabaseClient: ReturnType<typeof createClient>): Promise<Response> {
+  const { error: quotaError } = await supabaseClient.rpc('consume_ai_image_quota', { p_draft_key: draftKey });
+  if (quotaError) return json({ error: quotaError.message }, 429);
+
+  let response: Response;
+  try {
+    response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': APP_ORIGIN,
+        'X-Title': 'UniClass',
+      },
+      body: JSON.stringify({
+        model: IMAGE_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        modalities: ['text', 'image'],
+        image_config: { aspect_ratio: '16:9', image_size: '1K' },
+      }),
+    });
+  } catch (error) {
+    return json({ error: `Network error reaching OpenRouter image generation: ${(error as Error).message}` }, 502);
+  }
+  if (!response.ok) return json({ error: `OpenRouter image model "${IMAGE_MODEL}" returned HTTP ${response.status}: ${await response.text()}` }, 502);
+
+  const data = await response.json();
+  const imageUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? '';
+  if (!imageUrl) return json({ error: `Image model "${IMAGE_MODEL}" returned no image.` }, 502);
+
+  if (!imageUrl.startsWith('data:image/')) return json({ imageUrl });
+  const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/s);
+  if (!match) return json({ error: 'Image provider returned an unsupported image format.' }, 502);
+  const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
+  const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+  const path = `${userId}/${crypto.randomUUID()}.${match[1].split('/')[1] === 'jpeg' ? 'jpg' : 'png'}`;
+  const { error: uploadError } = await admin.storage.from('mission-images').upload(path, bytes, { contentType: match[1], upsert: false });
+  if (uploadError) return json({ error: `Generated image could not be stored: ${uploadError.message}` }, 502);
+  const { data: publicData } = admin.storage.from('mission-images').getPublicUrl(path);
+  return json({ imageUrl: publicData.publicUrl });
 }
 
 const CORS_HEADERS = {
@@ -103,8 +146,10 @@ Deno.serve(async (req: Request) => {
 
   // ── Parse body ──────────────────────────────────────────────────────────────
   let prompt: string;
+  let kind = 'text';
+  let draftKey = '';
   try {
-    ({ prompt } = await req.json());
+    ({ prompt, kind = 'text', draftKey = '' } = await req.json());
   } catch {
     return json({ error: 'Request body must be JSON with a "prompt" field.' }, 400);
   }
@@ -113,6 +158,11 @@ Deno.serve(async (req: Request) => {
   }
   if (typeof prompt !== 'string' || prompt.length > 12000) {
     return json({ error: 'Prompt is too long.' }, 413);
+  }
+
+  if (kind === 'image') {
+    if (!draftKey) return json({ error: 'draftKey is required for image generation.' }, 400);
+    return generateImage(apiKey, prompt, draftKey, user.id, supabaseClient);
   }
 
   // ── Model fallback chain ────────────────────────────────────────────────────

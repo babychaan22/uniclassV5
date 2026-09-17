@@ -52,7 +52,8 @@ export default function StudentBadges() {
       setClaimed(claimedMap);
 
       const classroomId = g.classroom_id;
-      setCustomBadges(await db.entities.BadgeDefinition.filter({ classroom_id: classroomId, is_active: true }));
+      const definitions = await db.entities.BadgeDefinition.filter({ is_active: true });
+      setCustomBadges(definitions.filter((definition) => definition.classroom_id === classroomId || definition.applies_to_all_classes));
       const [members, allGroups, allMembers, attendance, scores, activities, logs] = await Promise.all([
         db.entities.GroupMember.filter({ group_id: g.id }),
         db.entities.Group.filter({ classroom_id: classroomId }),
