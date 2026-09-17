@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
