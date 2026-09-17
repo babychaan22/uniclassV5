@@ -60,9 +60,6 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
 }
 
 async function generateImage(apiKey: string, prompt: string, draftKey: string, userId: string, supabaseClient: ReturnType<typeof createClient>): Promise<Response> {
-  const { error: quotaError } = await supabaseClient.rpc('consume_ai_image_quota', { p_draft_key: draftKey });
-  if (quotaError) return json({ error: quotaError.message }, 429);
-
   let response: Response;
   try {
     response = await fetch(OPENROUTER_URL, {
@@ -83,13 +80,27 @@ async function generateImage(apiKey: string, prompt: string, draftKey: string, u
   } catch (error) {
     return json({ error: `Network error reaching OpenRouter image generation: ${(error as Error).message}` }, 502);
   }
-  if (!response.ok) return json({ error: `OpenRouter image model "${IMAGE_MODEL}" returned HTTP ${response.status}: ${await response.text()}` }, 502);
+  if (!response.ok) {
+    const body = await response.text();
+    if (response.status === 402 || response.status === 429) {
+      return json({
+        error: `Image generation is unavailable because the selected OpenRouter image provider has no usable quota for this account (HTTP ${response.status}). Add OpenRouter image credits or set OPENROUTER_IMAGE_MODEL to an image model available to your account. You can still create the text-only mission.`,
+        providerStatus: response.status,
+        providerDetails: body,
+      }, response.status);
+    }
+    return json({ error: `OpenRouter image model "${IMAGE_MODEL}" returned HTTP ${response.status}: ${body}` }, 502);
+  }
 
   const data = await response.json();
   const imageUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? '';
   if (!imageUrl) return json({ error: `Image model "${IMAGE_MODEL}" returned no image.` }, 502);
 
-  if (!imageUrl.startsWith('data:image/')) return json({ imageUrl });
+  if (!imageUrl.startsWith('data:image/')) {
+    const { error: quotaError } = await supabaseClient.rpc('consume_ai_image_quota', { p_draft_key: draftKey });
+    if (quotaError) return json({ error: quotaError.message }, 429);
+    return json({ imageUrl });
+  }
   const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/s);
   if (!match) return json({ error: 'Image provider returned an unsupported image format.' }, 502);
   const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
@@ -98,6 +109,8 @@ async function generateImage(apiKey: string, prompt: string, draftKey: string, u
   const { error: uploadError } = await admin.storage.from('mission-images').upload(path, bytes, { contentType: match[1], upsert: false });
   if (uploadError) return json({ error: `Generated image could not be stored: ${uploadError.message}` }, 502);
   const { data: publicData } = admin.storage.from('mission-images').getPublicUrl(path);
+  const { error: quotaError } = await supabaseClient.rpc('consume_ai_image_quota', { p_draft_key: draftKey });
+  if (quotaError) return json({ error: quotaError.message }, 429);
   return json({ imageUrl: publicData.publicUrl });
 }
 
