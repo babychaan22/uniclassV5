@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { invalidateTeacherClassroom } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, invalidateTeacherClassroom } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -54,8 +54,7 @@ export default function TeacherSettings() {
 
   async function load() {
     if (!user) return;
-    const cr = await db.entities.Classroom.filter({ teacher_id: user.id });
-    const c = cr[0];
+    const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     let s = (await db.entities.ClassSettings.filter({ classroom_id: c.id }))[0];
     if (!s) s = await db.entities.ClassSettings.create({ classroom_id: c.id });

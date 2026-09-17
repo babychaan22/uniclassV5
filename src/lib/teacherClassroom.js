@@ -3,6 +3,7 @@ import { db as base44 } from "@/api/supabaseClient";
 
 // Module-level cache for the current teacher's classroom record.
 let cache = null; // { userId, promise, ts }
+export const ACTIVE_TEACHER_CLASSROOM_KEY = 'uniclass.teacher.activeClassroomId';
 const TTL = 30 * 1000;
 
 export function invalidateTeacherClassroom() {
@@ -17,12 +18,30 @@ export function getTeacherClassroom(userId) {
   }
   const promise = base44.entities.Classroom
     .filter({ teacher_id: userId })
-    .then((cr) => cr[0] || null);
+    .then((cr) => {
+      if (!cr?.length) return null;
+      const selected = typeof window !== 'undefined'
+        ? window.localStorage.getItem(ACTIVE_TEACHER_CLASSROOM_KEY)
+        : null;
+      return cr.find((classroom) => classroom.id === selected) || cr[0];
+    });
   cache = { userId, promise, ts: now };
   promise.catch(() => {
     if (cache && cache.promise === promise) cache = null;
   });
   return promise;
+}
+
+export function getTeacherClassrooms(userId) {
+  if (!userId) return Promise.resolve([]);
+  return base44.entities.Classroom.filter({ teacher_id: userId });
+}
+
+export function setActiveTeacherClassroom(classroomId) {
+  if (typeof window === 'undefined') return;
+  if (classroomId) window.localStorage.setItem(ACTIVE_TEACHER_CLASSROOM_KEY, classroomId);
+  else window.localStorage.removeItem(ACTIVE_TEACHER_CLASSROOM_KEY);
+  window.dispatchEvent(new CustomEvent('uniclass-teacher-class-changed', { detail: { classroomId } }));
 }
 
 let groupCache = null;

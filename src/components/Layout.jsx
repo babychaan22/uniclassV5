@@ -12,6 +12,7 @@ import {
 import ThemeToggle from "@/components/ThemeToggle";
 import { MascotBadge } from "@/components/MascotWidget";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
+import TeacherClassSwitcher from "@/components/TeacherClassSwitcher";
 
 const TEACHER_NAV_SECTIONS = [
   {
@@ -136,7 +137,7 @@ export default function Layout() {
             <span className="font-display font-extrabold text-lg sm:text-xl">UniClass</span>
           </Link>
           <div className="flex items-center gap-3">
-            {!isTeacher && <StudentClassSwitcher user={user} />}
+            {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             <span className="hidden sm:block text-sm font-display font-bold opacity-90">{user?.email}</span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-pink text-white px-2 py-2" aria-label="Menu">

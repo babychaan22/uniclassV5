@@ -3,7 +3,6 @@ const db = globalThis.__B44_DB__;
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -18,7 +17,6 @@ function genHash() {
 
 export default function TeacherQRGenerator() {
   const { user } = useAuth();
-  const [classroom, setClassroom] = useState(null);
   const [form, setForm] = useState({ qr_type: "standard", base_points: 10, batch_size: 8 });
   const [generating, setGenerating] = useState(false);
   const [codes, setCodes] = useState([]);
@@ -27,22 +25,19 @@ export default function TeacherQRGenerator() {
   useEffect(() => {
     async function load() {
       if (!user) return;
-      const c = await getTeacherClassroom(user.id);
-      setClassroom(c);
     }
     load();
   }, [user]);
 
   async function generate(e) {
     e.preventDefault();
-    if (!classroom) return;
     setGenerating(true);
     const newCodes = [];
     for (let i = 0; i < form.batch_size; i++) {
       const hash = genHash();
       const created = await db.entities.QRCode.create({
         hash,
-        classroom_id: classroom.id,
+        classroom_id: null,
         qr_type: form.qr_type,
         base_points: Number(form.base_points),
         created_by: user.id,
@@ -65,17 +60,15 @@ export default function TeacherQRGenerator() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `qr-codes-${classroom?.section || "class"}.csv`; a.click();
+    a.href = url; a.download = "uniclass-general-qr-codes.csv"; a.click();
     URL.revokeObjectURL(url);
   }
-
-  if (!classroom) return <div className="p-6 text-ink/60">Create a class first in Class Setup.</div>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1">QR Code Generator</h1>
-        <p className="text-ink/60">{classroom.grade_level} · {classroom.section}</p>
+        <p className="text-ink/60">General codes · usable by any approved UniClass class · each code works once</p>
       </div>
 
       <ClayCard className="p-6 no-print">
@@ -113,7 +106,7 @@ export default function TeacherQRGenerator() {
           </div>
           <div className="clay-card p-4 bg-white">
             <div className="flex items-center justify-between border-b-2 border-ink pb-2 mb-4">
-              <h2 className="font-display font-bold text-lg">{classroom.grade_level} - {classroom.section}</h2>
+              <h2 className="font-display font-bold text-lg">General UniClass QR Codes</h2>
               <span className="font-mono text-sm">{form.qr_type.toUpperCase()} · {form.base_points}pts · {codes.length} codes</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
