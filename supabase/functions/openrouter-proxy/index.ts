@@ -43,7 +43,12 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
           model.id && model.id.endsWith(':free') &&
           Number(model.pricing?.prompt) === 0 && Number(model.pricing?.completion) === 0)
         .map((model: { id: string }) => model.id)
-        .slice(0, 8);
+        // Prefer text-capable flash/small models for short JSON generation.
+        .sort((a: string, b: string) => {
+          const score = (id: string) => (/(flash|small|mini|lite)/i.test(id) ? 0 : 1);
+          return score(a) - score(b);
+        })
+        .slice(0, 12);
       chain.push(...freeModels);
       if (freeModels.length > 0) break;
     } catch (error) {
@@ -54,7 +59,9 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
 }
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': APP_ORIGIN,
+  // The function still requires a valid Supabase user token, so allowing the
+  // browser origin here does not make the AI endpoint public.
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -173,6 +180,6 @@ Deno.serve(async (req: Request) => {
 
   const details = failedModels.length > 0 ? ` Attempts: ${failedModels.join(', ')}.` : '';
   return json({
-    error: `${lastError}${details} OpenRouter is returning no usable free model for this API key. Check the key's model access/credits in OpenRouter, or set OPENROUTER_MODEL to a model that succeeds in the OpenRouter playground.`,
+    error: `${lastError}${details} The Edge Function is reachable, but OpenRouter did not return a usable model for this API key. Check the key's privacy/model access and credits in the OpenRouter playground, or set OPENROUTER_MODEL to a currently available model ID.`,
   }, 503);
 });

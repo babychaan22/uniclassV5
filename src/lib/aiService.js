@@ -26,8 +26,9 @@ export async function invokeLLM({ prompt }) {
 
   const providers = [
     { name: 'openrouter-proxy', label: 'OpenRouter' },
-    // Gemini fallback is opt-in because model availability varies by account.
-    ...(import.meta.env.VITE_ENABLE_GEMINI_FALLBACK === 'true'
+    // Keep a provider fallback available when OpenRouter has no usable free
+    // model. Set VITE_ENABLE_GEMINI_FALLBACK=false to disable it explicitly.
+    ...(import.meta.env.VITE_ENABLE_GEMINI_FALLBACK !== 'false'
       ? [{ name: 'gemini-proxy', label: 'Gemini' }]
       : []),
   ];

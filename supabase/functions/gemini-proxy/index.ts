@@ -14,15 +14,14 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const CONFIGURED_MODEL = Deno.env.get('GEMINI_MODEL') ?? '';
 
 const SYSTEM_PROMPT =
   'You are a precise assistant that replies with ONLY valid JSON. ' +
   'No markdown code fences, no prose before or after the JSON object.';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? 'https://uniclass.app',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -31,6 +30,25 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   });
+}
+
+async function getModelChain(apiKey: string): Promise<string[]> {
+  const models: string[] = CONFIGURED_MODEL ? [CONFIGURED_MODEL] : [];
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (response.ok) {
+      const data = await response.json();
+      const discovered = (data?.models ?? [])
+        .filter((model: { name?: string; supportedGenerationMethods?: string[] }) =>
+          model.name && model.supportedGenerationMethods?.includes('generateContent'))
+        .map((model: { name: string }) => model.name.replace(/^models\//, ''))
+        .filter((name: string) => /flash/i.test(name) && !/embedding|image|tts/i.test(name));
+      models.push(...discovered);
+    }
+  } catch {
+    // The configured model can still be attempted when model discovery fails.
+  }
+  return [...new Set(models)].slice(0, 8);
 }
 
 Deno.serve(async (req: Request) => {
@@ -70,8 +88,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Prompt is too long.' }, 413);
   }
 
-  try {
-    const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+  const modelChain = await getModelChain(apiKey);
+  let lastError = 'No Gemini model with generateContent is available for this API key.';
+  for (const model of modelChain) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -89,19 +109,17 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      return json({ error: `Gemini error ${response.status}: ${body}` }, 502);
+      lastError = `Gemini model ${model} returned HTTP ${response.status}: ${await response.text()}`;
+      if ([400, 404, 429, 500, 502, 503].includes(response.status)) continue;
+      return json({ error: lastError }, 502);
     }
 
     const data = await response.json();
     const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
 
-    if (!text) {
-      return json({ error: 'Gemini returned an empty response.' }, 503);
-    }
+    if (!text) { lastError = `Gemini model ${model} returned an empty response.`; continue; }
 
     return json({ text });
-  } catch (networkErr) {
-    return json({ error: `Network error reaching Gemini: ${(networkErr as Error).message}` }, 502);
   }
+  return json({ error: `${lastError} Check GEMINI_API_KEY and GEMINI_MODEL in Supabase secrets.` }, 503);
 });
