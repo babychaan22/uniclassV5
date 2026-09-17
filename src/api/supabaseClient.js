@@ -34,6 +34,29 @@ const ENTITY_TABLE_MAP = {
   User:               'profiles',
 };
 
+// Most panels request the same classroom data more than once during navigation
+// (the header switcher and the page body are a common example). Keep a small
+// browser-local cache and share in-flight requests to make those transitions
+// feel instant while still invalidating immediately after writes.
+const READ_CACHE_TTL = 15 * 1000;
+const readCache = new Map();
+
+function clearReadCache(tableName) {
+  if (!tableName) {
+    readCache.clear();
+    return;
+  }
+  for (const key of readCache.keys()) {
+    if (key.startsWith(`${tableName}:`)) readCache.delete(key);
+  }
+}
+
+function readCacheKey(tableName, conditions, options) {
+  return `${tableName}:${JSON.stringify({ conditions, options })}`;
+}
+
+supabase.auth.onAuthStateChange(() => clearReadCache());
+
 // -------------------------------------------------------------------
 // Generic entity helper — mirrors the Base44 SDK CRUD surface exactly:
 //   .filter(conditions)  .get(id)  .create(payload)
@@ -44,6 +67,12 @@ function createEntityHelper(tableName) {
   return {
     /** Return all rows matching all conditions (AND equality). */
     async filter(conditions = {}, options = {}) {
+      const key = readCacheKey(tableName, conditions, options);
+      const cached = readCache.get(key);
+      if (cached && Date.now() - cached.createdAt < READ_CACHE_TTL) {
+        return cached.promise.then((rows) => rows.slice());
+      }
+
       const columns = options.columns || '*';
       let q = supabase.from(tableName).select(columns);
       for (const [key, value] of Object.entries(conditions)) {
@@ -52,9 +81,15 @@ function createEntityHelper(tableName) {
       if (options.orderBy) q = q.order(options.orderBy, { ascending: options.ascending !== false });
       if (options.limit != null) q = q.limit(options.limit);
       if (options.offset != null) q = q.range(options.offset, options.offset + (options.limit || 50) - 1);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      const promise = q.then(({ data, error }) => {
+        if (error) throw error;
+        return data ?? [];
+      });
+      readCache.set(key, { createdAt: Date.now(), promise });
+      promise.catch(() => {
+        if (readCache.get(key)?.promise === promise) readCache.delete(key);
+      });
+      return promise.then((rows) => rows.slice());
     },
 
     /** Paginated variant for high-volume classroom data. */
@@ -84,6 +119,7 @@ function createEntityHelper(tableName) {
         .select()
         .single();
       if (error) throw error;
+      clearReadCache(tableName);
       return data;
     },
 
@@ -96,6 +132,7 @@ function createEntityHelper(tableName) {
         .select()
         .single();
       if (error) throw error;
+      clearReadCache(tableName);
       return data;
     },
 
@@ -106,6 +143,7 @@ function createEntityHelper(tableName) {
         .delete()
         .eq('id', id);
       if (error) throw error;
+      clearReadCache(tableName);
     },
 
     /** Insert multiple rows and return them. */
@@ -116,6 +154,7 @@ function createEntityHelper(tableName) {
         .insert(items)
         .select();
       if (error) throw error;
+      clearReadCache(tableName);
       return data ?? [];
     },
 
@@ -138,6 +177,7 @@ function createEntityHelper(tableName) {
       );
       const firstError = results.find((r) => r.error);
       if (firstError) throw firstError.error;
+      clearReadCache(tableName);
       return results.map((r) => r.data);
     },
 
