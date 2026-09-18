@@ -31,6 +31,7 @@ const TEACHER_NAV_SECTIONS = [
       { label: "Missions",       path: ROUTES.TEACHER.MISSIONS,     icon: Target },
       { label: "QR Generator",   path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       { label: "Score Import", path: ROUTES.TEACHER.SCORE_IMPORT, icon: Upload },
+      { label: "Activities", path: ROUTES.TEACHER.ACTIVITIES, icon: FileText },
       { label: "Reward Catalog", path: ROUTES.TEACHER.REWARDS,      icon: Gift },
       { label: "Badges", path: ROUTES.TEACHER.BADGES, icon: Award },
     ],

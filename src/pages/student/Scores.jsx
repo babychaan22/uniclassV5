@@ -16,6 +16,7 @@ export default function StudentScores() {
   const [account, setAccount] = useState(null);
   const [members, setMembers] = useState([]);
   const [activityNum, setActivityNum] = useState(1);
+  const [assignedActivities, setAssignedActivities] = useState([]);
   const [activity, setActivity] = useState(null);
   const [maxScore, setMaxScore] = useState(10);
   const [scores, setScores] = useState({});
@@ -40,6 +41,9 @@ export default function StudentScores() {
         db.entities.Activity.filter({ classroom_id: a.classroom_id }),
       ]);
       setMembers(mem);
+      const assigned = activities.filter((item) => item.is_published !== false).sort((a,b) => b.activity_number-a.activity_number);
+      setAssignedActivities(assigned);
+      if (assigned[0]) setActivityNum(assigned[0].activity_number);
       const actIds = [...new Set(allScores.map((s) => s.activity_id))];
       const lockedMap = {};
       for (const act of activities) { if (actIds.includes(act.id)) lockedMap[act.activity_number] = true; }
@@ -164,14 +168,14 @@ export default function StudentScores() {
       <ClayCard className="p-4">
         <label className="font-display font-bold text-sm mb-2 block">Activity Number</label>
         <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-          {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => {
+          {assignedActivities.map((assigned) => { const n = assigned.activity_number;
             const isLocked = lockedActivities[n];
             const isSelected = activityNum === n;
             return (
               <button key={n} onClick={() => setActivityNum(n)}
                 className={`clay-btn px-1 py-2 text-sm relative ${isSelected ? "bg-clay-pink text-white" : isLocked ? "bg-ink/10 text-ink/40" : "bg-cream text-ink"}`}>
                 {isLocked && <Lock className="w-3 h-3 absolute top-0.5 right-0.5" />}
-                {n}
+                {assigned.title || `Activity ${n}`}
               </button>
             );
           })}
