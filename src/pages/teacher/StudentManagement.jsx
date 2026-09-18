@@ -64,7 +64,7 @@ export default function TeacherStudentManagement() {
   }
 
   async function removeStudent(account) {
-    if (!window.confirm(`Remove ${account.last_name}, ${account.first_name} from this class? Their login and other class memberships stay intact.`)) return;
+    if (!window.confirm(`Remove ${account.last_name}, ${account.first_name} from this class? Their roster record, class scores, attendance, evidence, and personal activity history will be deleted. Their login and other class memberships stay intact.`)) return;
     setBusy(true);
     try {
       await removeStudentFromClass(account.id);
