@@ -24,6 +24,42 @@ export async function removeStudentFromClass(groupAccountId) {
   return data;
 }
 
+export async function removeRosterMember(groupMemberId) {
+  const { data, error } = await supabase.rpc('remove_roster_member', { p_group_member_id: groupMemberId });
+  if (error) throw error;
+  return data;
+}
+
+export async function setGroupRepresentative(groupAccountId) {
+  const { data, error } = await supabase.rpc('set_group_representative', { p_group_account_id: groupAccountId });
+  if (error) throw error;
+  return data;
+}
+
+export async function ensureGroupActivity(classroomId, groupId, activityNumber, maxScore) {
+  const { data, error } = await supabase.rpc('ensure_group_activity', {
+    p_classroom_id: classroomId,
+    p_group_id: groupId,
+    p_activity_number: activityNumber,
+    p_max_score: maxScore,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function recordActivityEvidence(activityId, groupMemberId, storagePath, originalName, fileSize, mimeType = 'image/webp') {
+  const { data, error } = await supabase.rpc('record_activity_evidence', {
+    p_activity_id: activityId,
+    p_group_member_id: groupMemberId,
+    p_storage_path: storagePath,
+    p_original_name: originalName,
+    p_file_size: fileSize,
+    p_mime_type: mimeType,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function lookupClassroomByJoinCode(joinCode) {
   const { data, error } = await supabase.rpc('lookup_classroom_by_join_code', {
     p_join_code: joinCode,

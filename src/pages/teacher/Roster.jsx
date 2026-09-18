@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomContext } from "@/lib/teacherClassroom";
+import { removeRosterMember, setGroupRepresentative } from "@/lib/secureActions";
+import { supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Users, Save, Loader2, UserCog } from "lucide-react";
+import { Users, Save, Loader2, UserCog, Trash2, Crown } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
 export default function Roster() {
@@ -21,6 +23,7 @@ export default function Roster() {
   const [accounts, setAccounts] = useState([]);
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => { load(); }, [user]);
 
@@ -52,13 +55,42 @@ export default function Roster() {
     load();
   }
 
+  async function removeMember(mem) {
+    if (!window.confirm(`Remove ${mem.last_name}, ${mem.first_name} from this roster? Their class data and activity proof will be removed.`)) return;
+    setSaving(mem.id); setActionError("");
+    try {
+      const result = await removeRosterMember(mem.id);
+      if (result?.evidencePaths?.length) {
+        const { error } = await supabase.storage.from("activity-evidence").remove(result.evidencePaths);
+        if (error) setActionError(`Roster member removed, but evidence-file cleanup needs attention: ${error.message}`);
+      }
+      invalidateClassroomContext();
+      await load();
+    } catch (err) {
+      setActionError(err.message || "This roster member could not be removed.");
+    } finally { setSaving(null); }
+  }
+
+  async function makeRepresentative(account) {
+    if (!window.confirm(`Make ${account.last_name}, ${account.first_name} this group's representative? The current representative will become a regular member.`)) return;
+    setSaving(account.group_member_id); setActionError("");
+    try {
+      await setGroupRepresentative(account.id);
+      invalidateClassroomContext();
+      await load();
+    } catch (err) {
+      setActionError(err.message || "Representative could not be changed.");
+    } finally { setSaving(null); }
+  }
+
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Users className="w-6 h-6" /> Student Roster</h1>
-        <p className="text-ink/60 text-sm">Edit student names or reassign groups quickly.</p>
+        <p className="text-ink/60 text-sm">Edit, remove duplicates, or assign a new representative for each group.</p>
+        {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
 
       {groups.map((g) => {
@@ -73,6 +105,7 @@ export default function Roster() {
               {gm.map((mem) => {
                 const v = edit[mem.id];
                 const editing = !!v;
+                const memberAccount = accounts.find((a) => a.group_member_id === mem.id);
                 return (
                   <div key={mem.id} className="flex flex-wrap items-center gap-2 p-2 rounded-xl border-2 border-ink/15 bg-cream">
                     {editing ? (
@@ -90,9 +123,11 @@ export default function Roster() {
                     ) : (
                       <>
                         <span className="font-display font-bold text-sm flex-1 min-w-0">{mem.last_name}, {mem.first_name}</span>
-                        {accounts.find((a) => a.group_member_id === mem.id)?.is_representative && <ClayChip color="purple">Rep</ClayChip>}
+                        {memberAccount?.is_representative && <ClayChip color="purple">Rep</ClayChip>}
                         {mem.is_account_holder && <ClayChip color="sky">Account</ClayChip>}
                         <ClayButton size="sm" color="sky" onClick={() => startEdit(mem)}><UserCog className="w-4 h-4" /> Edit</ClayButton>
+                        {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => makeRepresentative(memberAccount)} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
+                        <ClayButton size="sm" color="coral" onClick={() => removeMember(mem)} disabled={saving === mem.id}>{saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Remove</ClayButton>
                       </>
                     )}
                   </div>
@@ -105,4 +140,3 @@ export default function Roster() {
     </div>
   );
 }
-

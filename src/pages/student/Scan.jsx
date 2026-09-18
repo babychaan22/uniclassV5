@@ -312,10 +312,14 @@ export default function StudentScan() {
             {history.map((log) => {
               const m = members.find((x) => x.id === log.group_member_id);
               const color = log.event_type === "gacha_win" ? "lime" : log.event_type === "gacha_loss" ? "coral" : log.event_type === "gacha_even" ? "sun" : "sky";
+              const points = `+${log.points_awarded}${log.multiplier && log.multiplier !== 1 ? ` (${log.multiplier}×)` : ""} pts`;
+              const recipient = log.recipient_type === "group" || !log.group_member_id
+                ? "Whole Group"
+                : m ? `${m.last_name}, ${m.first_name[0]}.` : "Student";
               return (
                 <div key={log.id} className="flex items-center justify-between text-sm border-b border-ink/10 pb-1.5">
-                  <span className="font-body truncate">{log.recipient_type === "group" || !log.group_member_id ? "WHOLE GROUP" : m ? `${m.last_name}, ${m.first_name[0]}.` : "—"}</span>
-                  <ClayChip color={color}>+{log.points_awarded}{log.multiplier && log.multiplier !== 1 ? ` (${log.multiplier}×)` : ""}</ClayChip>
+                  <span className="font-body truncate">{recipient}</span>
+                  <ClayChip color={color}>{points}</ClayChip>
                 </div>
               );
             })}
