@@ -21,7 +21,9 @@ export default function StudentOnboarding() {
   const [classroom, setClassroom] = useState(null);
   const [groups, setGroups] = useState([]);
   const [accounts, setAccounts] = useState([]); // all accounts in this classroom
+  const [members, setMembers] = useState([]); // member records created by representatives but not yet claimed
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [wantsRep, setWantsRep] = useState(false);
@@ -52,6 +54,7 @@ export default function StudentOnboarding() {
       setClassroom(result.classroom);
       setGroups((result.groups || []).sort((a, b) => a.group_number - b.group_number));
       setAccounts(result.accounts || []);
+      setMembers(result.members || []);
       if (result.classroom.uses_groups === false) {
         setSelectedGroup({ id: null, group_number: null });
         setWantsRep(true);
@@ -63,8 +66,16 @@ export default function StudentOnboarding() {
 
   function pickGroup(g) {
     setSelectedGroup(g);
+    setSelectedMemberId(null);
     setWantsRep(false);
     setStep(3);
+  }
+
+  function pickExistingMember(member) {
+    setSelectedMemberId(member.id);
+    setLastName(member.last_name);
+    setFirstName(member.first_name);
+    setWantsRep(false);
   }
 
   const repForGroup = (groupId) => accounts.find((a) => a.group_id === groupId && a.is_representative);
@@ -95,6 +106,7 @@ export default function StudentOnboarding() {
         p_email: email.trim(),
         p_wants_representative: wantsRep || classroom.uses_groups === false,
         p_teammates: teammates.filter((t) => t.last_name && t.first_name),
+        p_group_member_id: selectedMemberId,
       });
 
       navigate(ROUTES.WAITING_APPROVAL);
@@ -174,9 +186,25 @@ export default function StudentOnboarding() {
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-3">Your name</p>
+        {classroom.uses_groups !== false && members.filter((m) => m.group_id === selectedGroup?.id).length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-ink bg-clay-sky/30 p-3">
+            <p className="text-sm font-display font-bold mb-1">Were you already added by your representative?</p>
+            <p className="text-xs text-ink/60 mb-2">Select your name to connect this account to the existing member record and prevent a duplicate.</p>
+            <div className="space-y-2">
+              {members.filter((m) => m.group_id === selectedGroup?.id).map((member) => (
+                <button key={member.id} type="button" onClick={() => pickExistingMember(member)}
+                  className={`clay-btn w-full text-left px-3 py-2 ${selectedMemberId === member.id ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>
+                  {member.last_name}, {member.first_name}
+                </button>
+              ))}
+            </div>
+            {selectedMemberId && <div className="mt-2 flex items-center justify-between gap-2"><p className="text-xs font-display font-bold text-clay-purple">Existing member selected. Your account will be linked after teacher approval.</p><button type="button" className="text-xs underline shrink-0" onClick={() => { setSelectedMemberId(null); setLastName(""); setFirstName(""); }}>Use a new name</button></div>}
+          </div>
+        )}
+        {classroom.uses_groups !== false && members.filter((m) => m.group_id === selectedGroup?.id).length > 0 && !selectedMemberId && <p className="text-xs text-ink/50 mb-2">Not listed? Leave the selection empty and enter a new name below. The teacher will review it.</p>}
         <div className="flex gap-2">
-          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">Last name</label><input className="clay-input w-full" placeholder="e.g. Santos" value={lastName} onChange={(e) => setLastName(e.target.value.toUpperCase())} required /></div>
-          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">First name</label><input className="clay-input w-full" placeholder="e.g. Ana" value={firstName} onChange={(e) => setFirstName(e.target.value.toUpperCase())} required /></div>
+          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">Last name</label><input className="clay-input w-full" placeholder="e.g. Santos" value={lastName} onChange={(e) => { setSelectedMemberId(null); setLastName(e.target.value.toUpperCase()); }} required /></div>
+          <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">First name</label><input className="clay-input w-full" placeholder="e.g. Ana" value={firstName} onChange={(e) => { setSelectedMemberId(null); setFirstName(e.target.value.toUpperCase()); }} required /></div>
         </div>
       </ClayCard>
 
