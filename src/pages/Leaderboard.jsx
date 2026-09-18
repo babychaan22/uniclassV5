@@ -9,6 +9,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Trophy, Target } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import { getTeacherClassroom } from '@/lib/teacherClassroom';
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -16,12 +17,16 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refresh = () => load();
+    window.addEventListener('uniclass-teacher-class-changed', refresh);
+    return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
+  }, [user]);
 
   async function load() {
     if (!user) return;
-    const cr = await db.entities.Classroom.filter({ teacher_id: user.id });
-    const c = cr[0];
+    const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const [groups, logs, submissions] = await Promise.all([
       db.entities.Group.filter({ classroom_id: c.id }),
@@ -46,7 +51,7 @@ export default function Leaderboard() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Trophy className="w-6 h-6" /> Student Leaderboard</h1>
-        <p className="text-ink/60 text-sm">Groups ranked by total participation points and mission completions.</p>
+        <p className="text-ink/60 text-sm">Every group in the selected class, ranked by participation points and mission completions.</p>
       </div>
 
       <div className="space-y-2">
@@ -74,4 +79,3 @@ export default function Leaderboard() {
     </div>
   );
 }
-

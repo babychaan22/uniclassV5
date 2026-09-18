@@ -27,10 +27,12 @@ export default function StudentScan() {
   const [phase, setPhase] = useState("idle");
   const [result, setResult] = useState(null);
   const [pendingHash, setPendingHash] = useState(null);
+  const [pendingCode, setPendingCode] = useState(null);
   const [history, setHistory] = useState([]);
   const [soundOn, setSoundOn] = useState(false);
   const [error, setError] = useState("");
   const [resolving, setResolving] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
   // FIX 6: post-scan summary banner
   const [summary, setSummary] = useState(null);
   const scannerRef = useRef(null);
@@ -51,6 +53,13 @@ export default function StudentScan() {
     }
     load();
   }, [user]);
+
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, []);
 
   async function stopCamera() {
     setScanning(false);
@@ -98,6 +107,7 @@ export default function StudentScan() {
 
   async function handleScanTyped(hash) {
     if (resolving || phase !== "idle") return;
+    if (!navigator.onLine) { setError('Reconnect before scanning. A code can only be awarded securely while online.'); return; }
     await stopCamera();
     setPendingHash(hash);
     setError("");
@@ -111,18 +121,24 @@ export default function StudentScan() {
       return;
     }
     setResolving(false);
+    setPendingCode(qr[0]);
     if (qr[0].qr_type === "gacha") {
       setPhase("risk");
     } else {
-      setResolving(true);
-      const res = await scanAndResolve(hash, recipientType === "member" ? memberId : null, false, recipientType);
-      setResolving(false);
-      if (res.error) { setError(res.error); setPhase("idle"); setPendingHash(null); return; }
-      setResult(res);
-      setPhase("result");
-      refreshHistory();
-      computeSummary(res.points);
+      setPhase("confirm");
     }
+  }
+
+  async function confirmScan() {
+    if (!pendingHash) return;
+    setResolving(true);
+    const res = await scanAndResolve(pendingHash, recipientType === "member" ? memberId : null, false, recipientType);
+    setResolving(false);
+    if (res.error) { setError(res.error); setPhase("idle"); setPendingHash(null); setPendingCode(null); return; }
+    setResult(res);
+    setPhase("result");
+    refreshHistory();
+    computeSummary(res.points);
   }
 
   function refreshHistory() {
@@ -137,6 +153,7 @@ export default function StudentScan() {
 
   async function startCameraTyped() {
     setError("");
+    if (!navigator.onLine) { setError('Reconnect before scanning. A code can only be awarded securely while online.'); return; }
     setScanning(true);
     setTimeout(async () => {
       try {
@@ -177,6 +194,7 @@ export default function StudentScan() {
     setPhase("idle");
     setResult(null);
     setPendingHash(null);
+    setPendingCode(null);
     setError("");
     setSummary(null);
   }
@@ -194,6 +212,8 @@ export default function StudentScan() {
           {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
       </div>
+
+      {!online && <ClayCard color="sun" className="p-3 text-sm"><p className="font-display font-bold">Offline learning mode</p><p className="text-ink/70 mt-1">Previously opened pages remain available, but scans, uploads, and point changes are paused. Reconnect to make sure your points are saved.</p></ClayCard>}
 
       {/* FIX 6: Post-scan summary banner */}
       {summary && (
@@ -238,7 +258,7 @@ export default function StudentScan() {
             ) : (
               <div className="text-center py-6">
                 <Camera className="w-12 h-12 mx-auto text-clay-purple mb-3" />
-                <ClayButton color="purple" size="lg" onClick={startCameraTyped} className="w-full">Start Camera Scan</ClayButton>
+                <ClayButton color="purple" size="lg" onClick={startCameraTyped} className="w-full" disabled={!online}>Start Camera Scan</ClayButton>
               </div>
             )}
           </ClayCard>
@@ -271,6 +291,19 @@ export default function StudentScan() {
             <span>0.5× · Try again next time!</span><span>1.0× · Your points are safe!</span>
             <span>1.5× · You lucky duck!</span><span>2.0× · Jackpot! Wohoo!</span>
           </div>
+        </ClayCard>
+      )}
+
+      {phase === "confirm" && pendingCode && (
+        <ClayCard color="sky" className="p-5 text-center">
+          <p className="font-display font-extrabold text-lg mb-1">Confirm this code</p>
+          <p className="text-sm text-ink/65 mb-4">Check the code and recipient before points are awarded. Each code can be used once.</p>
+          <div className="rounded-xl border-2 border-ink bg-cream p-3 text-left text-sm space-y-1 mb-4">
+            <p><span className="font-display font-bold">Code:</span> {String(pendingHash || '').slice(0, 18)}</p>
+            <p><span className="font-display font-bold">Points:</span> {pendingCode.base_points || 0} pts</p>
+            <p><span className="font-display font-bold">Recipient:</span> {recipientType === 'group' ? 'Whole Group' : (() => { const member = members.find((item) => item.id === memberId); return member ? `${member.last_name}, ${member.first_name}` : 'Student'; })()}</p>
+          </div>
+          <div className="flex gap-2"><ClayButton color="white" className="flex-1" onClick={reset}>Cancel</ClayButton><ClayButton color="lime" className="flex-1" onClick={confirmScan} disabled={resolving}>{resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm & award'}</ClayButton></div>
         </ClayCard>
       )}
 

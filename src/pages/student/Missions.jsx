@@ -4,7 +4,10 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getActiveStudentAccount } from "@/lib/studentContext";
+import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
+import { getClassroomDataset } from '@/lib/teacherClassroom';
+import { computeClassification } from '@/lib/classification';
+import { computeActivityPct, computeAttendanceRate, computeCategoryPct, computeParticipationPoints } from '@/lib/stats';
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -23,7 +26,12 @@ export default function StudentMissions() {
   const [redeeming, setRedeeming] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refresh = () => load();
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+  }, [user]);
 
   async function load() {
     if (!user) return;
@@ -31,19 +39,42 @@ export default function StudentMissions() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [missions, subs, members, logs, reviews] = await Promise.all([
+    const [missions, subs, members, logs, reviews, classData] = await Promise.all([
       db.entities.Mission.filter({ is_active: true }),
       db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.GroupMember.filter({ group_id: group.id }),
       db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.LearningReview.filter({ user_id: user.id }, { orderBy: 'next_review_at', ascending: true, limit: 20 }),
+      getClassroomDataset(classroomId, ['members', 'settings', 'terms', 'attendance', 'scores', 'activities', 'assessments', 'logs']),
     ]);
-    const active = missions.filter((m) => m.classroom_id === classroomId || m.applies_to_all_classes);
+    const currentMember = classData.members.find((member) => member.id === account.group_member_id);
+    const term = classData.terms.find((item) => item.is_active) || classData.terms[0];
+    const pointTotals = classData.members.map((member) => computeParticipationPoints(member.id, classData.logs));
+    const maxPoints = Math.max(...pointTotals, 1);
+    const attendance = currentMember ? computeAttendanceRate(currentMember.id, classData.attendance, term) : { rate: 0, count: 0 };
+    const activity = currentMember ? computeActivityPct(currentMember.id, classData.scores, classData.activities) : { pct: 0, count: 0 };
+    const quiz = currentMember ? computeCategoryPct(currentMember.id, classData.assessments, 'quiz', term) : { pct: 0, count: 0 };
+    const exam = currentMember ? computeCategoryPct(currentMember.id, classData.assessments, 'major_exam', term) : { pct: 0, count: 0 };
+    const performance = currentMember ? computeCategoryPct(currentMember.id, classData.assessments, 'performance_task', term) : { pct: 0, count: 0 };
+    const points = currentMember ? computeParticipationPoints(currentMember.id, classData.logs) : 0;
+    const classification = computeClassification([
+      { key: 'attendance_rate', value: attendance.rate, count: attendance.count },
+      { key: 'activity_score_pct', value: activity.pct, count: activity.count },
+      { key: 'quiz_pct', value: quiz.pct, count: quiz.count },
+      { key: 'major_exam_pct', value: exam.pct, count: exam.count },
+      { key: 'performance_task_pct', value: performance.pct, count: performance.count },
+      { key: 'participation_normalized', value: (points / maxPoints) * 100, count: points > 0 ? 1 : 0 },
+    ], classData.settings[0]);
+    const active = missions.filter((m) => {
+      const reachesClass = m.classroom_id === classroomId || m.applies_to_all_classes || (m.target_classroom_ids || []).includes(classroomId);
+      const statuses = m.target_statuses?.length ? m.target_statuses : ['On Track', 'Developing', 'At Risk'];
+      return reachesClass && statuses.includes(classification.tag);
+    });
     const earned = subs.reduce((s, x) => s + (x.xp_earned || 0), 0);
     const redeemed = logs.filter((l) => l.event_type === "mission_redemption").reduce((s, l) => s + (l.points_awarded || 0), 0);
     const available = Math.max(0, earned - redeemed);
     const dueReviews = reviews.filter((review) => new Date(review.next_review_at) <= new Date());
-    setData({ account, group, missions, active, subs, members, earned, redeemed, available, dueReviews });
+    setData({ account, group, missions, active, subs, members, earned, redeemed, available, dueReviews, classification });
   }
 
   async function redeem(e) {
@@ -70,7 +101,7 @@ export default function StudentMissions() {
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, active, subs, earned, redeemed, available, dueReviews } = data;
+  const { group, active, subs, earned, redeemed, available, dueReviews, classification } = data;
   const gradedCount = active.filter((m) => subs.find((s) => s.mission_id === m.id)).length;
 
   return (
@@ -80,6 +111,7 @@ export default function StudentMissions() {
         <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Target className="w-6 h-6" /> Group Missions</h1>
         <p className="text-ink/60 text-sm">Nova&apos;s quests earn XP, then turn it into participation points.</p>
+        <p className="text-xs text-ink/50 mt-1">Your current learning status: {classification.tag}</p>
         </div>
       </div>
 

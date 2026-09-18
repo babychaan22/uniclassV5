@@ -24,9 +24,9 @@ export default function OfflineStatus() {
 
   if (online && !wasOffline) return null;
   return (
-    <div className={`fixed bottom-3 left-1/2 z-[70] -translate-x-1/2 rounded-full border-2 border-ink px-3 py-2 text-xs font-display font-bold shadow-[3px_3px_0_#17162B] ${online ? 'bg-clay-lime text-ink' : 'bg-clay-sun text-ink'}`} role="status">
+    <div className={`fixed bottom-3 left-3 right-3 z-[70] mx-auto max-w-md rounded-2xl border-2 border-ink px-3 py-2 text-xs font-display font-bold shadow-[3px_3px_0_#17162B] ${online ? 'bg-clay-lime text-ink' : 'bg-clay-sun text-ink'}`} role="status">
       {online ? <Cloud className="mr-1 inline h-4 w-4" /> : <CloudOff className="mr-1 inline h-4 w-4" />}
-      {online ? 'Back online — refreshing your data…' : 'Offline — showing the saved app shell'}
+      {online ? 'Back online — refreshing your data…' : 'Offline — opened pages stay available. Reconnect before scanning, uploading, or saving points.'}
     </div>
   );
 }

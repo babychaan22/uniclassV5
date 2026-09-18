@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -63,6 +63,7 @@ export default function TeacherMissions() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [classroom, setClassroom] = useState(null);
+  const [teacherClasses, setTeacherClasses] = useState([]);
   const [missions, setMissions] = useState([]);
   const [groups, setGroups] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -79,8 +80,16 @@ export default function TeacherMissions() {
   const [gradeVal, setGradeVal] = useState("");
   const [savingGrade, setSavingGrade] = useState(false);
   const [viewTemplateId, setViewTemplateId] = useState(null);
+  const [targetAllClasses, setTargetAllClasses] = useState(true);
+  const [targetClassIds, setTargetClassIds] = useState([]);
+  const [targetStatuses, setTargetStatuses] = useState(["On Track", "Developing", "At Risk"]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refresh = () => load();
+    window.addEventListener('uniclass-teacher-class-changed', refresh);
+    return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
+  }, [user]);
   useEffect(() => {
     if (!user) return;
     const unsub = db.entities.MissionSubmission.subscribe(() => { invalidateClassroomDataset(); load(); });
@@ -92,17 +101,22 @@ export default function TeacherMissions() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const [ds, catalog] = await Promise.all([
+    const [ds, catalog, classes] = await Promise.all([
       getClassroomDataset(c.id, ['groups','submissions']),
       db.entities.Mission.filter({ created_by: user.id }),
+      getTeacherClassrooms(user.id),
     ]);
     setMissions([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
     setSubmissions(ds.submissions);
+    setTeacherClasses(classes);
+    setTargetClassIds((current) => current.length ? current : [c.id]);
   }
 
   async function createMission(e) {
     e.preventDefault();
+    if (!targetAllClasses && targetClassIds.length === 0) { setGenMsg('Select at least one class.'); return; }
+    if (targetStatuses.length === 0) { setGenMsg('Select at least one student status.'); return; }
     setCreating(true);
     const isAi = form.formative_type !== "manual";
     await db.entities.Mission.create({
@@ -114,7 +128,9 @@ export default function TeacherMissions() {
       deadline: form.deadline || undefined,
       is_active: false,
       created_by: user.id,
-      applies_to_all_classes: true,
+      applies_to_all_classes: targetAllClasses,
+      target_classroom_ids: targetAllClasses ? [] : targetClassIds,
+      target_statuses: targetStatuses,
       image_url: missionImage || undefined,
       formative_type: form.formative_type,
       ai_content: isAi && aiContent
@@ -127,6 +143,9 @@ export default function TeacherMissions() {
     setMissionImage(null);
     setImageGenerations(0);
     setGenMsg(null);
+    setTargetAllClasses(true);
+    setTargetClassIds([classroom.id]);
+    setTargetStatuses(["On Track", "Developing", "At Risk"]);
     setCreating(false);
     invalidateClassroomDataset();
     load();
@@ -270,6 +289,39 @@ export default function TeacherMissions() {
             <div>
               <label className="font-display font-bold text-xs mb-1 block">Deadline</label>
               <input type="date" className="clay-input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            </div>
+          </div>
+          <div className="rounded-xl border-2 border-ink bg-clay-sky/20 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label className="font-display font-bold text-sm block">Class availability</label>
+                <p className="text-xs text-ink/55">{targetAllClasses ? 'Available in every class you teach.' : 'Available only in the selected classes.'}</p>
+              </div>
+              <Switch checked={targetAllClasses} onCheckedChange={setTargetAllClasses} aria-label="Make mission available in all classes" />
+            </div>
+            {!targetAllClasses && (
+              <div>
+                <p className="font-display font-bold text-xs mb-2">Selected classes</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {teacherClasses.map((item) => {
+                    const checked = targetClassIds.includes(item.id);
+                    return <label key={item.id} className="flex items-center gap-2 rounded-lg border-2 border-ink bg-cream px-3 py-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={checked} onChange={() => setTargetClassIds((ids) => checked ? ids.filter((id) => id !== item.id) : [...ids, item.id])} />
+                      <span>{item.grade_level} · {item.section}</span>
+                    </label>;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="rounded-xl border-2 border-ink bg-clay-sun/20 p-3">
+            <label className="font-display font-bold text-sm block">Student status</label>
+            <p className="text-xs text-ink/55 mb-2">Show this mission to all learners, or only the statuses you select.</p>
+            <div className="flex flex-wrap gap-2">
+              {["On Track", "Developing", "At Risk"].map((status) => {
+                const selected = targetStatuses.includes(status);
+                return <button type="button" key={status} onClick={() => setTargetStatuses((statuses) => selected ? statuses.filter((item) => item !== status) : [...statuses, status])} className={`clay-chip px-3 py-1 text-sm ${selected ? 'bg-clay-purple text-white' : 'bg-cream text-ink'}`}>{status}</button>;
+              })}
             </div>
           </div>
           <ClayButton type="submit" color="purple" size="md" className="w-full" disabled={creating || (form.formative_type !== "manual" && !aiContent)}>

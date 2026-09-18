@@ -10,7 +10,7 @@ import ClayChip from "@/components/ClayChip";
 import { Trophy, Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
 import { computeActivityPct, computeParticipationPoints } from "@/lib/stats";
 import { ROUTES } from '@/lib/routes';
-import { getActiveStudentAccount } from '@/lib/studentContext';
+import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from '@/lib/studentContext';
 
 export default function StudentLeaderboard() {
   const { user } = useAuth();
@@ -18,7 +18,12 @@ export default function StudentLeaderboard() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("groups");
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refresh = () => load();
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+  }, [user]);
 
   async function load() {
     if (!user) return;
@@ -71,7 +76,7 @@ export default function StudentLeaderboard() {
           <Trophy className="w-8 h-8 text-clay-coral" />
         </div>
         <h1 className="text-2xl font-display font-extrabold text-white">Class Leaderboard</h1>
-        <p className="text-white/80 text-sm">Climb the ranks, earn XP, and lead your group to glory! 🚀</p>
+        <p className="text-white/80 text-sm">Every group in your current class is included. Switch class to see its ranking. 🚀</p>
         {myRank > 0 && (
           <div className="mt-3 inline-flex items-center gap-2 clay-chip px-3 py-1 bg-clay-pink text-white">
             <Crown className="w-4 h-4" /> Your group ranks #{myRank} of {groupRows.length}

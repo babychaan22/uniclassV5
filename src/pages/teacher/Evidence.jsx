@@ -27,12 +27,14 @@ export default function TeacherEvidence() {
     try {
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const [evidence, groups, members, activities] = await Promise.all([
-        db.entities.ActivityEvidence.filter({ classroom_id: classroom.id }, { orderBy: 'created_at', ascending: false, limit: 40, offset: nextPage * 40 }),
+      const [evidenceResult, groups, members, activities] = await Promise.all([
+        supabase.from('activity_evidence').select('*').eq('classroom_id', classroom.id).order('created_at', { ascending: false }).range(nextPage * 40, (nextPage + 1) * 40 - 1),
         getClassroomGroups(classroom.id),
         getClassroomMembers(classroom.id),
         db.entities.Activity.filter({ classroom_id: classroom.id }, { orderBy: 'activity_number' }),
       ]);
+      if (evidenceResult.error) throw evidenceResult.error;
+      const evidence = evidenceResult.data || [];
       const groupMap = Object.fromEntries(groups.map((group) => [group.id, group.group_number]));
       const memberMap = Object.fromEntries(members.map((member) => [member.id, `${member.first_name || ''} ${member.last_name || ''}`.trim()]));
       const activityMap = Object.fromEntries(activities.map((activity) => [activity.id, activity.title || `Activity ${activity.activity_number}`]));
@@ -54,7 +56,12 @@ export default function TeacherEvidence() {
     } finally { setLoading(false); setLoadingMore(false); }
   }
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refresh = () => load();
+    window.addEventListener('uniclass-teacher-class-changed', refresh);
+    return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
+  }, [user]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
