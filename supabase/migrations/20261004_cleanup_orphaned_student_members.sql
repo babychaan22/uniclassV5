@@ -10,14 +10,8 @@ create temp table _orphaned_student_members on commit drop as
       select 1 from public.group_accounts ga where ga.group_member_id = gm.id
     );
 
-delete from storage.objects
-where bucket_id = 'activity-evidence'
-  and name in (
-    select ae.storage_path
-    from public.activity_evidence ae
-    where ae.group_member_id in (select id from _orphaned_student_members)
-  );
-
+-- Storage files are removed through the Storage API by the application. The
+-- database row is deleted below so the stale evidence is no longer visible.
 delete from public.activity_evidence
 where group_member_id in (select id from _orphaned_student_members);
 delete from public.activity_scores
