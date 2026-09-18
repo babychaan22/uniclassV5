@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 import { removeStudentFromClass } from "@/lib/secureActions";
+import { supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -23,6 +24,7 @@ export default function TeacherStudentManagement() {
   const [approved, setApproved] = useState([]);
   const [groups, setGroups] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => { load(); }, [user]);
 
@@ -66,10 +68,17 @@ export default function TeacherStudentManagement() {
   async function removeStudent(account) {
     if (!window.confirm(`Remove ${account.last_name}, ${account.first_name} from this class? Their roster record, class scores, attendance, evidence, and personal activity history will be deleted. Their login and other class memberships stay intact.`)) return;
     setBusy(true);
+    setActionError("");
     try {
-      await removeStudentFromClass(account.id);
+      const result = await removeStudentFromClass(account.id);
+      if (result?.evidencePaths?.length) {
+        const { error: storageError } = await supabase.storage.from("activity-evidence").remove(result.evidencePaths);
+        if (storageError) setActionError(`Student removed, but evidence-file cleanup needs attention: ${storageError.message}`);
+      }
       invalidateClassroomDataset();
       await load();
+    } catch (err) {
+      setActionError(err.message || "Student could not be removed. No changes were saved.");
     } finally { setBusy(false); }
   }
 
@@ -80,6 +89,7 @@ export default function TeacherStudentManagement() {
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><UserCheck className="w-6 h-6" /> Account Management</h1>
         <p className="text-ink/60 text-sm">Review and assign pending students to their groups.</p>
+        {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
 
       <div className="flex gap-3">
