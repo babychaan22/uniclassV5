@@ -167,13 +167,14 @@ export default function StudentScores() {
 
       <ClayCard className="p-4">
         <label className="font-display font-bold text-sm mb-2 block">Activity Number</label>
-        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {assignedActivities.map((assigned) => { const n = assigned.activity_number;
             const isLocked = lockedActivities[n];
             const isSelected = activityNum === n;
             return (
               <button key={n} onClick={() => setActivityNum(n)}
-                className={`clay-btn px-1 py-2 text-sm relative ${isSelected ? "bg-clay-pink text-white" : isLocked ? "bg-ink/10 text-ink/40" : "bg-cream text-ink"}`}>
+                title={assigned.title || `Activity ${n}`}
+                className={`clay-btn h-14 w-full justify-center px-3 text-sm relative truncate ${isSelected ? "bg-clay-pink text-white" : isLocked ? "bg-ink/10 text-ink/40" : "bg-cream text-ink"}`}>
                 {isLocked && <Lock className="w-3 h-3 absolute top-0.5 right-0.5" />}
                 {assigned.title || `Activity ${n}`}
               </button>
