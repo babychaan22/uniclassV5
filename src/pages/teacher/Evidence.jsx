@@ -63,6 +63,13 @@ export default function TeacherEvidence() {
     return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
   }, [user]);
 
+  const sections = rows.reduce((all, row) => {
+    const key = `${row.activity_id}:${row.group_id}`;
+    if (!all[key]) all[key] = { key, activityLabel: row.activityLabel, groupLabel: row.groupLabel, rows: [] };
+    all[key].rows.push(row);
+    return all;
+  }, {});
+
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -76,19 +83,7 @@ export default function TeacherEvidence() {
       {loading ? <div className="py-16 text-center text-ink/60">Loading activity proof…</div> : rows.length === 0 ? (
         <ClayCard className="p-8 text-center text-ink/60">No activity proof has been uploaded yet.</ClayCard>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {rows.map((row) => (
-            <ClayCard key={row.id} className="overflow-hidden">
-              {row.signedUrl ? <a href={row.signedUrl} target="_blank" rel="noreferrer" className="block bg-ink/5"><img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-48 w-full object-contain" loading="lazy" /></a> : <div className="h-48 flex items-center justify-center text-ink/50">Preview unavailable</div>}
-              <div className="p-4 space-y-1 text-sm">
-                <div className="font-display font-extrabold">{row.memberLabel}</div>
-                <div>{row.activityLabel} · {row.groupLabel}</div>
-                <div className="text-ink/55">Uploaded {row.created_at ? new Date(row.created_at).toLocaleString() : 'recently'}</div>
-                {row.signedUrl && <a href={row.signedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 pt-2 font-display font-bold text-clay-purple">Open full image <ExternalLink className="w-4 h-4" /></a>}
-              </div>
-            </ClayCard>
-          ))}
-        </div>
+        <div className="space-y-4">{Object.values(sections).map((section) => <ClayCard key={section.key} className="p-3"><div className="flex items-center justify-between gap-2 mb-2"><div><p className="font-display font-extrabold text-sm">{section.activityLabel}</p><p className="text-xs text-ink/55">{section.groupLabel} · {section.rows.length} proof{section.rows.length === 1 ? '' : 's'}</p></div></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{section.rows.map((row) => <a key={row.id} href={row.signedUrl || undefined} target="_blank" rel="noreferrer" className="rounded-lg border-2 border-ink/15 bg-cream overflow-hidden"><div className="h-20 bg-ink/5">{row.signedUrl ? <img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-full w-full object-cover" loading="lazy" /> : <div className="h-full flex items-center justify-center text-xs text-ink/50">Unavailable</div>}</div><p className="p-2 text-xs font-display font-bold truncate">{row.memberLabel}</p></a>)}</div></ClayCard>)}</div>
       )}
       {!loading && hasMore && <ClayButton onClick={() => load(page + 1)} disabled={loadingMore} color="white" className="w-full">
         {loadingMore ? 'Loading…' : 'Load older proof'}

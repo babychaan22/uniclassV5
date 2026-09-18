@@ -16,10 +16,10 @@ import { playStamp } from "@/lib/gacha";
 import { Award, Check, Loader2, Volume2, VolumeX } from "lucide-react";
 
 const BADGE_INFO = {
-  weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 20, icon: "🎯" },
+  weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, icon: "🎯" },
   weekly_full_attendance: { label: "Perfect Attendance", desc: "Every member present all week", points: 10, icon: "📅" },
-  weekly_top_group_points: { label: "Top Group Points", desc: "Highest group participation this week", points: 20, icon: "🏆" },
-  weekly_top_individual_points: { label: "Top Point Earner", desc: "A member has the highest individual points", points: 20, icon: "⭐" },
+  weekly_top_group_points: { label: "Top Group Points", desc: "Highest group participation this week", points: 10, icon: "🏆" },
+  weekly_top_individual_points: { label: "Top Point Earner", desc: "Highest individual points in the whole class this week", points: 10, icon: "⭐" },
 };
 
 export default function StudentBadges() {
