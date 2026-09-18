@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getActiveStudentAccount } from "@/lib/studentContext";
+import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
@@ -31,17 +32,17 @@ export default function StudentDashboard() {
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [members, allGroups, allMembers, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
+      const [members, rankResult, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
         db.entities.GroupMember.filter({ group_id: group.id }),
-        db.entities.Group.filter({ classroom_id: classroomId }),
-        db.entities.GroupMember.filter({ classroom_id: classroomId }),
+        supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
         db.entities.Attendance.filter({ classroom_id: classroomId }),
         db.entities.ActivityScore.filter({ classroom_id: classroomId }),
         db.entities.Activity.filter({ classroom_id: classroomId }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
         db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
-        db.entities.Mission.filter({ is_active: true }),
+        supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
       ]);
+      if (rankResult.error) throw rankResult.error;
 
       const memberCards = members.map((m) => {
         const streak = computeAttendanceStreak(m.id, attendance);
@@ -50,23 +51,18 @@ export default function StudentDashboard() {
         return { member: m, streak, activityPct: act.pct, points: pts };
       });
 
-      const groupLeaderboard = allGroups
-        .map((g) => {
-          const gm = allMembers.filter((m) => m.group_id === g.id);
-          const avg = gm.length > 0 ? gm.reduce((s, m) => s + computeActivityPct(m.id, scores, activities).pct, 0) / gm.length : 0;
-          return { group: g, avg, memberCount: gm.length };
-        })
-        .sort((a, b) => b.avg - a.avg);
+      const groupLeaderboard = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, points: Number(row.points || 0) }))
+        .sort((a, b) => b.points - a.points);
 
-      const indLeaderboard = allMembers
-        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs), groupName: allGroups.find((g) => g.id === m.group_id)?.group_name || "" }))
+      const indLeaderboard = members
+        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs) }))
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 
       const memberIds = members.map((m) => m.id);
       const groupPartStreak = computeEngagementStreak(memberIds, attendance, scores, getTodayManila());
 
-      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions: missions.filter((m) => m.classroom_id === classroomId || m.applies_to_all_classes), announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();
@@ -76,7 +72,7 @@ export default function StudentDashboard() {
 
   const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
-  const maxGroupAvg = Math.max(...groupLeaderboard.map((g) => g.avg), 100);
+  const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
 
   return (
@@ -165,10 +161,10 @@ export default function StudentDashboard() {
                 <div className="flex-1">
                   <div className="flex justify-between mb-1">
                     <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {g.group.group_number} {isMe && "(You)"}</span>
-                    <span className="font-mono text-sm">{Math.round(g.avg)}%</span>
+                    <span className="font-mono text-sm">{Math.round(g.points)} pts</span>
                   </div>
                   <div className="h-6 rounded-full border-2 border-ink bg-cream overflow-hidden">
-                    <div className={`h-full rounded-full ${isMe ? "bg-clay-pink" : "bg-clay-purple"}`} style={{ width: `${(g.avg / maxGroupAvg) * 100}%` }} />
+                    <div className={`h-full rounded-full ${isMe ? "bg-clay-pink" : "bg-clay-purple"}`} style={{ width: `${(g.points / maxGroupPoints) * 100}%` }} />
                   </div>
                 </div>
               </div>

@@ -8,7 +8,8 @@ import { useAuth } from "@/lib/AuthContext";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Trophy, Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
-import { computeActivityPct, computeParticipationPoints } from "@/lib/stats";
+import { computeParticipationPoints } from "@/lib/stats";
+import { supabase } from '@/api/supabaseClient';
 import { ROUTES } from '@/lib/routes';
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from '@/lib/studentContext';
 
@@ -31,30 +32,21 @@ export default function StudentLeaderboard() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [allGroups, allMembers, logs, scores, activities, subs] = await Promise.all([
-      db.entities.Group.filter({ classroom_id: classroomId }),
-      db.entities.GroupMember.filter({ classroom_id: classroomId }),
-      db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
-      db.entities.ActivityScore.filter({ classroom_id: classroomId }),
-      db.entities.Activity.filter({ classroom_id: classroomId }),
-      db.entities.MissionSubmission.filter({ classroom_id: classroomId }),
+    const [rankResult, members, logs] = await Promise.all([
+      supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
+      db.entities.GroupMember.filter({ group_id: group.id }),
+      db.entities.ParticipationLog.filter({ group_id: group.id }),
     ]);
+    if (rankResult.error) throw rankResult.error;
+    const groupRows = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, pts: Math.round(row.points || 0), missionsDone: row.missions_done || 0 }))
+      .sort((a, b) => b.pts - a.pts || b.missionsDone - a.missionsDone);
 
-    const groupRows = allGroups.map((g) => {
-      const pts = logs.filter((l) => l.group_id === g.id)
-        .reduce((s, l) => s + (l.event_type === "behavior_penalty" ? -Math.abs(l.points_awarded || 0) : l.points_awarded || 0), 0);
-      const gm = allMembers.filter((m) => m.group_id === g.id);
-      const avg = gm.length > 0 ? gm.reduce((s, m) => s + computeActivityPct(m.id, scores, activities).pct, 0) / gm.length : 0;
-      const missionsDone = subs.filter((s) => s.group_id === g.id).length;
-      return { group: g, pts: Math.round(pts), avg: Math.round(avg), members: gm.length, missionsDone };
-    }).sort((a, b) => b.pts - a.pts);
-
-    const indRows = allMembers
-      .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs), groupName: allGroups.find((g) => g.id === m.group_id)?.group_name || "" }))
+    const indRows = members
+      .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs) }))
       .sort((a, b) => b.points - a.points)
       .slice(0, 12);
 
-    const myMember = allMembers.find((m) => m.id === account.group_member_id) || allMembers.find((m) => m.group_id === group.id && m.is_account_holder);
+    const myMember = members.find((m) => m.id === account.group_member_id) || members.find((m) => m.is_account_holder);
     setData({ group, groupRows, indRows, myMemberId: myMember?.id });
   }
 
@@ -124,7 +116,7 @@ export default function StudentLeaderboard() {
                     <div className="flex-1">
                       <div className="flex justify-between mb-1">
                         <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {r.group.group_number} {isMe && "· You"}</span>
-                        <span className="font-mono text-sm">{r.pts} pts · {r.avg}%</span>
+                        <span className="font-mono text-sm">{r.pts} pts</span>
                       </div>
                       <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">
                         <div className={`h-full rounded-full ${isMe ? "bg-clay-pink" : "bg-clay-purple"}`} style={{ width: `${(r.pts / maxPts) * 100}%` }} />
