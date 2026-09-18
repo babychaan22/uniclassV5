@@ -11,7 +11,7 @@ import ClayChip from "@/components/ClayChip";
 import CapsulePop from "@/components/CapsulePop";
 import Tambiolo from "@/components/Tambiolo";
 import MascotWidget from "@/components/MascotWidget";
-import { scanAndResolve } from "@/lib/scanService";
+import { peekQrCode, scanAndResolve } from "@/lib/scanService";
 import { GACHA_OUTCOMES, MOOD_COLOR } from "@/lib/gacha";
 import { getWeekStartManila } from "@/lib/week";
 import { QrCode as QrIcon, Camera, Keyboard, VolumeX, Volume2, Loader2, History, Star, Trophy } from "lucide-react";
@@ -113,16 +113,16 @@ export default function StudentScan() {
     setError("");
     setResolving(true);
     setSummary(null);
-    const qr = await db.entities.QRCode.filter({ hash });
-    if (qr.length === 0 || qr[0].is_used) {
-      setError("This QR code has already been used or is invalid.");
+    const qr = await peekQrCode(hash);
+    if (qr.error) {
+      setError(qr.error);
       setResolving(false);
       setPendingHash(null);
       return;
     }
     setResolving(false);
-    setPendingCode(qr[0]);
-    if (qr[0].qr_type === "gacha") {
+    setPendingCode(qr);
+    if (qr.qr_type === "gacha") {
       setPhase("risk");
     } else {
       setPhase("confirm");

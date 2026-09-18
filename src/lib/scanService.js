@@ -18,3 +18,14 @@ export async function scanAndResolve(hash, groupMemberId, risk = false, recipien
     return { error: err?.message || "Something went wrong resolving this scan." };
   }
 }
+
+export async function peekQrCode(hash) {
+  try {
+    const { supabase } = await import('@/api/supabaseClient');
+    const { data, error } = await supabase.rpc('peek_qr_code', { p_hash: hash });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return { error: err?.message || 'This QR code cannot be checked right now.' };
+  }
+}

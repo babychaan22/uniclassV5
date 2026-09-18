@@ -15,7 +15,7 @@ import {
 } from "@/lib/stats";
 import { Printer, TrendingUp, BarChart3, Award, Download } from "lucide-react";
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LineChart, Line, CartesianGrid,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid,
 } from "recharts";
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
 import AtRiskAlerts from "@/components/teacher/AtRiskAlerts";
@@ -33,6 +33,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
+  const [chartRange, setChartRange] = useState("14");
 
   const refresh = () => setReloadKey((k) => k + 1);
 
@@ -84,7 +85,7 @@ export default function TeacherDashboard() {
         if (a.status === "present") dateMap[a.attendance_date].present++;
         else dateMap[a.attendance_date].absent++;
       }
-      const trend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).slice(-14);
+      const trend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
       const groupPoints = groups.map((g) => ({
         name: `G${g.group_number}`,
@@ -134,7 +135,9 @@ export default function TeacherDashboard() {
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
-  const filteredRows = filter === "all" ? memberRows : memberRows.filter((r) => r.cls.tag === filter);
+  const filteredRows = (filter === "all" ? memberRows : memberRows.filter((r) => r.cls.tag === filter))
+    .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
+  const visibleTrend = chartRange === 'all' ? trend : trend.slice(-Number(chartRange));
   const todayStr = getTodayManila();
 
   async function applyPenalty(groupId, points, note) {
@@ -188,16 +191,16 @@ export default function TeacherDashboard() {
 
       <div className="grid lg:grid-cols-2 gap-4 no-print">
         <ClayCard className="p-4">
-          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance Trend</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
+          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><select aria-label="Attendance chart date range" className="clay-input w-auto py-1 text-xs" value={chartRange} onChange={(event) => setChartRange(event.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="all">All</option></select></div>
+          <ResponsiveContainer width="100%" height={150}>
+            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Line dataKey="present" stroke="#A6E22E" strokeWidth={2} />
-              <Line dataKey="absent" stroke="#FF6B57" strokeWidth={2} />
-            </LineChart>
+              <Bar dataKey="present" fill="#A6E22E" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="absent" fill="#FF6B57" radius={[3, 3, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </ClayCard>
 
