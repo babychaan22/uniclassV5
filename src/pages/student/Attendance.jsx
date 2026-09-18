@@ -40,7 +40,7 @@ export default function StudentAttendance() {
     load();
   }, [user]);
 
-  const canEdit = !!account?.is_representative;
+  const canEdit = !!account?.is_representative && Object.keys(existing).length === 0;
 
   function toggle(memberId) {
     if (!canEdit) return;
@@ -81,7 +81,7 @@ export default function StudentAttendance() {
       {!canEdit && (
         <ClayCard color="sun" className="p-4 flex items-center gap-3">
           <Lock className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-display font-bold">Only your group representative can update attendance. You're viewing today's status.</p>
+          <p className="text-sm font-display font-bold">Attendance is locked after the representative saves it. Only the teacher can make a correction.</p>
         </ClayCard>
       )}
 
@@ -113,7 +113,7 @@ export default function StudentAttendance() {
       </div>
 
       {canEdit && (
-        <ClayButton color="purple" size="lg" className="w-full" onClick={save} disabled={saving}>
+        <ClayButton color="purple" size="lg" className="w-full" onClick={save} disabled={saving || Object.keys(existing).length > 0}>
           {saving ? "Saving..." : saved ? "Saved!" : "Save Attendance"}
         </ClayButton>
       )}
