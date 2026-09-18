@@ -2,7 +2,7 @@ const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Image, ExternalLink, RefreshCw } from 'lucide-react';
+import { Image, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from '@/lib/teacherClassroom';
