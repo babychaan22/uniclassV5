@@ -18,6 +18,7 @@ import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
 import { completeLearningReview, redeemMissionPoints } from '@/lib/secureActions';
+import { missionTargetsClass } from '@/lib/missionAudience';
 
 export default function StudentMissions() {
   const { user } = useAuth();
@@ -70,7 +71,7 @@ export default function StudentMissions() {
       { key: 'participation_normalized', value: (points / maxPoints) * 100, count: points > 0 ? 1 : 0 },
     ], classData.settings[0]);
     const active = missions.filter((m) => {
-      const reachesClass = m.classroom_id === classroomId || m.applies_to_all_classes || (m.target_classroom_ids || []).includes(classroomId);
+      const reachesClass = missionTargetsClass(m, classroomId);
       const statuses = m.target_statuses?.length ? m.target_statuses : ['On Track', 'Developing', 'At Risk'];
       return reachesClass && statuses.includes(classification.tag);
     });

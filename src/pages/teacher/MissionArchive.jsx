@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset } from "@/lib/teacherClassroom";
+import { missionTargetsClass } from "@/lib/missionAudience";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
@@ -25,8 +26,11 @@ export default function MissionArchive() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const ds = await getClassroomDataset(c.id, ['groups','missions','submissions']);
-    setMissions([...ds.missions].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    const [ds, catalog] = await Promise.all([
+      getClassroomDataset(c.id, ['groups','submissions']),
+      db.entities.Mission.filter({ created_by: user.id }),
+    ]);
+    setMissions(catalog.filter((mission) => missionTargetsClass(mission, c.id)).sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setSubmissions(ds.submissions);
     setGroups(ds.groups);
     setLoading(false);
