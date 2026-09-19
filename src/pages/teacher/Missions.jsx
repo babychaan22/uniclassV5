@@ -36,13 +36,13 @@ const PROMPT_TEMPLATES = {
 function missionPreviewContent(m) {
   let c = {}; try { c = JSON.parse(m.ai_content || "{}"); } catch {}
   let ak = {}; try { ak = JSON.parse(m.answer_key || "{}"); } catch {}
-  return { ...c, answers: ak };
+  return { ...c, answers: ak.answers || ak };
 }
 
 function questionStats(mission, submissions) {
   if (!mission?.ai_content || !mission?.answer_key) return [];
   let content; let answers;
-  try { content = JSON.parse(mission.ai_content); answers = JSON.parse(mission.answer_key); } catch { return []; }
+  try { content = JSON.parse(mission.ai_content); answers = JSON.parse(mission.answer_key); answers = answers.answers || answers; } catch { return []; }
   const rows = mission.formative_type === "drag_drop"
     ? Object.keys(answers || {}).map((key) => ({ prompt: key, correct: answers[key] }))
     : (content.questions || []).map((q, i) => ({ prompt: q.prompt, correct: answers[i] }));
@@ -137,7 +137,7 @@ export default function TeacherMissions() {
       ai_content: isAi && aiContent
         ? JSON.stringify(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right } : { questions: aiContent.questions })
         : undefined,
-      answer_key: isAi && aiContent ? JSON.stringify(aiContent.answers) : undefined,
+      answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
     setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "" });
     setAiContent(null);
@@ -213,7 +213,7 @@ export default function TeacherMissions() {
     setGenerating(true);
     setGenMsg(null);
     const type = form.formative_type;
-    const prompt = `Create a short formative assessment (about 5 items).\nTitle: ${form.title}\nTopic/content: ${form.content}\nFormat: ${type}\nReturn JSON only.\n- For "true_false": {"questions":[{"prompt":string}], "answers":[boolean]} where answers[i] is the correct true/false for questions[i].\n- For "multiple_choice": {"questions":[{"prompt":string,"options":[4 strings]}], "answers":[number]} where answers[i] is the index of the correct option.\n- For "drag_drop": {"left":[strings: items to sort], "right":[strings: category panels], "answers":{"item":"category"}} where each left item is sorted into its correct right category; multiple items may share a category.`;
+    const prompt = `Create a short formative assessment (about 5 items).\nTitle: ${form.title}\nTopic/content: ${form.content}\nFormat: ${type}\nReturn JSON only.\n- For "true_false": {"questions":[{"prompt":string,"explanation":string}], "answers":[boolean], "retry_variants":[{"questions":[{"prompt":string,"explanation":string}],"answers":[boolean]}]}. Explanations are one short sentence explaining why the answer is correct. The retry variant must test the same skill with fresh facts or values.\n- For "multiple_choice": {"questions":[{"prompt":string,"options":[4 strings],"explanation":string}], "answers":[number], "retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number]}]}. Explanations are one short sentence. For math, use changed numeric values and make every answer exactly verifiable.\n- For "drag_drop": {"left":[strings: items to sort], "right":[strings: category panels], "answers":{"item":"category"}} where each left item is sorted into its correct right category; multiple items may share a category.`;
     try {
       const res = await invokeLLM({ prompt });
       setAiContent(res);
@@ -401,7 +401,7 @@ export default function TeacherMissions() {
         let aiParsed = null, akParsed = {};
         if (isAi) {
           try { aiParsed = JSON.parse(m.ai_content || "{}"); } catch {}
-          try { akParsed = JSON.parse(m.answer_key || "{}"); } catch {}
+          try { akParsed = JSON.parse(m.answer_key || "{}"); akParsed = akParsed.answers || akParsed; } catch {}
         }
         const stats = isAi ? questionStats(m, submissions) : [];
         const hardest = [...stats].sort((a, b) => a.pct - b.pct).slice(0, 2);

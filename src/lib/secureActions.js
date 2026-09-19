@@ -74,6 +74,20 @@ export async function submitMission(payload) {
   return data;
 }
 
+export async function getMissionSubmissionReview(missionId, groupId, retryAttemptId = null) {
+  const { data, error } = await supabase.rpc('get_mission_submission_review', {
+    p_mission_id: missionId, p_group_id: groupId, p_retry_attempt_id: retryAttemptId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function startMissionRetry(missionId, groupId) {
+  const { data, error } = await supabase.rpc('start_mission_retry', { p_mission_id: missionId, p_group_id: groupId });
+  if (error) throw error;
+  return data;
+}
+
 export async function claimBadgeDefinition(definitionId, groupId, memberId = null) {
   const { data, error } = await supabase.rpc('claim_badge_definition', {
     p_definition_id: definitionId,

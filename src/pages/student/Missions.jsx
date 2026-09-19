@@ -186,6 +186,10 @@ export default function StudentMissions() {
             {active.map((m) => {
               const sub = subs.find((s) => s.mission_id === m.id);
               const isAi = m.formative_type && m.formative_type !== "manual";
+              let questionMax = m.max_score;
+              if (isAi && m.formative_type !== 'drag_drop') {
+                try { questionMax = JSON.parse(m.ai_content || '{}').questions?.length || m.max_score; } catch {}
+              }
               const header = (
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -193,12 +197,12 @@ export default function StudentMissions() {
                     {m.description && <p className="text-xs text-ink/60 mt-0.5">{m.description}</p>}
                     <div className="flex flex-wrap gap-2 mt-2">
                       <ClayChip color="sun">{`+${m.xp_reward} XP`}</ClayChip>
-                      <ClayChip color="purple">{`/${m.max_score} max`}</ClayChip>
+                      <ClayChip color="purple">{`/${questionMax} questions`}</ClayChip>
                       {m.deadline && <ClayChip color="sky">{`Due ${m.deadline}`}</ClayChip>}
                       {isAi && <ClayChip color="purple">{m.formative_type.replace("_", " ")}</ClayChip>}
                     </div>
                   </div>
-                  {sub ? <ClayChip color="lime">{`${sub.score}/${m.max_score} -> ${sub.xp_earned} XP`}</ClayChip> : <ClayChip color="sun">To do</ClayChip>}
+                  {sub ? <ClayChip color="lime">{`${sub.score}/${questionMax} -> ${sub.xp_earned} XP`}</ClayChip> : <ClayChip color="sun">To do</ClayChip>}
                 </div>
               );
               if (isAi) {
