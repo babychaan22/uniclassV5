@@ -74,7 +74,7 @@ export default function StudentMissions() {
       return reachesClass && statuses.includes(classification.tag);
     });
     const earned = subs.reduce((s, x) => s + (x.xp_earned || 0), 0);
-    const redeemed = logs.filter((l) => l.event_type === "mission_redemption").reduce((s, l) => s + (l.points_awarded || 0), 0);
+    const redeemed = logs.filter((l) => l.event_type === "mission_redemption").reduce((s, l) => s + (l.xp_spent || 0), 0);
     const available = Math.max(0, earned - redeemed);
     const dueReviews = reviews.filter((review) => new Date(review.next_review_at) <= new Date());
     setData({ account, group, missions, active, subs, members, earned, redeemed, available, dueReviews, classification });
@@ -83,17 +83,19 @@ export default function StudentMissions() {
   async function redeem(e) {
     e.preventDefault();
     const amt = Number(redeemAmt);
-    if (!amt || amt <= 0 || amt > data.available) {
-      setMsg({ ok: false, text: "Enter a valid XP amount up to your available balance." });
+    if (!amt || amt < 10 || amt % 10 !== 0 || amt > data.available) {
+      setMsg({ ok: false, text: "Redeem a multiple of 10 XP, up to your available balance." });
       return;
     }
     setRedeeming(true);
     setMsg(null);
-    await redeemMissionPoints(amt);
+    try {
+      const result = await redeemMissionPoints(amt);
+      setRedeemAmt("");
+      setMsg({ ok: true, text: `Redeemed ${amt} XP for ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}!` });
+      load();
+    } catch (err) { setMsg({ ok: false, text: err.message || "Could not redeem XP." }); }
     setRedeeming(false);
-    setRedeemAmt("");
-    setMsg({ ok: true, text: `Redeemed ${amt} XP into participation points!` });
-    load();
     setTimeout(() => setMsg(null), 3000);
   }
 
@@ -126,17 +128,17 @@ export default function StudentMissions() {
           <div className="flex-1 text-white">
             <p className="font-mono font-extrabold text-4xl leading-none">{available}</p>
             <p className="font-display font-bold text-sm">XP available to redeem</p>
-            <p className="text-xs text-white/70">{`Earned ${earned} - Redeemed ${redeemed}`}</p>
+            <p className="text-xs text-white/70">{`Earned ${earned} XP - Redeemed ${redeemed} XP · 10 XP = 1 point`}</p>
           </div>
         </div>
         <form onSubmit={redeem} className="mt-4 flex gap-2">
-          <input type="number" min="1" max={available} className="clay-input font-mono flex-1" placeholder="XP to redeem" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
+          <input type="number" min="10" step="10" max={available} className="clay-input font-mono flex-1" placeholder="XP to redeem (10 at a time)" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
           <ClayButton type="submit" color="lime" size="md" disabled={redeeming || available <= 0}>
             {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "Redeem"}
           </ClayButton>
         </form>
         {available > 0 && (
-          <button type="button" onClick={() => setRedeemAmt(String(available))} className="text-xs text-white/80 underline mt-1">{`Use all ${available} XP`}</button>
+          <button type="button" onClick={() => setRedeemAmt(String(Math.floor(available / 10) * 10))} className="text-xs text-white/80 underline mt-1">{`Use ${Math.floor(available / 10) * 10} XP`}</button>
         )}
       </ClayCard>
 

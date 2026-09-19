@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -12,6 +12,7 @@ import ClayChip from "@/components/ClayChip";
 import { Switch } from "@/components/ui/switch";
 import { Gift, Plus, Trash2, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import { reviewRewardRedemption } from '@/lib/secureActions';
 
 export default function TeacherRewards() {
   const { user } = useAuth();
@@ -20,6 +21,9 @@ export default function TeacherRewards() {
   const [rewards, setRewards] = useState([]);
   const [form, setForm] = useState({ title: "", description: "", emoji: "🎁", cost_points: 50 });
   const [creating, setCreating] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [reviewing, setReviewing] = useState(null);
 
   useEffect(() => { load(); }, [user]);
 
@@ -29,7 +33,10 @@ export default function TeacherRewards() {
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
     const catalog = await db.entities.Reward.filter({ created_by: user.id });
+    const ds = await getClassroomDataset(c.id, ['groups', 'redemptions']);
     setRewards([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    setGroups(ds.groups || []);
+    setRequests((ds.redemptions || []).filter((request) => request.approval_status === 'pending'));
   }
 
   async function createReward(e) {
@@ -61,6 +68,12 @@ export default function TeacherRewards() {
     await db.entities.Reward.delete(id);
     invalidateClassroomDataset();
     load();
+  }
+
+  async function reviewRequest(request, approve) {
+    setReviewing(request.id);
+    try { await reviewRewardRedemption(request.id, approve); invalidateClassroomDataset(); await load(); }
+    finally { setReviewing(null); }
   }
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
@@ -98,6 +111,15 @@ export default function TeacherRewards() {
           </ClayButton>
         </form>
       </ClayCard>
+
+      {requests.length > 0 && <ClayCard color="sun" className="p-5">
+        <h2 className="font-display font-bold text-sm mb-1">Reward requests</h2>
+        <p className="text-xs text-ink/60 mb-3">Points are held while a request is pending. Approve only when the reward is ready to give.</p>
+        <div className="space-y-2">{requests.map((request) => {
+          const group = groups.find((item) => item.id === request.group_id);
+          return <div key={request.id} className="rounded-xl border-2 border-ink bg-cream p-3 flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><p className="font-display font-bold text-sm">{request.reward_title}</p><p className="text-xs text-ink/60">Group {group?.group_number || '—'} · {request.points_spent} points</p></div><ClayButton size="sm" color="lime" disabled={reviewing === request.id} onClick={() => reviewRequest(request, true)}>{reviewing === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve'}</ClayButton><ClayButton size="sm" color="coral" disabled={reviewing === request.id} onClick={() => reviewRequest(request, false)}>Decline</ClayButton></div>;
+        })}</div>
+      </ClayCard>}
 
       {rewards.length === 0 && <p className="text-ink/50 text-sm text-center">No rewards defined yet.</p>}
 

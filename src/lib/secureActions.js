@@ -101,6 +101,18 @@ export async function redeemMissionPoints(amount) {
   return data;
 }
 
+export async function reviewBadgeClaim(badgeId, approve) {
+  const { data, error } = await supabase.rpc('review_badge_claim', { p_badge_id: badgeId, p_approve: approve });
+  if (error) throw error;
+  return data;
+}
+
+export async function reviewRewardRedemption(redemptionId, approve) {
+  const { data, error } = await supabase.rpc('review_reward_redemption', { p_redemption_id: redemptionId, p_approve: approve });
+  if (error) throw error;
+  return data;
+}
+
 export async function completeLearningReview(reviewId, correct) {
   const { data, error } = await supabase.rpc('complete_learning_review', {
     p_review_id: reviewId,
