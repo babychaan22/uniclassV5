@@ -103,6 +103,7 @@ export default function MissionAssessment({ mission, group, userId, existing, on
       {questions.map((q, i) => (
         <div key={i} className="space-y-2">
           <p className="font-body text-sm">{i + 1}. {q.prompt}</p>
+          {q.image_url && <img src={q.image_url} alt={`Visual for question ${i + 1}`} className="max-h-72 w-full rounded-xl border-2 border-ink bg-white object-contain" loading="lazy" />}
           {mission.formative_type === "true_false" ? (
             <div className="flex gap-2">
               <button type="button" onClick={() => setAnswers({ ...answers, [i]: true })}

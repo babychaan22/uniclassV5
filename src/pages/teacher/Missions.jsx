@@ -10,7 +10,8 @@ import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Switch } from "@/components/ui/switch";
-import { Target, Plus, Trash2, Loader2, Sparkles } from "lucide-react";
+import { Target, Plus, Trash2, Loader2, Sparkles, ImagePlus, Upload, X } from "lucide-react";
+import { supabase } from "@/api/supabaseClient";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
@@ -167,6 +168,45 @@ export default function TeacherMissions() {
     setGeneratingImage(false);
   }
 
+  function updateQuestion(index, patch) {
+    setAiContent((current) => {
+      if (!current?.questions) return current;
+      return { ...current, questions: current.questions.map((question, i) => i === index ? { ...question, ...patch } : question) };
+    });
+  }
+
+  async function uploadQuestionImage(file, index) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) { setGenMsg("Use a JPG, PNG, or WebP image for a question visual."); return; }
+    if (file.size > 5 * 1024 * 1024) { setGenMsg("Keep uploaded question visuals under 5 MB."); return; }
+    setGeneratingImage(true); setGenMsg(null);
+    try {
+      const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const path = `${user.id}/${draftKey}/question-${index + 1}-${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("mission-images").upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from("mission-images").getPublicUrl(path);
+      updateQuestion(index, { image_url: data.publicUrl });
+      setGenMsg(`Visual added to question ${index + 1}.`);
+    } catch (err) { setGenMsg("Image upload failed: " + (err.message || "error")); }
+    setGeneratingImage(false);
+  }
+
+  async function generateQuestionImage(question, index) {
+    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
+    setGeneratingImage(true); setGenMsg(null);
+    try {
+      const imageUrl = await generateMissionImage({
+        draftKey,
+        prompt: `Create a precise, age-appropriate educational visual that helps a student answer this exact question.\nMission title: ${form.title}\nTopic: ${form.content}\nQuestion: ${question.prompt}\nIf the question needs a diagram (for example a coordinate plane, graph, geometric figure, map, timeline, science setup, or labeled object), draw the diagram accurately with the necessary labels, axes, values, points, or symbols. Do not add decorative text, answers, logos, or watermarks. Keep the visual clear, high-contrast, and focused on the question.`,
+      });
+      updateQuestion(index, { image_url: imageUrl });
+      setImageGenerations((count) => count + 1);
+      setGenMsg(`Visual generated for question ${index + 1}. Review it before creating the mission.`);
+    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
+    setGeneratingImage(false);
+  }
+
   async function generateAI(e) {
     e.preventDefault();
     if (!form.title || !form.content) { setGenMsg("Add a title and topic first."); return; }
@@ -265,13 +305,36 @@ export default function TeacherMissions() {
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}
               </ClayButton>
               <ClayButton type="button" color="lime" size="sm" className="w-full" disabled={generatingImage || imageGenerations >= 3} onClick={generateImage}>
-                {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate mission image ({imageGenerations}/3)</>}
+                {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate mission cover image ({imageGenerations}/3)</>}
               </ClayButton>
               <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state={generating ? "ai_thinking" : "quest"} size="sm" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
               {genMsg && <p className={`text-xs font-display font-bold ${genMsg.includes("failed") || genMsg.includes("Add") ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
               {aiContent && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <MissionPreview type={form.formative_type} content={aiContent} />
+                  {form.formative_type !== "drag_drop" && (
+                    <div className="rounded-xl border-2 border-ink bg-clay-sun/15 p-3 space-y-3">
+                      <div>
+                        <p className="font-display font-bold text-sm">Question visuals</p>
+                        <p className="text-xs text-ink/60">Add a diagram, photo, map, or other visual only where it helps students understand that question.</p>
+                      </div>
+                      {aiContent.questions?.map((question, index) => (
+                        <div key={index} className="rounded-xl border-2 border-ink/20 bg-cream p-3 space-y-2">
+                          <p className="text-sm font-body"><span className="font-display font-bold">Question {index + 1}.</span> {question.prompt}</p>
+                          {question.image_url ? (
+                            <div className="relative overflow-hidden rounded-lg border-2 border-ink bg-white">
+                              <img src={question.image_url} alt={`Question ${index + 1} visual`} className="max-h-56 w-full object-contain" />
+                              <button type="button" onClick={() => updateQuestion(index, { image_url: undefined })} className="absolute right-2 top-2 clay-btn bg-clay-coral p-1.5 text-white" aria-label={`Remove visual from question ${index + 1}`}><X className="w-4 h-4" /></button>
+                            </div>
+                          ) : <p className="text-xs text-ink/50">No visual attached.</p>}
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className={`clay-btn bg-clay-sky px-2 py-2 text-xs cursor-pointer ${generatingImage ? "pointer-events-none opacity-60" : ""}`}><Upload className="w-4 h-4" /> Upload visual<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { uploadQuestionImage(e.target.files?.[0], index); e.target.value = ""; }} /></label>
+                            <ClayButton type="button" color="lime" size="sm" className="px-2 text-xs" disabled={generatingImage || imageGenerations >= 3} onClick={() => generateQuestionImage(question, index)}>{generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ImagePlus className="w-4 h-4" /> Generate visual</>}</ClayButton>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {missionImage && <div className="rounded-xl border-2 border-ink overflow-hidden"><img src={missionImage} alt="Generated mission illustration" className="w-full max-h-64 object-cover" /></div>}

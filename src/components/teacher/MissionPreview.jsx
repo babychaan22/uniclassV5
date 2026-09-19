@@ -19,6 +19,7 @@ export default function MissionPreview({ type, content }) {
           {questions.map((q, i) => (
             <div key={i} className="rounded-xl border-2 border-ink/15 bg-cream p-2">
               <p className="font-body text-sm">{i + 1}. {q.prompt}</p>
+              {q.image_url && <img src={q.image_url} alt={`Visual for question ${i + 1}`} className="mt-2 max-h-48 w-full rounded-lg border-2 border-ink bg-white object-contain" />}
               <div className="flex gap-2 mt-1">
                 <ClayChip color={answers[i] === true ? "lime" : "cream"}>{answers[i] === true ? <><CheckCircle2 className="w-3 h-3" /> True</> : "True"}</ClayChip>
                 <ClayChip color={answers[i] === false ? "coral" : "cream"}>{answers[i] === false ? <><CheckCircle2 className="w-3 h-3" /> False</> : "False"}</ClayChip>
@@ -33,6 +34,7 @@ export default function MissionPreview({ type, content }) {
           {questions.map((q, i) => (
             <div key={i} className="rounded-xl border-2 border-ink/15 bg-cream p-2">
               <p className="font-body text-sm">{i + 1}. {q.prompt}</p>
+              {q.image_url && <img src={q.image_url} alt={`Visual for question ${i + 1}`} className="mt-2 max-h-48 w-full rounded-lg border-2 border-ink bg-white object-contain" />}
               <div className="grid sm:grid-cols-2 gap-1 mt-1">
                 {(q.options || []).map((opt, oi) => (
                   <span key={oi} className={`clay-chip px-2 py-1 text-xs ${Number(answers[i]) === oi ? "bg-clay-lime text-ink" : "bg-white text-ink/70"}`}>
@@ -69,4 +71,3 @@ export default function MissionPreview({ type, content }) {
     </ClayCard>
   );
 }
-
