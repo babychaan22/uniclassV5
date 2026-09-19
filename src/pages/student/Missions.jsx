@@ -13,7 +13,7 @@ import { computeActivityPct, computeAttendanceRate, computeCategoryPct, computeP
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Target, Zap, Loader2, Rocket } from "lucide-react";
+import { Target, Zap, Loader2, Rocket, History } from "lucide-react";
 import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
@@ -26,6 +26,7 @@ export default function StudentMissions() {
   const [redeemAmt, setRedeemAmt] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [historyMissionId, setHistoryMissionId] = useState(null);
 
   useEffect(() => {
     load();
@@ -107,7 +108,9 @@ export default function StudentMissions() {
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   const { group, active, subs, earned, redeemed, available, dueReviews, classification } = data;
-  const gradedCount = active.filter((m) => subs.find((s) => s.mission_id === m.id)).length;
+  const completedMissions = active.filter((m) => subs.find((s) => s.mission_id === m.id));
+  const currentMissions = active.filter((m) => !subs.find((s) => s.mission_id === m.id));
+  const gradedCount = completedMissions.length;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -179,11 +182,11 @@ export default function StudentMissions() {
 
       <div>
         <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Rocket className="w-5 h-5" /> Active Missions</h2>
-        {active.length === 0 ? (
+        {currentMissions.length === 0 ? (
           <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state="waiting" size="sm" /><p className="text-ink/60 text-sm">Nova is watching for the next quest. Check back when your teacher posts one.</p></div>
         ) : (
           <div className="space-y-3">
-            {active.map((m) => {
+            {currentMissions.map((m) => {
               const sub = subs.find((s) => s.mission_id === m.id);
               const isAi = m.formative_type && m.formative_type !== "manual";
               let questionMax = m.max_score;
@@ -218,6 +221,35 @@ export default function StudentMissions() {
           </div>
         )}
       </div>
+
+      {completedMissions.length > 0 && (
+        <div>
+          <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><History className="w-5 h-5" /> Mission History</h2>
+          <p className="text-xs text-ink/60 mb-2">Open a completed mission anytime to review your answers and feedback.</p>
+          <div className="space-y-2">
+            {completedMissions.map((m) => {
+              const sub = subs.find((s) => s.mission_id === m.id);
+              const isAi = m.formative_type && m.formative_type !== "manual";
+              let questionMax = m.max_score;
+              if (isAi && m.formative_type !== 'drag_drop') {
+                try { questionMax = JSON.parse(m.ai_content || '{}').questions?.length || m.max_score; } catch {}
+              } else if (isAi && m.formative_type === 'drag_drop') {
+                try { questionMax = JSON.parse(m.ai_content || '{}').left?.length || m.max_score; } catch {}
+              }
+              const expanded = historyMissionId === m.id;
+              return <div key={m.id} className="space-y-2">
+                <ClayCard className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0"><p className="font-display font-bold truncate">{m.title}</p><p className="text-xs text-ink/55">{isAi ? 'AI formative assessment' : 'Teacher-graded mission'}{m.deadline ? ` · Due ${m.deadline}` : ''}</p></div>
+                    <div className="flex items-center gap-2 shrink-0"><ClayChip color="lime">{sub.score}/{questionMax}</ClayChip><ClayButton type="button" size="sm" color="sky" onClick={() => setHistoryMissionId(expanded ? null : m.id)}>{expanded ? 'Close' : isAi ? 'Review' : 'View'}</ClayButton></div>
+                  </div>
+                </ClayCard>
+                {expanded && (isAi ? <MissionAssessment mission={m} group={group} userId={user.id} existing={sub} onDone={load} /> : <ClayCard className="p-3"><p className="text-sm font-display font-bold">Completed</p><p className="text-xs text-ink/60 mt-1">This mission is teacher-graded. Ask your teacher for written feedback or a score review.</p></ClayCard>)}
+              </div>;
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

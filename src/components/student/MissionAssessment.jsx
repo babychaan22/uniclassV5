@@ -28,7 +28,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
 
   useEffect(() => { setQuestions(originalQuestions); }, [originalQuestions]);
   useEffect(() => {
-    if (!result || mission.formative_type === 'drag_drop') return;
+    if (!result) return;
     let live = true;
     getMissionSubmissionReview(mission.id, group.id, retryAttemptId).then((data) => { if (live) setReview(data); }).catch(() => { if (live) setReview(null); });
     return () => { live = false; };
@@ -72,6 +72,14 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
         const question = questions[item.index];
         return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct' : 'Try again'}</p>{!item.correct && <p className="mt-1">Correct answer: <b>{displayAnswer(question, item.correct_answer, mission.formative_type)}</b></p>}<p className="mt-1 text-xs text-ink/70">Why: {item.explanation}</p></div>;
       })}</div>}
+      {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
+        <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
+          <p className="font-display font-bold">{item.item} · {item.correct ? 'Correct placement' : 'Try again'}</p>
+          <p className="mt-1 text-xs">Your category: <b>{item.selected || 'No category selected'}</b></p>
+          {!item.correct && <p className="mt-1">Correct category: <b>{item.correct_answer}</b></p>}
+          <p className="mt-1 text-xs text-ink/70">Why: {item.explanation}</p>
+        </div>
+      ))}</div>}
       {mission.formative_type !== 'drag_drop' && reviewedScore < reviewedMax && <ClayButton color="sky" size="sm" className="w-full" onClick={beginRetry} disabled={retrying}>{retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RotateCcw className="w-4 h-4" /> Try a fresh variant</>}</ClayButton>}
       {submitError && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{submitError}</p>}
     </ClayCard>;

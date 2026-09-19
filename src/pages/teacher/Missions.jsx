@@ -140,7 +140,7 @@ export default function TeacherMissions() {
           student_instructions: aiContent.student_instructions || form.student_instructions,
           assessment_purpose: aiContent.assessment_purpose || form.assessment_purpose,
           estimated_minutes: aiContent.estimated_minutes,
-          ...(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right } : { questions: aiContent.questions }),
+          ...(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right, feedback: aiContent.feedback || {} } : { questions: aiContent.questions }),
         })
         : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
@@ -221,8 +221,11 @@ export default function TeacherMissions() {
     const type = form.formative_type;
     const purposeLabels = { diagnostic: "diagnostic check before instruction", quick_check: "quick formative check during or after instruction", reteach: "reteaching check for a previously difficult skill", exit_ticket: "brief end-of-lesson exit ticket" };
     const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Include a one-sentence explanation for each correct answer so students receive useful feedback after submitting.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Student instructions must be 1-2 short sentences and must not give answers.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number]}]}. Each answer is the zero-based index. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"}}. Use meaningful categories and enough items to demonstrate the target.`;
+    const promptWithDragFeedback = type === "drag_drop"
+      ? prompt.replace('"answers":{"item":"category"}}. Use meaningful', '"answers":{"item":"category"},"feedback":{"item":"one short sentence explaining why the item belongs in its category"}}. Use meaningful')
+      : prompt;
     try {
-      const res = await invokeLLM({ prompt });
+      const res = await invokeLLM({ prompt: promptWithDragFeedback });
       setAiContent(res);
       setGenMsg("Generated! Review below, then create the mission.");
     } catch (err) {
