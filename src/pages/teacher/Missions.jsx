@@ -20,16 +20,16 @@ import MascotWidget from "@/components/MascotWidget";
 
 const PROMPT_TEMPLATES = {
   true_false: {
-    placeholder: "e.g. Facts about the water cycle",
-    template: "Write 5 true/false statements about {topic}. Mark each correct answer.",
+    placeholder: "e.g. Water-cycle changes of state",
+    template: "Check one focused learning target with 5 clear true/false statements.",
   },
   multiple_choice: {
-    placeholder: "e.g. Photosynthesis basics — 4 options each",
-    template: "Write 5 multiple-choice questions (4 options each) about {topic}. Mark the correct option index.",
+    placeholder: "e.g. Plotting ordered pairs on a coordinate plane",
+    template: "Check one focused learning target with 5 four-option questions.",
   },
   drag_drop: {
-    placeholder: "e.g. Sort animals into Mammals / Reptiles / Birds (several per category)",
-    template: "List category panels + item tiles about {topic}; several tiles may share a category.",
+    placeholder: "e.g. Classify angles as acute, right, obtuse, or straight",
+    template: "Check one focused learning target with a meaningful sorting task.",
   },
 };
 
@@ -68,7 +68,7 @@ export default function TeacherMissions() {
   const [missions, setMissions] = useState([]);
   const [groups, setGroups] = useState([]);
   const [submissions, setSubmissions] = useState([]);
-  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "" });
+  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
   const [creating, setCreating] = useState(false);
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -123,7 +123,7 @@ export default function TeacherMissions() {
     await db.entities.Mission.create({
       classroom_id: classroom.id,
       title: form.title,
-      description: isAi ? form.content : form.description,
+      description: isAi ? (aiContent?.student_instructions || form.student_instructions || form.content) : form.description,
       xp_reward: Number(form.xp_reward),
       max_score: Number(form.max_score),
       deadline: form.deadline || undefined,
@@ -135,11 +135,17 @@ export default function TeacherMissions() {
       image_url: missionImage || undefined,
       formative_type: form.formative_type,
       ai_content: isAi && aiContent
-        ? JSON.stringify(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right } : { questions: aiContent.questions })
+        ? JSON.stringify({
+          learning_target: aiContent.learning_target || form.learning_target,
+          student_instructions: aiContent.student_instructions || form.student_instructions,
+          assessment_purpose: aiContent.assessment_purpose || form.assessment_purpose,
+          estimated_minutes: aiContent.estimated_minutes,
+          ...(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right } : { questions: aiContent.questions }),
+        })
         : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
-    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "" });
+    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
     setAiContent(null);
     setMissionImage(null);
     setImageGenerations(0);
@@ -153,13 +159,13 @@ export default function TeacherMissions() {
   }
 
   async function generateImage() {
-    if (!form.title || !form.content) { setGenMsg("Add a title and topic first."); return; }
+    if (!form.title || !form.content || !form.learning_target) { setGenMsg("Add a title, topic, and learning target first."); return; }
     if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
     setGeneratingImage(true); setGenMsg(null);
     try {
       const imageUrl = await generateMissionImage({
         draftKey,
-        prompt: `Create a clear, age-appropriate educational illustration for a classroom mission titled "${form.title}" about ${form.content}. No words, labels, numbers, logos, or watermark. Use a friendly learning-app style.`,
+        prompt: `Create a clear, age-appropriate educational illustration for a formative assessment titled "${form.title}". Learning target: ${form.learning_target}. Topic: ${form.content}. No answers, logos, or watermark. Use a focused, friendly learning-app style.`,
       });
       setMissionImage(imageUrl);
       setImageGenerations((count) => count + 1);
@@ -198,7 +204,7 @@ export default function TeacherMissions() {
     try {
       const imageUrl = await generateMissionImage({
         draftKey,
-        prompt: `Create a precise, age-appropriate educational visual that helps a student answer this exact question.\nMission title: ${form.title}\nTopic: ${form.content}\nQuestion: ${question.prompt}\nIf the question needs a diagram (for example a coordinate plane, graph, geometric figure, map, timeline, science setup, or labeled object), draw the diagram accurately with the necessary labels, axes, values, points, or symbols. Do not add decorative text, answers, logos, or watermarks. Keep the visual clear, high-contrast, and focused on the question.`,
+        prompt: `Create a precise, age-appropriate educational visual that helps a student answer this exact question.\nMission title: ${form.title}\nLearning target: ${form.learning_target}\nTopic: ${form.content}\nQuestion: ${question.prompt}\nIf the question needs a diagram (for example a coordinate plane, graph, geometric figure, map, timeline, science setup, or labeled object), draw the diagram accurately with the necessary labels, axes, values, points, or symbols. Do not add decorative text, answers, logos, or watermarks. Keep the visual clear, high-contrast, and focused on the question.`,
       });
       updateQuestion(index, { image_url: imageUrl });
       setImageGenerations((count) => count + 1);
@@ -209,11 +215,12 @@ export default function TeacherMissions() {
 
   async function generateAI(e) {
     e.preventDefault();
-    if (!form.title || !form.content) { setGenMsg("Add a title and topic first."); return; }
+    if (!form.title || !form.content || !form.learning_target) { setGenMsg("Add a title, topic, and learning target first."); return; }
     setGenerating(true);
     setGenMsg(null);
     const type = form.formative_type;
-    const prompt = `Create a short formative assessment (about 5 items).\nTitle: ${form.title}\nTopic/content: ${form.content}\nFormat: ${type}\nReturn JSON only.\n- For "true_false": {"questions":[{"prompt":string,"explanation":string}], "answers":[boolean], "retry_variants":[{"questions":[{"prompt":string,"explanation":string}],"answers":[boolean]}]}. Explanations are one short sentence explaining why the answer is correct. The retry variant must test the same skill with fresh facts or values.\n- For "multiple_choice": {"questions":[{"prompt":string,"options":[4 strings],"explanation":string}], "answers":[number], "retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number]}]}. Explanations are one short sentence. For math, use changed numeric values and make every answer exactly verifiable.\n- For "drag_drop": {"left":[strings: items to sort], "right":[strings: category panels], "answers":{"item":"category"}} where each left item is sorted into its correct right category; multiple items may share a category.`;
+    const purposeLabels = { diagnostic: "diagnostic check before instruction", quick_check: "quick formative check during or after instruction", reteach: "reteaching check for a previously difficult skill", exit_ticket: "brief end-of-lesson exit ticket" };
+    const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Include a one-sentence explanation for each correct answer so students receive useful feedback after submitting.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Student instructions must be 1-2 short sentences and must not give answers.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number]}]}. Each answer is the zero-based index. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"}}. Use meaningful categories and enough items to demonstrate the target.`;
     try {
       const res = await invokeLLM({ prompt });
       setAiContent(res);
@@ -297,9 +304,33 @@ export default function TeacherMissions() {
           ) : (
             <>
               <div>
-                <label className="font-display font-bold text-xs mb-1 block">Topic / Content</label>
+                <label className="font-display font-bold text-xs mb-1 block">Lesson topic or content</label>
                 <textarea className="clay-input" rows={2} placeholder={PROMPT_TEMPLATES[form.formative_type]?.placeholder || "e.g. Match countries to their capitals"} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
                 <p className="text-[10px] text-ink/50 mt-1">Prompt template: {PROMPT_TEMPLATES[form.formative_type]?.template}</p>
+              </div>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Learning target students should reach</label>
+                <input className="clay-input" placeholder="e.g. I can plot and identify ordered pairs on a coordinate plane." value={form.learning_target} onChange={(e) => setForm({ ...form, learning_target: e.target.value })} required />
+                <p className="text-[10px] text-ink/50 mt-1">Use one observable skill. This is shown to students before they start.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-display font-bold text-xs mb-1 block">Assessment purpose</label>
+                  <select className="clay-input" value={form.assessment_purpose} onChange={(e) => setForm({ ...form, assessment_purpose: e.target.value })}>
+                    <option value="diagnostic">Diagnostic check</option>
+                    <option value="quick_check">Quick check</option>
+                    <option value="reteach">Reteaching check</option>
+                    <option value="exit_ticket">Exit ticket</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-display font-bold text-xs mb-1 block">Skill gap to check (optional)</label>
+                  <input className="clay-input" placeholder="e.g. Confuses x- and y-coordinates" value={form.prior_knowledge} onChange={(e) => setForm({ ...form, prior_knowledge: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Student directions (optional)</label>
+                <textarea className="clay-input" rows={2} placeholder="e.g. Read each question carefully, choose your best answer, then submit for feedback." value={form.student_instructions} onChange={(e) => setForm({ ...form, student_instructions: e.target.value })} />
               </div>
               <ClayButton type="button" color="sky" size="sm" className="w-full" disabled={generating} onClick={generateAI}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}

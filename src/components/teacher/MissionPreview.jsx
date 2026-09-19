@@ -13,6 +13,13 @@ export default function MissionPreview({ type, content }) {
   return (
     <ClayCard className="p-4 bg-white/60">
       <p className="font-display font-bold text-xs mb-2 flex items-center gap-1"><Eye className="w-4 h-4" /> Visual preview (how students will see it)</p>
+      {(content.learning_target || content.student_instructions || content.estimated_minutes) && (
+        <div className="mb-3 rounded-xl border-2 border-ink/15 bg-clay-sky/15 p-3 text-xs space-y-1">
+          {content.learning_target && <p><span className="font-display font-bold">Learning target:</span> {content.learning_target}</p>}
+          {content.student_instructions && <p><span className="font-display font-bold">Directions:</span> {content.student_instructions}</p>}
+          {content.estimated_minutes && <p className="text-ink/60">About {content.estimated_minutes} minute{content.estimated_minutes === 1 ? "" : "s"}</p>}
+        </div>
+      )}
 
       {type === "true_false" && (
         <div className="space-y-2">

@@ -36,6 +36,13 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
 
   if (!mission.ai_content) return <ClayCard className="p-4"><p className="text-ink/50 text-sm">Mission content unavailable.</p></ClayCard>;
   if (mission.formative_type !== "drag_drop" && questions.length === 0) return <ClayCard className="p-4"><p className="text-ink/50 text-sm">This mission has no questions available yet. Ask your teacher to regenerate it.</p></ClayCard>;
+  const formativeBrief = (content.learning_target || content.student_instructions || content.estimated_minutes) ? (
+    <div className="rounded-xl border-2 border-ink/15 bg-clay-sky/15 p-3 text-sm space-y-1">
+      {content.learning_target && <p><span className="font-display font-bold">Your learning target:</span> {content.learning_target}</p>}
+      {content.student_instructions && <p><span className="font-display font-bold">Directions:</span> {content.student_instructions}</p>}
+      {content.estimated_minutes && <p className="text-xs text-ink/60">Plan for about {content.estimated_minutes} minute{content.estimated_minutes === 1 ? "" : "s"}.</p>}
+    </div>
+  ) : null;
 
   async function submit(submittedAnswers) {
     setSubmitting(true); setSubmitError("");
@@ -70,9 +77,10 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     </ClayCard>;
   }
 
-  if (mission.formative_type === "drag_drop") return <DragDropMatch left={content.left || []} right={content.right || []} answers={{}} onSubmit={(res) => submit(res.placements || {})} submitting={submitting} error={submitError} />;
+  if (mission.formative_type === "drag_drop") return <div className="space-y-3">{formativeBrief}<DragDropMatch left={content.left || []} right={content.right || []} answers={{}} onSubmit={(res) => submit(res.placements || {})} submitting={submitting} error={submitError} /></div>;
 
   return <ClayCard className="p-4 space-y-4">
+    {formativeBrief}
     <p className="font-display font-bold text-sm">{retryAttemptId ? 'Fresh retry: answer this new version.' : 'Answer the questions below:'}</p>
     {questions.map((question, i) => <div key={i} className="space-y-2">
       <p className="font-body text-sm">{i + 1}. {question.prompt}</p>
