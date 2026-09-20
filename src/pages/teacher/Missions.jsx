@@ -10,12 +10,12 @@ import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Switch } from "@/components/ui/switch";
-import { Target, Plus, Trash2, Loader2, Sparkles, ImagePlus, Upload, X } from "lucide-react";
+import { Target, Plus, Trash2, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
-import { generateMissionImage, invokeLLM } from "@/lib/aiService";
+import { invokeLLM } from "@/lib/aiService";
 import MascotWidget from "@/components/MascotWidget";
 
 const PROMPT_TEMPLATES = {
@@ -73,9 +73,7 @@ export default function TeacherMissions() {
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState(null);
-  const [missionImage, setMissionImage] = useState(null);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [imageGenerations, setImageGenerations] = useState(0);
   const [draftKey] = useState(() => crypto.randomUUID());
   const [grading, setGrading] = useState(null);
   const [gradeVal, setGradeVal] = useState("");
@@ -132,7 +130,6 @@ export default function TeacherMissions() {
       applies_to_all_classes: targetAllClasses,
       target_classroom_ids: targetAllClasses ? [] : targetClassIds,
       target_statuses: targetStatuses,
-      image_url: missionImage || undefined,
       formative_type: form.formative_type,
       ai_content: isAi && aiContent
         ? JSON.stringify({
@@ -147,8 +144,6 @@ export default function TeacherMissions() {
     });
     setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
     setAiContent(null);
-    setMissionImage(null);
-    setImageGenerations(0);
     setGenMsg(null);
     setTargetAllClasses(true);
     setTargetClassIds([classroom.id]);
@@ -156,22 +151,6 @@ export default function TeacherMissions() {
     setCreating(false);
     invalidateClassroomDataset();
     load();
-  }
-
-  async function generateImage() {
-    if (!form.title || !form.content || !form.learning_target) { setGenMsg("Add a title, topic, and learning target first."); return; }
-    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
-    setGeneratingImage(true); setGenMsg(null);
-    try {
-      const imageUrl = await generateMissionImage({
-        draftKey,
-        prompt: `Create a clear, age-appropriate educational illustration for a formative assessment titled "${form.title}". Learning target: ${form.learning_target}. Topic: ${form.content}. No answers, logos, or watermark. Use a focused, friendly learning-app style.`,
-      });
-      setMissionImage(imageUrl);
-      setImageGenerations((count) => count + 1);
-      setGenMsg("Image generated. Review it before creating the mission.");
-    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
-    setGeneratingImage(false);
   }
 
   function updateQuestion(index, patch) {
@@ -195,21 +174,6 @@ export default function TeacherMissions() {
       updateQuestion(index, { image_url: data.publicUrl });
       setGenMsg(`Visual added to question ${index + 1}.`);
     } catch (err) { setGenMsg("Image upload failed: " + (err.message || "error")); }
-    setGeneratingImage(false);
-  }
-
-  async function generateQuestionImage(question, index) {
-    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
-    setGeneratingImage(true); setGenMsg(null);
-    try {
-      const imageUrl = await generateMissionImage({
-        draftKey,
-        prompt: `Create a precise, age-appropriate educational visual that helps a student answer this exact question.\nMission title: ${form.title}\nLearning target: ${form.learning_target}\nTopic: ${form.content}\nQuestion: ${question.prompt}\nIf the question needs a diagram (for example a coordinate plane, graph, geometric figure, map, timeline, science setup, or labeled object), draw the diagram accurately with the necessary labels, axes, values, points, or symbols. Do not add decorative text, answers, logos, or watermarks. Keep the visual clear, high-contrast, and focused on the question.`,
-      });
-      updateQuestion(index, { image_url: imageUrl });
-      setImageGenerations((count) => count + 1);
-      setGenMsg(`Visual generated for question ${index + 1}. Review it before creating the mission.`);
-    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
     setGeneratingImage(false);
   }
 
@@ -338,9 +302,6 @@ export default function TeacherMissions() {
               <ClayButton type="button" color="sky" size="sm" className="w-full" disabled={generating} onClick={generateAI}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}
               </ClayButton>
-              <ClayButton type="button" color="lime" size="sm" className="w-full" disabled={generatingImage || imageGenerations >= 3} onClick={generateImage}>
-                {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate mission cover image ({imageGenerations}/3)</>}
-              </ClayButton>
               <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state={generating ? "ai_thinking" : "quest"} size="sm" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
               {genMsg && <p className={`text-xs font-display font-bold ${genMsg.includes("failed") || genMsg.includes("Add") ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
               {aiContent && (
@@ -361,9 +322,8 @@ export default function TeacherMissions() {
                               <button type="button" onClick={() => updateQuestion(index, { image_url: undefined })} className="absolute right-2 top-2 clay-btn bg-clay-coral p-1.5 text-white" aria-label={`Remove visual from question ${index + 1}`}><X className="w-4 h-4" /></button>
                             </div>
                           ) : <p className="text-xs text-ink/50">No visual attached.</p>}
-                          <div className="grid grid-cols-2 gap-2">
+                          <div>
                             <label className={`clay-btn bg-clay-sky px-2 py-2 text-xs cursor-pointer ${generatingImage ? "pointer-events-none opacity-60" : ""}`}><Upload className="w-4 h-4" /> Upload visual<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { uploadQuestionImage(e.target.files?.[0], index); e.target.value = ""; }} /></label>
-                            <ClayButton type="button" color="lime" size="sm" className="px-2 text-xs" disabled={generatingImage || imageGenerations >= 3} onClick={() => generateQuestionImage(question, index)}>{generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ImagePlus className="w-4 h-4" /> Generate visual</>}</ClayButton>
                           </div>
                         </div>
                       ))}
@@ -371,7 +331,6 @@ export default function TeacherMissions() {
                   )}
                 </div>
               )}
-              {missionImage && <div className="rounded-xl border-2 border-ink overflow-hidden"><img src={missionImage} alt="Generated mission illustration" className="w-full max-h-64 object-cover" /></div>}
             </>
           )}
           <div className="grid grid-cols-3 gap-3">
