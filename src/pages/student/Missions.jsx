@@ -139,7 +139,7 @@ export default function StudentMissions() {
         </div>
         <form onSubmit={redeem} className="mt-4 flex items-center gap-2">
           <label className="sr-only" htmlFor="redeem-xp">XP to redeem</label>
-          <input id="redeem-xp" type="number" min="10" inputMode="numeric" className="clay-input h-10 w-28 shrink-0 px-3 py-2 font-mono text-sm" placeholder="XP" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
+          <input id="redeem-xp" type="number" min="10" inputMode="numeric" className="clay-input h-10 w-28 shrink-0 bg-cream px-3 py-2 font-mono text-sm text-ink placeholder:text-ink/50" placeholder="XP" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
           <span className="min-w-0 flex-1 text-xs text-white/75">10 XP = 1 point</span>
           <ClayButton type="submit" color="lime" size="sm" disabled={redeeming || available < 10}>
             {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "Redeem"}
