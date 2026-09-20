@@ -84,9 +84,10 @@ export default function StudentMissions() {
 
   async function redeem(e) {
     e.preventDefault();
-    const amt = Number(redeemAmt);
-    if (!amt || amt < 10 || amt % 10 !== 0 || amt > data.available) {
-      setMsg({ ok: false, text: "Redeem a multiple of 10 XP, up to your available balance." });
+    const requested = Number(redeemAmt);
+    const amt = Math.floor(Math.min(requested || 0, data.available) / 10) * 10;
+    if (amt < 10) {
+      setMsg({ ok: false, text: "Enter at least 10 XP to redeem 1 participation point." });
       return;
     }
     setRedeeming(true);
@@ -94,7 +95,8 @@ export default function StudentMissions() {
     try {
       const result = await redeemMissionPoints(amt, data.account.classroom_id);
       setRedeemAmt("");
-      setMsg({ ok: true, text: `Redeemed ${amt} XP for ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}!` });
+      const remainder = Math.max(0, Math.floor(Math.min(requested, data.available)) - amt);
+      setMsg({ ok: true, text: `Redeemed ${result.xpAmount} XP for ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}.${remainder ? ` ${remainder} XP stays available.` : ""}` });
       load();
     } catch (err) { setMsg({ ok: false, text: err.message || "Could not redeem XP." }); }
     setRedeeming(false);
@@ -135,14 +137,16 @@ export default function StudentMissions() {
             <p className="text-xs text-white/70">{`Earned ${earned} XP - Redeemed ${redeemed} XP · 10 XP = 1 point`}</p>
           </div>
         </div>
-        <form onSubmit={redeem} className="mt-4 flex gap-2">
-          <input type="number" min="10" step="10" max={available} className="clay-input font-mono flex-1" placeholder="XP to redeem (10 at a time)" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
-          <ClayButton type="submit" color="lime" size="md" disabled={redeeming || available <= 0}>
+        <form onSubmit={redeem} className="mt-4 flex items-center gap-2">
+          <label className="sr-only" htmlFor="redeem-xp">XP to redeem</label>
+          <input id="redeem-xp" type="number" min="10" inputMode="numeric" className="clay-input h-10 w-28 shrink-0 px-3 py-2 font-mono text-sm" placeholder="XP" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
+          <span className="min-w-0 flex-1 text-xs text-white/75">10 XP = 1 point</span>
+          <ClayButton type="submit" color="lime" size="sm" disabled={redeeming || available < 10}>
             {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "Redeem"}
           </ClayButton>
         </form>
         {available > 0 && (
-          <button type="button" onClick={() => setRedeemAmt(String(Math.floor(available / 10) * 10))} className="text-xs text-white/80 underline mt-1">{`Use ${Math.floor(available / 10) * 10} XP`}</button>
+          <button type="button" onClick={() => setRedeemAmt(String(Math.floor(available / 10) * 10))} className="mt-2 text-xs text-white/80 underline">{`Use ${Math.floor(available / 10) * 10} XP`}</button>
         )}
       </ClayCard>
 
