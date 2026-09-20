@@ -62,10 +62,12 @@ export default function ActivityLogs() {
     const logEntries = logs.map((l) => ({
       id: `log-${l.id}`,
       type: l.event_type || "scan",
-      points: l.points_awarded,
+      points: Number(l.points_awarded || 0),
       groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
       memberLabel: l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null,
-      note: l.note,
+      note: l.event_type === 'mission_redemption'
+        ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
+        : l.note,
       created_date: l.created_date,
       sourceLogId: l.id,
       group_id: l.group_id,
@@ -181,4 +183,8 @@ export default function ActivityLogs() {
       </ClayButton>}
     </div>
   );
+}
+
+function formatAmount(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Number(value || 0));
 }
