@@ -116,6 +116,16 @@ export async function redeemMissionPoints(amount, classroomId) {
   return data;
 }
 
+export async function correctParticipationRecipient(sourceLogId, targetMemberId, reason) {
+  const { data, error } = await supabase.rpc('correct_participation_recipient', {
+    p_source_log_id: sourceLogId,
+    p_target_member_id: targetMemberId || null,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function reviewBadgeClaim(badgeId, approve) {
   const { data, error } = await supabase.rpc('review_badge_claim', { p_badge_id: badgeId, p_approve: approve });
   if (error) throw error;

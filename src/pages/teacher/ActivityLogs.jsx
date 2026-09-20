@@ -9,8 +9,10 @@ import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from "@/
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
-import { ScrollText, Award } from "lucide-react";
+import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
+import { ScrollText, Award, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import { correctParticipationRecipient } from '@/lib/secureActions';
 
 const LABELS = {
   scan: { label: "QR Scan", color: "sky" },
@@ -21,7 +23,10 @@ const LABELS = {
   mission_redemption: { label: "Mission XP", color: "purple" },
   redemption: { label: "Reward Redeemed", color: "pink" },
   badge: { label: "Badge Reward", color: "sun" },
+  point_correction: { label: "Point correction", color: "purple" },
 };
+
+const CORRECTABLE_TYPES = new Set(['scan', 'gacha_win', 'gacha_even', 'mission_redemption']);
 
 export default function ActivityLogs() {
   const { user } = useAuth();
@@ -31,6 +36,9 @@ export default function ActivityLogs() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [correction, setCorrection] = useState(null);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => { load(); }, [user]);
 
@@ -49,6 +57,7 @@ export default function ActivityLogs() {
     setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
+    setMembers(members);
 
     const logEntries = logs.map((l) => ({
       id: `log-${l.id}`,
@@ -58,6 +67,10 @@ export default function ActivityLogs() {
       memberLabel: l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null,
       note: l.note,
       created_date: l.created_date,
+      sourceLogId: l.id,
+      group_id: l.group_id,
+      group_member_id: l.group_member_id,
+      correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
     }));
 
     const redemptionEntries = redemptions.map((r) => ({
@@ -93,6 +106,14 @@ export default function ActivityLogs() {
     setLoadingMore(false);
   }
 
+  async function saveCorrection(sourceLogId, targetMemberId, reason) {
+    await correctParticipationRecipient(sourceLogId, targetMemberId, reason);
+    setCorrection(null);
+    setNotice('Points were moved and the original award was kept in the audit history.');
+    await load();
+    window.setTimeout(() => setNotice(''), 4500);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -109,6 +130,8 @@ export default function ActivityLogs() {
         </h1>
         <p className="text-ink/60 text-sm">Every scan, gacha result, redemption, and badge award in your classroom.</p>
       </div>
+      {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
+
 
       {entries.length === 0 && (
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
@@ -148,6 +171,7 @@ export default function ActivityLogs() {
                   )}
                 </div>
               )}
+            {e.correctable && <div className="mt-3 border-t-2 border-ink/10 pt-3"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-4 w-4" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}
             </div>
           </ClayCard>
         );
