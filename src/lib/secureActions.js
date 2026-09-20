@@ -107,9 +107,10 @@ export async function redeemReward(rewardId, classroomId = null) {
   return data;
 }
 
-export async function redeemMissionPoints(amount) {
+export async function redeemMissionPoints(amount, classroomId) {
   const { data, error } = await supabase.rpc('redeem_mission_points', {
     p_amount: amount,
+    p_classroom_id: classroomId,
   });
   if (error) throw error;
   return data;

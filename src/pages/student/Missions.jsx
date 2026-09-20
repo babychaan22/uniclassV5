@@ -44,9 +44,9 @@ export default function StudentMissions() {
     const classroomId = group.classroom_id;
     const [missionResult, subs, members, logs, reviews, classData] = await Promise.all([
       supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
-      db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_id: group.id }),
+      db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_member_id: account.group_member_id }),
       db.entities.GroupMember.filter({ group_id: group.id }),
-      db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
+      db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id, group_member_id: account.group_member_id }),
       db.entities.LearningReview.filter({ user_id: user.id }, { orderBy: 'next_review_at', ascending: true, limit: 20 }),
       getClassroomDataset(classroomId, ['members', 'settings', 'terms', 'attendance', 'scores', 'activities', 'assessments', 'logs']),
     ]);
@@ -92,7 +92,7 @@ export default function StudentMissions() {
     setRedeeming(true);
     setMsg(null);
     try {
-      const result = await redeemMissionPoints(amt);
+      const result = await redeemMissionPoints(amt, data.account.classroom_id);
       setRedeemAmt("");
       setMsg({ ok: true, text: `Redeemed ${amt} XP for ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}!` });
       load();
