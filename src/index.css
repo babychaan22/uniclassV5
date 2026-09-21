@@ -204,6 +204,7 @@
 }
 
 @media print {
+  @page { size: A4 portrait; margin: 8mm; }
   .no-print { display: none !important; }
   body { background: white; }
   .clay-card, .clay-btn, .clay-chip, .clay-tile, .clay-medallion {
@@ -212,6 +213,49 @@
     background-image: none !important;
     background: white !important;
     color: black !important;
+  }
+  .qr-print-sheet {
+    width: 100% !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .qr-print-header {
+    margin-bottom: 4mm !important;
+    border-bottom: .35mm solid #111 !important;
+    padding-bottom: 2mm !important;
+  }
+  .qr-print-header h2 { font-size: 15pt !important; }
+  .qr-print-header span { font-size: 8pt !important; }
+  .qr-code-grid {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 2mm !important;
+    align-content: start !important;
+  }
+  .qr-code-card {
+    min-height: 30mm !important;
+    break-inside: avoid !important;
+    border: .35mm solid #111 !important;
+    border-radius: 2mm !important;
+    padding: 1.5mm !important;
+    page-break-inside: avoid !important;
+  }
+  .qr-code-card img {
+    width: 20mm !important;
+    height: 20mm !important;
+    image-rendering: auto !important;
+  }
+  .qr-code-card p:first-of-type {
+    margin-top: .8mm !important;
+    font-size: 5.6pt !important;
+    line-height: 1.1 !important;
+  }
+  .qr-code-card p:last-of-type {
+    margin-top: .5mm !important;
+    font-size: 6pt !important;
+    line-height: 1 !important;
   }
 }
 

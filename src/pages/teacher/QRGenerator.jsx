@@ -47,7 +47,7 @@ export default function TeacherQRGenerator() {
     setCodes(newCodes);
     const imgs = {};
     for (const c of newCodes) {
-      imgs[c.id] = await QRCode.toDataURL(c.hash, { width: 200, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
+      imgs[c.id] = await QRCode.toDataURL(c.hash, { width: 360, margin: 2, color: { dark: "#000000", light: "#ffffff" } });
     }
     setImages(imgs);
     setGenerating(false);
@@ -66,7 +66,7 @@ export default function TeacherQRGenerator() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div>
+      <div className="no-print">
         <h1 className="text-2xl font-display font-extrabold mb-1">QR Code Generator</h1>
         <p className="text-ink/60">General codes · usable by any approved UniClass class · each code works once</p>
       </div>
@@ -103,18 +103,19 @@ export default function TeacherQRGenerator() {
           <div className="flex gap-3 no-print">
             <ClayButton color="sky" onClick={() => window.print()}><Printer className="w-4 h-4" /> Print Sheet</ClayButton>
             <ClayButton color="lime" onClick={downloadCSV}><Download className="w-4 h-4" /> Download CSV</ClayButton>
+            <ClayChip color="purple">Compact A4 · up to 40 codes per page</ClayChip>
           </div>
-          <div className="clay-card p-4 bg-white">
-            <div className="flex items-center justify-between border-b-2 border-ink pb-2 mb-4">
+          <div className="qr-print-sheet clay-card bg-white p-4">
+            <div className="qr-print-header mb-4 flex items-center justify-between border-b-2 border-ink pb-2">
               <h2 className="font-display font-bold text-lg">General UniClass QR Codes</h2>
-              <span className="font-mono text-sm">{form.qr_type.toUpperCase()} · {form.base_points}pts · {codes.length} codes</span>
+              <span className="font-mono text-sm">{form.qr_type.toUpperCase()} · {form.base_points} pts · {codes.length} codes · Scan once</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="qr-code-grid grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
               {codes.map((c) => (
-                <div key={c.id} className="border-2 border-black rounded-lg p-2 flex flex-col items-center">
-                  {images[c.id] && <img src={images[c.id]} alt={c.hash} className="w-24 h-24" />}
-                  <p className="font-mono text-[10px] mt-1 break-all text-center">{c.hash}</p>
-                  <p className="font-display font-bold text-xs mt-0.5">{c.qr_type === "gacha" ? "GACHA" : `${c.base_points} PTS`}</p>
+                <div key={c.id} className="qr-code-card flex flex-col items-center rounded-lg border-2 border-black p-2">
+                  {images[c.id] && <img src={images[c.id]} alt={`QR code ${c.hash}`} className="h-24 w-24" />}
+                  <p className="mt-1 break-all text-center font-mono text-[10px]">{c.hash}</p>
+                  <p className="mt-0.5 font-display text-xs font-bold">{c.qr_type === "gacha" ? "GACHA" : `${c.base_points} PTS`}</p>
                 </div>
               ))}
             </div>
