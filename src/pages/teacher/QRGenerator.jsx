@@ -103,7 +103,7 @@ export default function TeacherQRGenerator() {
           <div className="flex gap-3 no-print">
             <ClayButton color="sky" onClick={() => window.print()}><Printer className="w-4 h-4" /> Print Sheet</ClayButton>
             <ClayButton color="lime" onClick={downloadCSV}><Download className="w-4 h-4" /> Download CSV</ClayButton>
-            <ClayChip color="purple">Compact A4 · up to 40 codes per page</ClayChip>
+            <ClayChip color="purple">Dense A4 · up to 70 codes per page</ClayChip>
           </div>
           <div className="qr-print-sheet clay-card bg-white p-4">
             <div className="qr-print-header mb-4 flex items-center justify-between border-b-2 border-ink pb-2">

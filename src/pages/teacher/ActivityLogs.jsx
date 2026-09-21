@@ -108,8 +108,8 @@ export default function ActivityLogs() {
     setLoadingMore(false);
   }
 
-  async function saveCorrection(sourceLogId, targetMemberId, reason) {
-    await correctParticipationRecipient(sourceLogId, targetMemberId, reason);
+  async function saveCorrection(sourceLogId, targetMemberId) {
+    await correctParticipationRecipient(sourceLogId, targetMemberId);
     setCorrection(null);
     setNotice('Points were moved and the original award was kept in the audit history.');
     await load();

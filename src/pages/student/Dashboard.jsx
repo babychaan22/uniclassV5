@@ -17,6 +17,7 @@ import {
 } from "@/lib/stats";
 import { getTodayManila } from "@/lib/week";
 import TrendCharts from "@/components/student/TrendCharts";
+import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
 import { ROUTES } from '@/lib/routes';
 
 export default function StudentDashboard() {
@@ -119,6 +120,8 @@ export default function StudentDashboard() {
           <p className="text-xs text-ink/60">{groupPartStreak > 0 ? "Keep the streak alive!" : "Log attendance or an activity score today to start your streak 🔥"}</p>
         </div>
       </ClayCard>
+
+      <RepresentativeRosterPanel account={account} members={members} />
 
       <div className="grid sm:grid-cols-2 gap-4">
         {memberCards.map(({ member, streak, activityPct, points }) => (

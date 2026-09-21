@@ -4,31 +4,23 @@ import ClayButton from '@/components/ClayButton';
 
 export default function PointRecipientCorrection({ entry, members, onCancel, onSave }) {
   const [targetMemberId, setTargetMemberId] = useState(entry.group_member_id || '');
-  const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const groupMembers = useMemo(() => members.filter((member) => member.group_id === entry.group_id), [members, entry.group_id]);
+  const recipientUnchanged = (targetMemberId || null) === (entry.group_member_id || null);
 
   useEffect(() => {
     setTargetMemberId(entry.group_member_id || '');
-    setReason('');
     setError('');
   }, [entry]);
 
   async function submit(event) {
     event.preventDefault();
-    if ((targetMemberId || null) === (entry.group_member_id || null)) {
-      setError('Choose a different student or Whole Group.');
-      return;
-    }
-    if (reason.trim().length < 3) {
-      setError('Add a short reason for this correction.');
-      return;
-    }
+    if (recipientUnchanged) return;
     setSaving(true);
     setError('');
     try {
-      await onSave(entry.sourceLogId, targetMemberId || null, reason.trim());
+      await onSave(entry.sourceLogId, targetMemberId || null);
     } catch (err) {
       setError(err?.message || 'The point recipient could not be corrected.');
     } finally {
@@ -46,12 +38,9 @@ export default function PointRecipientCorrection({ entry, members, onCancel, onS
           {groupMembers.map((member) => <option key={member.id} value={member.id}>{member.last_name}, {member.first_name}</option>)}
         </select>
       </div>
-      <div>
-        <label className="mb-1 block text-xs font-display font-bold">Why is this being corrected?</label>
-        <input className="clay-input text-sm" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="e.g. QR was scanned for the wrong student" required />
-      </div>
+      {recipientUnchanged && <p className="text-xs text-ink/60">This award is already assigned correctly. Choose another student or Whole Group only to move the points.</p>}
       {error && <p className="text-xs font-bold text-clay-coral">{error}</p>}
-      <div className="flex gap-2"><ClayButton type="submit" size="sm" color="purple" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Move points'}</ClayButton><ClayButton type="button" size="sm" color="cream" onClick={onCancel} disabled={saving}>Cancel</ClayButton></div>
+      <div className="flex gap-2"><ClayButton type="submit" size="sm" color="purple" disabled={saving || recipientUnchanged}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Move points'}</ClayButton><ClayButton type="button" size="sm" color="cream" onClick={onCancel} disabled={saving}>Cancel</ClayButton></div>
     </form>
   );
 }

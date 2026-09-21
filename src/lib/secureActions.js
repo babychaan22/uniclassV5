@@ -116,11 +116,13 @@ export async function redeemMissionPoints(amount, classroomId) {
   return data;
 }
 
-export async function correctParticipationRecipient(sourceLogId, targetMemberId, reason) {
+export async function correctParticipationRecipient(sourceLogId, targetMemberId) {
   const { data, error } = await supabase.rpc('correct_participation_recipient', {
     p_source_log_id: sourceLogId,
     p_target_member_id: targetMemberId || null,
-    p_reason: reason,
+    // Kept for compatibility with the existing protected database function.
+    // The interface no longer asks teachers to write an unnecessary reason.
+    p_reason: 'Recipient correction',
   });
   if (error) throw error;
   return data;
