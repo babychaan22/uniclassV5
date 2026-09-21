@@ -33,7 +33,9 @@ export default function TeacherQRGenerator() {
     e.preventDefault();
     setGenerating(true);
     const newCodes = [];
-    for (let i = 0; i < form.batch_size; i++) {
+    const batchSize = Math.max(1, Math.min(100, Math.floor(Number(form.batch_size) || 1)));
+    setForm((current) => ({ ...current, batch_size: batchSize }));
+    for (let i = 0; i < batchSize; i++) {
       const hash = genHash();
       const created = await db.entities.QRCode.create({
         hash,
@@ -86,7 +88,7 @@ export default function TeacherQRGenerator() {
           </div>
           <div>
             <label className="font-display font-bold text-sm mb-1 block">Batch Size</label>
-            <input type="number" min="1" max="40" className="clay-input" value={form.batch_size} onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })} required />
+            <input type="number" min="1" max="100" className="clay-input" value={form.batch_size} onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })} required />
           </div>
           <div className="sm:col-span-3 flex flex-wrap gap-3">
             <ClayButton type="submit" color="pink" size="md" disabled={generating}>
@@ -103,7 +105,7 @@ export default function TeacherQRGenerator() {
           <div className="flex gap-3 no-print">
             <ClayButton color="sky" onClick={() => window.print()}><Printer className="w-4 h-4" /> Print Sheet</ClayButton>
             <ClayButton color="lime" onClick={downloadCSV}><Download className="w-4 h-4" /> Download CSV</ClayButton>
-            <ClayChip color="purple">Dense A4 · up to 70 codes per page</ClayChip>
+            <ClayChip color="purple">Dense A4 · 70 per page · up to 100 per batch</ClayChip>
           </div>
           <div className="qr-print-sheet clay-card bg-white p-4">
             <div className="qr-print-header mb-4 flex items-center justify-between border-b-2 border-ink pb-2">
