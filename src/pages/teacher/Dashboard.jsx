@@ -34,6 +34,7 @@ export default function TeacherDashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("14");
+  const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
 
   const refresh = () => setReloadKey((k) => k + 1);
 
@@ -130,8 +131,13 @@ export default function TeacherDashboard() {
       const attentionByClass = await Promise.all(teacherClasses.map(async (item) => {
         const source = item.id === classroom.id ? ds : await getClassroomDataset(item.id, ['members', 'attendance', 'groupAccounts']);
         const todayAttendance = source.attendance.filter((record) => record.attendance_date === getTodayManila());
-        const presentIds = new Set(todayAttendance.filter((record) => record.status === 'present').map((record) => record.group_member_id));
-        return { classroom: item, missingToday: source.members.filter((member) => !presentIds.has(member.id)).length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length };
+        const attendanceByMember = Object.fromEntries(todayAttendance.map((record) => [record.group_member_id, record]));
+        const needsAttendance = source.members.filter((member) => attendanceByMember[member.id]?.status !== 'present').map((member) => ({
+          id: member.id,
+          name: `${member.last_name}, ${member.first_name}`,
+          status: attendanceByMember[member.id]?.status === 'absent' ? 'Absent' : 'No record',
+        }));
+        return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance };
       }));
       setPending(pendingAccounts);
       setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, penaltyLogs, attentionByClass });
@@ -199,7 +205,11 @@ export default function TeacherDashboard() {
 
       <ClayCard className="p-4 no-print">
         <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.missingToday} without a present record today · {item.awaitingApproval} awaiting approval</p>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">All clear</p>}</div>)}</div>
+        <p className="mb-2 text-xs text-ink/60">Select a class to see which students need attendance follow-up.</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => {
+          const expanded = expandedAttentionClass === item.classroom.id;
+          return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.missingToday} without a present record today · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">All clear</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">Everyone is marked present today.</p>}</div>}</div>;
+        })}</div>
       </ClayCard>
 
       {pending.length > 0 && (
