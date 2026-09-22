@@ -17,6 +17,7 @@ import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
 import { invokeLLM } from "@/lib/aiService";
 import MascotWidget from "@/components/MascotWidget";
+import { getMissionProgress } from '@/lib/missionProgress';
 
 const PROMPT_TEMPLATES = {
   true_false: {
@@ -67,6 +68,7 @@ export default function TeacherMissions() {
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [missions, setMissions] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [members, setMembers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
   const [creating, setCreating] = useState(false);
@@ -101,12 +103,13 @@ export default function TeacherMissions() {
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
     const [ds, catalog, classes] = await Promise.all([
-      getClassroomDataset(c.id, ['groups','submissions']),
+      getClassroomDataset(c.id, ['groups','members','submissions']),
       db.entities.Mission.filter({ created_by: user.id }),
       getTeacherClassrooms(user.id),
     ]);
     setMissions([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
+    setMembers(ds.members);
     setSubmissions(ds.submissions);
     setTeacherClasses(classes);
     setTargetClassIds((current) => current.length ? current : [c.id]);
@@ -389,8 +392,8 @@ export default function TeacherMissions() {
       {missions.length === 0 && <div className="flex flex-col items-center gap-2 py-3 text-center"><MascotWidget state="quest" /><p className="text-ink/50 text-sm">Nova is ready when you are—create your first mission above.</p></div>}
 
       {missions.map((m) => {
-        const gradedCount = groups.filter((g) => submissions.find((s) => s.mission_id === m.id && s.group_id === g.id)).length;
         const isAi = m.formative_type && m.formative_type !== "manual";
+        const progress = getMissionProgress(m, submissions, groups, members);
         let aiParsed = null, akParsed = {};
         if (isAi) {
           try { aiParsed = JSON.parse(m.ai_content || "{}"); } catch {}
@@ -410,7 +413,7 @@ export default function TeacherMissions() {
                   <ClayChip color="purple">/{m.max_score} max</ClayChip>
                   {m.deadline && <ClayChip color="sky">Due {m.deadline}</ClayChip>}
                   {m.formative_type && m.formative_type !== "manual" && <ClayChip color="purple">{m.formative_type.replace("_", " ")}</ClayChip>}
-                  <ClayChip color="sky">{gradedCount}/{groups.length} graded</ClayChip>
+                  <ClayChip color="sky">{progress.completed}/{progress.total} {progress.individual ? 'students' : 'groups'} done</ClayChip>
                   <ClayChip color={m.is_active ? "lime" : "cream"}>{m.is_active ? "Active" : "Hidden"}</ClayChip>
                 </div>
               </div>
@@ -431,7 +434,7 @@ export default function TeacherMissions() {
                 {stats.length > 0 && (
                   <div className="mt-3 rounded-xl border-2 border-ink/15 bg-clay-sky/20 p-3">
                     <p className="text-xs font-display font-bold">Learning signal</p>
-                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted group response{stats[0].total === 1 ? "" : "s"}.</p>
+                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted learner response{stats[0].total === 1 ? "" : "s"}.</p>
                     <div className="mt-2 space-y-1.5">
                       {hardest.map((q, i) => (
                         <div key={`${q.prompt}-${i}`} className="flex items-center gap-2 text-xs">
@@ -446,8 +449,13 @@ export default function TeacherMissions() {
               </div>
             )}
             <div className="mt-3 border-t-2 border-ink/15 pt-3 space-y-2">
-              <p className="text-xs font-display font-bold">Per-group status (XP = score/{m.max_score} × {m.xp_reward})</p>
+              <p className="text-xs font-display font-bold">{progress.individual ? 'Student progress by group' : `Per-group status (XP = score/${m.max_score} × ${m.xp_reward})`}</p>
               {groups.map((g) => {
+                if (progress.individual) {
+                  const groupMembers = members.filter((member) => member.group_id === g.id);
+                  const done = new Set(progress.submissions.filter((submission) => submission.group_id === g.id && submission.group_member_id).map((submission) => submission.group_member_id)).size;
+                  return <div key={g.id} className="flex items-center gap-2"><span className="font-display font-bold text-sm w-24 shrink-0">Group {g.group_number}</span><ClayChip color={done === groupMembers.length && groupMembers.length ? 'lime' : 'sun'}>{done}/{groupMembers.length} students done</ClayChip></div>;
+                }
                 const sub = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id);
                 const isGradingThis = grading?.missionId === m.id && grading?.groupId === g.id;
                 let subAnswers = null;
