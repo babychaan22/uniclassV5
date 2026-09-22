@@ -59,21 +59,23 @@ export default function ActivityLogs() {
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
     setMembers(members);
 
-    const logEntries = logs.map((l) => ({
+    const logEntries = logs.map((l) => {
+      const movedOriginal = Number(l.points_awarded || 0) === 0 && l.note?.startsWith('Recipient correction:');
+      return {
       id: `log-${l.id}`,
       type: l.event_type || "scan",
-      points: Number(l.points_awarded || 0),
+      points: movedOriginal ? null : Number(l.points_awarded || 0),
       groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
-      memberLabel: l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null,
-      note: l.event_type === 'mission_redemption'
+      memberLabel: movedOriginal ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
+      note: movedOriginal ? l.note : (l.event_type === 'mission_redemption'
         ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
-        : l.note,
+        : l.note),
       created_date: l.created_date,
       sourceLogId: l.id,
       group_id: l.group_id,
       group_member_id: l.group_member_id,
       correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
-    }));
+    }; });
 
     const redemptionEntries = redemptions.map((r) => ({
       id: `redemption-${r.id}`,
