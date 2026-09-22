@@ -97,7 +97,8 @@ export default function TeacherDashboard() {
       const groupPoints = pointSets.map((set) => {
         const setLogs = classroom.uses_groups ? logs.filter((log) => log.group_id === set.id) : logs;
         const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-        return { name: set.name, points: setLogs.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), breakdown };
+        const wholeGroup = setLogs.filter((log) => !log.group_member_id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0);
+        return { name: set.name, points: setLogs.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), breakdown, wholeGroup };
       });
 
       const groupActivity = groups.map((g) => {
@@ -159,8 +160,11 @@ export default function TeacherDashboard() {
     .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
   const visibleTrend = chartRange === 'all' ? trend : trend.slice(-Number(chartRange));
   const todayStr = getTodayManila();
-  const updateChartHover = (key) => (state) => setHoveredChart((current) => ({ ...current, [key]: state?.activePayload?.[0]?.payload || null }));
-  const clearChartHover = (key) => () => setHoveredChart((current) => ({ ...current, [key]: null }));
+  const selectChartBar = (key) => (state) => {
+    const selected = state?.activePayload?.[0]?.payload;
+    if (!selected) return;
+    setHoveredChart((current) => ({ ...current, [key]: current[key] === selected ? null : selected }));
+  };
 
   async function applyPenalty(groupId, points, note) {
     await db.entities.ParticipationLog.create({
@@ -224,7 +228,7 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4">
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><select aria-label="Attendance chart date range" className="clay-input w-auto py-1 text-xs" value={chartRange} onChange={(event) => setChartRange(event.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="all">All</option></select></div>
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} onMouseMove={updateChartHover('attendance')} onMouseLeave={clearChartHover('attendance')}>
+            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} onClick={selectChartBar('attendance')} style={{ cursor: 'pointer' }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
@@ -239,7 +243,7 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Group Activity Avg</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupActivity} onMouseMove={updateChartHover('activity')} onMouseLeave={clearChartHover('activity')}>
+            <BarChart data={groupActivity} onClick={selectChartBar('activity')} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
@@ -253,7 +257,7 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4 lg:col-span-2">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4" /> Participation Points by Group</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupPoints} onMouseMove={updateChartHover('participation')} onMouseLeave={clearChartHover('participation')}>
+            <BarChart data={groupPoints} onClick={selectChartBar('participation')} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} />
@@ -263,7 +267,7 @@ export default function TeacherDashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <DashboardChartDetail title="Participation points" entry={hoveredChart.participation}>{hoveredChart.participation?.breakdown?.length ? <div className="space-y-0.5">{hoveredChart.participation.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>)}</div> : <p>No individual point entries.</p>}</DashboardChartDetail>
+          <DashboardChartDetail title="Participation points" entry={hoveredChart.participation}><p className="font-display font-bold">Whole Group: {hoveredChart.participation?.wholeGroup || 0} points</p>{hoveredChart.participation?.breakdown?.length ? <div className="mt-1 space-y-0.5">{hoveredChart.participation.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>)}</div> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hoveredChart.participation?.points || 0} points</p></DashboardChartDetail>
         </ClayCard>
       </div>
 
@@ -346,7 +350,7 @@ function weekEndOf(ws) {
 }
 
 function DashboardChartDetail({ title, entry, children }) {
-  return <div className="mt-2 min-h-14 rounded-xl border-2 border-ink/10 bg-cream px-3 py-2 text-xs" aria-live="polite">{entry ? <><p className="font-display font-bold">{title}: {entry.name || entry.date}</p><div className="mt-1 max-h-24 overflow-y-auto pr-1 text-ink/75">{children}</div></> : <p className="text-ink/55">Hover a bar to see its compact breakdown.</p>}</div>;
+  return <div className="mt-2 min-h-14 rounded-xl border-2 border-ink/10 bg-cream px-3 py-2 text-xs" aria-live="polite">{entry ? <><p className="font-display font-bold">{title}: {entry.name || entry.date}</p><div className="mt-1 max-h-24 overflow-y-auto pr-1 text-ink/75">{children}</div></> : <p className="text-ink/55">Select a bar to see its compact breakdown.</p>}</div>;
 }
 
 function CompactList({ entries = [] }) {
