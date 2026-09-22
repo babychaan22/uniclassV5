@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
@@ -60,7 +60,7 @@ export default function ActivityLogs() {
     setMembers(members);
 
     const logEntries = logs.map((l) => {
-      const movedOriginal = Number(l.points_awarded || 0) === 0 && l.note?.startsWith('Recipient correction:');
+      const movedOriginal = Number(l.points_awarded || 0) === 0 && (l.note?.startsWith('Recipient correction:') || l.note?.startsWith('Superseded duplicate:'));
       return {
       id: `log-${l.id}`,
       type: l.event_type || "scan",
@@ -112,6 +112,7 @@ export default function ActivityLogs() {
 
   async function saveCorrection(sourceLogId, targetMemberId) {
     await correctParticipationRecipient(sourceLogId, targetMemberId);
+    invalidateClassroomDataset();
     setCorrection(null);
     setNotice('Points were moved and the original award was kept in the audit history.');
     await load();
