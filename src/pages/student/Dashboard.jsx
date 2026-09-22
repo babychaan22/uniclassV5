@@ -60,10 +60,9 @@ export default function StudentDashboard() {
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 
-      const memberIds = members.map((m) => m.id);
-      const groupPartStreak = computeEngagementStreak(memberIds, attendance, scores, getTodayManila());
+      const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila());
 
-      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();
@@ -71,7 +70,7 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions, announcements } = data;
+  const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
@@ -115,9 +114,9 @@ export default function StudentDashboard() {
           <Flame className="w-8 h-8 text-clay-coral" />
         </div>
         <div className="flex-1">
-          <p className="font-display font-extrabold text-3xl font-mono leading-none">{groupPartStreak}</p>
-          <p className="font-display font-bold text-sm">day{groupPartStreak === 1 ? "" : "s"} in a row with attendance or activity</p>
-          <p className="text-xs text-ink/60">{groupPartStreak > 0 ? "Keep the streak alive!" : "Log attendance or an activity score today to start your streak 🔥"}</p>
+          <p className="font-display font-extrabold text-3xl font-mono leading-none">{personalStreak}</p>
+          <p className="font-display font-bold text-sm">your personal day{personalStreak === 1 ? "" : "s"} in a row</p>
+          <p className="text-xs text-ink/60">{personalStreak > 0 ? "Your own attendance and activity keep this streak alive!" : "Your attendance or activity today starts your own streak 🔥"}</p>
         </div>
       </ClayCard>
 

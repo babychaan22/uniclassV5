@@ -9,14 +9,58 @@ export function missionUsesIndividualProgress(mission, submissions = []) {
 export function getMissionProgress(mission, submissions = [], groups = [], members = []) {
   const relevant = submissions.filter((submission) => submission.mission_id === mission?.id);
   const individual = missionUsesIndividualProgress(mission, relevant);
-  const keys = relevant.map((submission) => individual ? submission.group_member_id : submission.group_id).filter(Boolean);
-  const completed = new Set(keys).size;
+  const keyFor = (submission) => individual ? submission.group_member_id : submission.group_id;
+  const byRecipient = new Map();
+  relevant.forEach((submission) => {
+    const key = keyFor(submission);
+    if (key && !byRecipient.has(key)) byRecipient.set(key, submission);
+  });
+  const completed = byRecipient.size;
   const total = individual ? members.length : groups.length;
+  const maxScore = getMissionMaxScore(mission);
+  const accuracy = byRecipient.size && maxScore > 0
+    ? Math.round([...byRecipient.values()].reduce((sum, submission) => sum + (Number(submission.score) || 0), 0) / (byRecipient.size * maxScore) * 100)
+    : 0;
   return {
     individual,
     completed,
     total,
     completion: total ? Math.min(100, Math.round((completed / total) * 100)) : 0,
-    submissions: relevant,
+    accuracy: Math.min(100, Math.max(0, accuracy)),
+    maxScore,
+    submissions: [...byRecipient.values()],
   };
+}
+
+export function getMissionMaxScore(mission) {
+  try {
+    const content = JSON.parse(mission?.ai_content || '{}');
+    if (mission?.formative_type === 'drag_drop' && Array.isArray(content.left)) return content.left.length || Number(mission.max_score) || 0;
+    if (Array.isArray(content.questions)) return content.questions.length || Number(mission.max_score) || 0;
+  } catch {}
+  return Number(mission?.max_score) || 0;
+}
+
+export function missionDeadlineAt(mission) {
+  if (!mission) return null;
+  if (mission.deadline_at) {
+    const date = new Date(mission.deadline_at);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (!mission.deadline) return null;
+  // Older missions only had a date. They remain available until the end of
+  // that Manila calendar day, while new missions always use a precise time.
+  const date = new Date(`${mission.deadline}T23:59:59+08:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function isMissionLocked(mission, now = new Date()) {
+  const deadline = missionDeadlineAt(mission);
+  return !!deadline && now.getTime() > deadline.getTime();
+}
+
+export function formatMissionDeadline(mission) {
+  const deadline = missionDeadlineAt(mission);
+  if (!deadline) return null;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(deadline);
 }

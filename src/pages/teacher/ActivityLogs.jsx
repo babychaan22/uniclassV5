@@ -65,7 +65,7 @@ export default function ActivityLogs() {
       id: `log-${l.id}`,
       type: l.event_type || "scan",
       points: movedOriginal ? null : Number(l.points_awarded || 0),
-      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
+      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: movedOriginal ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
       note: movedOriginal ? l.note : (l.event_type === 'mission_redemption'
         ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
@@ -81,7 +81,7 @@ export default function ActivityLogs() {
       id: `redemption-${r.id}`,
       type: "redemption",
       points: -Math.abs(r.points_spent || 0),
-      groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : null,
+      groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: null,
       note: r.reward_title,
       created_date: r.created_date,
@@ -91,7 +91,7 @@ export default function ActivityLogs() {
       id: `badge-${b.id}`,
       type: "badge",
       points: null,
-      groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : null,
+      groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: null,
       note: b.title,
       created_date: b.created_date,
@@ -126,6 +126,13 @@ export default function ActivityLogs() {
     );
   }
 
+  const groupedEntries = Object.values(entries.reduce((groups, entry) => {
+    const key = entry.groupLabel || 'Whole class';
+    if (!groups[key]) groups[key] = { label: key, entries: [] };
+    groups[key].entries.push(entry);
+    return groups;
+  }, {}));
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
@@ -141,45 +148,13 @@ export default function ActivityLogs() {
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
       )}
 
-      {entries.map((e) => {
-        const meta = LABELS[e.type] || { label: e.type, color: "purple" };
-        return (
-          <ClayCard key={e.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <ClayChip color={meta.color}>{meta.label}</ClayChip>
-                  {e.groupLabel && <ClayChip color="sky">{e.groupLabel}</ClayChip>}
-                </div>
-                {(e.memberLabel || e.note) && (
-                  <p className="text-sm text-ink/70 mt-2 truncate">
-                    {e.memberLabel ? `${e.memberLabel} — ` : ""}
-                    {e.note}
-                  </p>
-                )}
-                {e.created_date && (
-                  <p className="text-[10px] text-ink/40 mt-1 font-mono">
-                    {new Date(e.created_date).toLocaleString()}
-                  </p>
-                )}
-              </div>
-              {e.points != null && (
-                <div className="text-right shrink-0 flex items-center gap-1">
-                  {e.type === "badge" ? (
-                    <Award className="w-5 h-5 text-clay-sun" />
-                  ) : (
-                    <p className={`font-mono font-extrabold text-lg ${e.points < 0 ? "text-clay-coral" : "text-clay-lime"}`}>
-                      {e.points > 0 ? "+" : ""}
-                      {e.points}
-                    </p>
-                  )}
-                </div>
-              )}
-            {e.correctable && <div className="mt-3 border-t-2 border-ink/10 pt-3"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-4 w-4" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}
-            </div>
-          </ClayCard>
-        );
-      })}
+      {groupedEntries.map((section) => <ClayCard key={section.label} className="p-3">
+        <div className="mb-2 flex items-center justify-between"><p className="font-display font-bold text-sm">{section.label}</p><ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip></div>
+        <div className="divide-y divide-ink/10">{section.entries.map((e) => {
+          const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
+          return <div key={e.id} className="py-2 first:pt-0 last:pb-0"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><ClayChip color={meta.color}>{meta.label}</ClayChip>{e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}</div>{e.note && <p className="mt-1 truncate text-xs text-ink/65">{e.note}</p>}<p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p></div>{e.points != null && <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>{e.points > 0 ? '+' : ''}{e.points}</p>}</div>{e.correctable && <div className="mt-2"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}</div>;
+        })}</div>
+      </ClayCard>)}
       {hasMore && <ClayButton onClick={() => load(page + 1)} color="white" className="w-full" disabled={loadingMore}>
         {loadingMore ? "Loading…" : "Load older activity"}
       </ClayButton>}

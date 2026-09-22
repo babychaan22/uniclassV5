@@ -57,16 +57,15 @@ export function computeCategoryPct(memberId, assessments, category, term) {
   return { pct: totalMax > 0 ? (totalScore / totalMax) * 100 : 0, count: records.length };
 }
 
-export function computeEngagementStreak(memberIds, attendance, scores, todayStr) {
-  const idSet = new Set(memberIds);
+export function computeEngagementStreak(memberId, attendance, scores, todayStr) {
   const days = new Set();
   for (const a of attendance) {
-    if (idSet.has(a.group_member_id) && a.attendance_date) {
+    if (a.group_member_id === memberId && a.attendance_date) {
       days.add(toManilaDate(a.attendance_date));
     }
   }
   for (const s of scores) {
-    if (idSet.has(s.group_member_id) && s.created_date) {
+    if (s.group_member_id === memberId && s.created_date) {
       days.add(toManilaDate(s.created_date));
     }
   }

@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -42,7 +42,10 @@ export default function TeacherDashboard() {
       if (!user) return;
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const ds = await getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']);
+      const [ds, teacherClasses] = await Promise.all([
+        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']),
+        getTeacherClassrooms(user.id),
+      ]);
       const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
       const term = terms.find((t) => t.is_active) || terms[0] || null;
@@ -79,18 +82,21 @@ export default function TeacherDashboard() {
         return { group: g, avgTotal, tag, color, memberCount: gm.length };
       });
 
+      const memberNames = Object.fromEntries(members.map((member) => [member.id, `${member.last_name}, ${member.first_name}`]));
       const dateMap = {};
       for (const a of attendance) {
-        if (!dateMap[a.attendance_date]) dateMap[a.attendance_date] = { date: a.attendance_date, present: 0, absent: 0 };
-        if (a.status === "present") dateMap[a.attendance_date].present++;
-        else dateMap[a.attendance_date].absent++;
+        if (!dateMap[a.attendance_date]) dateMap[a.attendance_date] = { date: a.attendance_date, present: 0, absent: 0, presentNames: [], absentNames: [] };
+        if (a.status === "present") { dateMap[a.attendance_date].present++; dateMap[a.attendance_date].presentNames.push(memberNames[a.group_member_id] || 'Student'); }
+        else { dateMap[a.attendance_date].absent++; dateMap[a.attendance_date].absentNames.push(memberNames[a.group_member_id] || 'Student'); }
       }
       const trend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
-      const groupPoints = groups.map((g) => ({
-        name: `G${g.group_number}`,
-        points: logs.filter((l) => l.group_id === g.id).reduce((s, l) => s + (l.points_awarded || 0), 0),
-      }));
+      const pointSets = classroom.uses_groups ? groups.map((group) => ({ id: group.id, name: `Group ${group.group_number}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: 'class', name: 'Whole class', members }];
+      const groupPoints = pointSets.map((set) => {
+        const setLogs = classroom.uses_groups ? logs.filter((log) => log.group_id === set.id) : logs;
+        const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+        return { name: set.name, points: setLogs.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), breakdown };
+      });
 
       const groupActivity = groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);
@@ -121,8 +127,14 @@ export default function TeacherDashboard() {
         .slice(0, 6)
         .map((l) => ({ ...l, groupNumber: groups.find((g) => g.id === l.group_id)?.group_number }));
 
+      const attentionByClass = await Promise.all(teacherClasses.map(async (item) => {
+        const source = item.id === classroom.id ? ds : await getClassroomDataset(item.id, ['members', 'attendance', 'groupAccounts']);
+        const todayAttendance = source.attendance.filter((record) => record.attendance_date === getTodayManila());
+        const presentIds = new Set(todayAttendance.filter((record) => record.status === 'present').map((record) => record.group_member_id));
+        return { classroom: item, missingToday: source.members.filter((member) => !presentIds.has(member.id)).length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length };
+      }));
       setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, penaltyLogs });
+      setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, penaltyLogs, attentionByClass });
       setLoading(false);
     }
     load();
@@ -131,7 +143,7 @@ export default function TeacherDashboard() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, penaltyLogs } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, penaltyLogs, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
@@ -185,6 +197,11 @@ export default function TeacherDashboard() {
 
       <AtRiskAlerts memberRows={memberRows} />
 
+      <ClayCard className="p-4 no-print">
+        <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.missingToday} without a present record today · {item.awaitingApproval} awaiting approval</p>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">All clear</p>}</div>)}</div>
+      </ClayCard>
+
       {pending.length > 0 && (
         <PendingApprovalBulk pending={pending} groups={groups} onApproveAll={approveAll} onApproveOne={approveOne} />
       )}
@@ -197,7 +214,7 @@ export default function TeacherDashboard() {
               <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
+              <Tooltip content={<AttendanceTooltip />} />
               <Bar dataKey="present" fill="#A6E22E" radius={[3, 3, 0, 0]} />
               <Bar dataKey="absent" fill="#FF6B57" radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -224,7 +241,7 @@ export default function TeacherDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
+              <Tooltip content={<ParticipationTooltip />} />
               <Bar dataKey="points" fill="#FF5FA8" radius={[6, 6, 0, 0]}>
                 {groupPoints.map((_, i) => <Cell key={i} fill="#4FD1F2" />)}
               </Bar>
@@ -309,4 +326,16 @@ function weekEndOf(ws) {
   const d = new Date(ws + "T00:00:00");
   d.setDate(d.getDate() + 6);
   return d.toISOString().slice(0, 10);
+}
+
+function AttendanceTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0].payload;
+  return <div className="max-w-64 rounded-xl border-2 border-ink bg-cream p-3 text-xs shadow-clay"><p className="font-display font-bold">{label}</p><p className="mt-1 font-display text-clay-lime">Present ({item.present})</p><p className="text-ink/70">{item.presentNames?.join(', ') || 'None'}</p><p className="mt-2 font-display text-clay-coral">Absent / other ({item.absent})</p><p className="text-ink/70">{item.absentNames?.join(', ') || 'None'}</p></div>;
+}
+
+function ParticipationTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0].payload;
+  return <div className="max-w-64 rounded-xl border-2 border-ink bg-cream p-3 text-xs shadow-clay"><p className="font-display font-bold">{item.name}</p><p className="font-mono text-clay-purple">{item.points} points</p><p className="mt-2 font-display font-bold">Member breakdown</p><div className="mt-1 space-y-0.5">{item.breakdown?.length ? item.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-4"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>) : <p className="text-ink/60">No member points yet.</p>}</div></div>;
 }

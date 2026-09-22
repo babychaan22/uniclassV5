@@ -6,6 +6,7 @@ import ClayChip from "@/components/ClayChip";
 import DragDropMatch from "@/components/student/DragDropMatch";
 import { Loader2, RotateCcw } from "lucide-react";
 import { getMissionSubmissionReview, startMissionRetry, submitMission } from '@/lib/secureActions';
+import { formatMissionDeadline, isMissionLocked } from '@/lib/missionProgress';
 
 function displayAnswer(question, value, type) {
   if (value === undefined || value === null) return "No answer";
@@ -35,6 +36,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   }, [result, mission.id, mission.formative_type, group.id, retryAttemptId]);
 
   if (!mission.ai_content) return <ClayCard className="p-4"><p className="text-ink/50 text-sm">Mission content unavailable.</p></ClayCard>;
+  if (!existing && isMissionLocked(mission)) return <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">Mission locked</p><p className="mt-1 text-xs text-ink/60">The deadline was {formatMissionDeadline(mission)}. New answers are no longer accepted.</p></ClayCard>;
   if (mission.formative_type !== "drag_drop" && questions.length === 0) return <ClayCard className="p-4"><p className="text-ink/50 text-sm">This mission has no questions available yet. Ask your teacher to regenerate it.</p></ClayCard>;
   const formativeBrief = (content.learning_target || content.student_instructions || content.estimated_minutes) ? (
     <div className="rounded-xl border-2 border-ink/15 bg-clay-sky/15 p-3 text-sm space-y-1">
