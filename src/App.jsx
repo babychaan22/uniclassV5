@@ -29,6 +29,7 @@ const TeacherAnnouncements = lazy(() => import('./pages/teacher/Announcements'))
 const TeacherAnalytics = lazy(() => import('./pages/teacher/Analytics'));
 const TeacherScoreImport = lazy(() => import('./pages/teacher/ScoreImport'));
 const TeacherActivities = lazy(() => import('./pages/teacher/Activities'));
+const TeacherAttendance = lazy(() => import('./pages/teacher/Attendance'));
 const TeacherRoster = lazy(() => import('./pages/teacher/Roster'));
 const TeacherActivityLogs = lazy(() => import('./pages/teacher/ActivityLogs'));
 const TeacherEvidence = lazy(() => import('./pages/teacher/Evidence'));
@@ -104,6 +105,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.TEACHER.MISSION_ARCHIVE} element={<TeacherMissionArchive />} />
           <Route path={ROUTES.TEACHER.SCORE_IMPORT} element={<TeacherScoreImport />} />
           <Route path={ROUTES.TEACHER.ACTIVITIES} element={<TeacherActivities />} />
+          <Route path={ROUTES.TEACHER.ATTENDANCE} element={<TeacherAttendance />} />
           <Route path={ROUTES.TEACHER.EXPORT_DATA} element={<TeacherExportData />} />
           <Route path={ROUTES.TEACHER.HELP_GUIDE} element={<TeacherHelpGuide />} />
           <Route path={ROUTES.LEADERBOARD} element={<Leaderboard />} />

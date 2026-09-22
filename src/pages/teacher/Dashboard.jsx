@@ -35,6 +35,7 @@ export default function TeacherDashboard() {
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("14");
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
+  const [hoveredChart, setHoveredChart] = useState({ attendance: null, activity: null, participation: null });
 
   const refresh = () => setReloadKey((k) => k + 1);
 
@@ -101,8 +102,9 @@ export default function TeacherDashboard() {
 
       const groupActivity = groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);
-        const avg = gm.length > 0 ? gm.reduce((s, m) => s + computeActivityPct(m.id, scores, activities).pct, 0) / gm.length : 0;
-        return { name: `G${g.group_number}`, avg: Math.round(avg) };
+        const breakdown = gm.map((member) => ({ name: memberNames[member.id], rate: Math.round(computeActivityPct(member.id, scores, activities).pct) }));
+        const avg = breakdown.length > 0 ? breakdown.reduce((sum, member) => sum + member.rate, 0) / breakdown.length : 0;
+        return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown };
       });
 
       const weekStarts = [];
@@ -157,6 +159,8 @@ export default function TeacherDashboard() {
     .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
   const visibleTrend = chartRange === 'all' ? trend : trend.slice(-Number(chartRange));
   const todayStr = getTodayManila();
+  const updateChartHover = (key) => (state) => setHoveredChart((current) => ({ ...current, [key]: state?.activePayload?.[0]?.payload || null }));
+  const clearChartHover = (key) => () => setHoveredChart((current) => ({ ...current, [key]: null }));
 
   async function applyPenalty(groupId, points, note) {
     await db.entities.ParticipationLog.create({
@@ -220,43 +224,46 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4">
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><select aria-label="Attendance chart date range" className="clay-input w-auto py-1 text-xs" value={chartRange} onChange={(event) => setChartRange(event.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="all">All</option></select></div>
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} onMouseMove={updateChartHover('attendance')} onMouseLeave={clearChartHover('attendance')}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={<AttendanceTooltip />} />
+              <Tooltip content={() => null} cursor={{ fill: '#A6E22E1A' }} />
               <Bar dataKey="present" fill="#A6E22E" radius={[3, 3, 0, 0]} />
               <Bar dataKey="absent" fill="#FF6B57" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Attendance" entry={hoveredChart.attendance}><div className="grid grid-cols-2 gap-3"><div><p className="font-display font-bold text-clay-lime">Present ({hoveredChart.attendance?.present || 0})</p><CompactList entries={hoveredChart.attendance?.presentNames} /></div><div><p className="font-display font-bold text-clay-coral">Absent ({hoveredChart.attendance?.absent || 0})</p><CompactList entries={hoveredChart.attendance?.absentNames} /></div></div></DashboardChartDetail>
         </ClayCard>
 
         <ClayCard className="p-4">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Group Activity Avg</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupActivity}>
+            <BarChart data={groupActivity} onMouseMove={updateChartHover('activity')} onMouseLeave={clearChartHover('activity')}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-              <Tooltip />
+              <Tooltip content={() => null} cursor={{ fill: '#8B5CF61A' }} />
               <Bar dataKey="avg" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Activity scores" entry={hoveredChart.activity}>{hoveredChart.activity?.breakdown?.length ? <div className="space-y-0.5">{hoveredChart.activity.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.rate}%</span></p>)}</div> : <p>No activity scores yet.</p>}</DashboardChartDetail>
         </ClayCard>
 
         <ClayCard className="p-4 lg:col-span-2">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4" /> Participation Points by Group</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupPoints}>
+            <BarChart data={groupPoints} onMouseMove={updateChartHover('participation')} onMouseLeave={clearChartHover('participation')}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={<ParticipationTooltip />} />
+              <Tooltip content={() => null} cursor={{ fill: '#4FD1F21A' }} />
               <Bar dataKey="points" fill="#FF5FA8" radius={[6, 6, 0, 0]}>
                 {groupPoints.map((_, i) => <Cell key={i} fill="#4FD1F2" />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Participation points" entry={hoveredChart.participation}>{hoveredChart.participation?.breakdown?.length ? <div className="space-y-0.5">{hoveredChart.participation.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>)}</div> : <p>No individual point entries.</p>}</DashboardChartDetail>
         </ClayCard>
       </div>
 
@@ -338,14 +345,10 @@ function weekEndOf(ws) {
   return d.toISOString().slice(0, 10);
 }
 
-function AttendanceTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0].payload;
-  return <div className="max-w-64 rounded-xl border-2 border-ink bg-cream p-3 text-xs shadow-clay"><p className="font-display font-bold">{label}</p><p className="mt-1 font-display text-clay-lime">Present ({item.present})</p><p className="text-ink/70">{item.presentNames?.join(', ') || 'None'}</p><p className="mt-2 font-display text-clay-coral">Absent / other ({item.absent})</p><p className="text-ink/70">{item.absentNames?.join(', ') || 'None'}</p></div>;
+function DashboardChartDetail({ title, entry, children }) {
+  return <div className="mt-2 min-h-14 rounded-xl border-2 border-ink/10 bg-cream px-3 py-2 text-xs" aria-live="polite">{entry ? <><p className="font-display font-bold">{title}: {entry.name || entry.date}</p><div className="mt-1 max-h-24 overflow-y-auto pr-1 text-ink/75">{children}</div></> : <p className="text-ink/55">Hover a bar to see its compact breakdown.</p>}</div>;
 }
 
-function ParticipationTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0].payload;
-  return <div className="max-w-64 rounded-xl border-2 border-ink bg-cream p-3 text-xs shadow-clay"><p className="font-display font-bold">{item.name}</p><p className="font-mono text-clay-purple">{item.points} points</p><p className="mt-2 font-display font-bold">Member breakdown</p><div className="mt-1 space-y-0.5">{item.breakdown?.length ? item.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-4"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>) : <p className="text-ink/60">No member points yet.</p>}</div></div>;
+function CompactList({ entries = [] }) {
+  return entries.length ? <div className="max-h-20 overflow-y-auto pr-1 text-ink/75">{entries.map((entry, index) => <p key={`${entry}-${index}`} className="truncate">{entry}</p>)}</div> : <p className="text-ink/55">None</p>;
 }
