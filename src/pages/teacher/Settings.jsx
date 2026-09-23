@@ -13,6 +13,8 @@ import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { Settings as SettingsIcon, Loader2, Save, Check, User, Calendar, RefreshCw, SlidersHorizontal, Hash, Trash2, Copy } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import ClassDaySelector from "@/components/ClassDaySelector";
+import { hasClassDays, normalizeClassDays } from "@/lib/classDays";
 
 const WEIGHT_KEYS = [
   { key: "weight_attendance", label: "Attendance" },
@@ -64,7 +66,7 @@ export default function TeacherSettings() {
     setClassroom(c);
     setSettings(s);
     setTerms(t.sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")));
-    setClassForm({ grade_level: c.grade_level, section: c.section, subject: c.subject || "", school_year: c.school_year });
+    setClassForm({ grade_level: c.grade_level, section: c.section, subject: c.subject || "", school_year: c.school_year, class_days: normalizeClassDays(c.class_days) });
     setWeights(Object.fromEntries(WEIGHT_KEYS.map((w) => [w.key, s[w.key] ?? 0])));
     setYear(c.school_year || "");
     setFullName(user.full_name || "");
@@ -81,12 +83,16 @@ export default function TeacherSettings() {
   }
 
   async function saveClass() {
+    if (!hasClassDays(classForm.class_days)) {
+      flash(false, "Select at least one class meeting day.");
+      return;
+    }
     setSaving("class");
     await db.entities.Classroom.update(classroom.id, classForm);
     invalidateTeacherClassroom();
     setClassroom({ ...classroom, ...classForm });
     setSaving(null);
-    flash(true, "Class display updated.");
+    flash(true, "Class details and meeting days updated.");
   }
 
   async function saveWeights() {
@@ -239,8 +245,9 @@ export default function TeacherSettings() {
               <input className="clay-input" value={classForm.school_year} onChange={(e) => setClassForm({ ...classForm, school_year: e.target.value })} />
             </div>
           </div>
+          <ClassDaySelector value={classForm.class_days} onChange={(class_days) => setClassForm({ ...classForm, class_days })} />
           <ClayButton color="sky" size="sm" onClick={saveClass} disabled={saving === "class"}>
-            {saving === "class" ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Display</>}
+            {saving === "class" ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Class Details</>}
           </ClayButton>
         </ClayCard>
       )}

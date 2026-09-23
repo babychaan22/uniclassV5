@@ -1,5 +1,6 @@
 
-import { isDateInRange, toManilaDate } from "./week";
+import { isDateInRange, toManilaDate, getTodayManila } from "./week";
+import { hasClassDays, isScheduledClassDay } from "./classDays";
 
 export function computeAttendanceRate(memberId, attendance, term) {
   const records = attendance.filter(
@@ -10,14 +11,34 @@ export function computeAttendanceRate(memberId, attendance, term) {
   return { rate: (present / records.length) * 100, count: records.length, present };
 }
 
-export function computeAttendanceStreak(memberId, attendance) {
-  const records = attendance
-    .filter((a) => a.group_member_id === memberId)
-    .sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+export function computeAttendanceStreak(memberId, attendance, classDays) {
+  if (!hasClassDays(classDays)) {
+    const records = attendance
+      .filter((a) => a.group_member_id === memberId)
+      .sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+    let legacyStreak = 0;
+    for (const record of records) {
+      if (record.status !== "present") break;
+      legacyStreak++;
+    }
+    return legacyStreak;
+  }
+  const records = new Map(
+    attendance
+      .filter((a) => a.group_member_id === memberId && a.attendance_date)
+      .map((record) => [record.attendance_date, record])
+  );
   let streak = 0;
-  for (const r of records) {
-    if (r.status === "present") streak++;
-    else break;
+  const cursor = new Date(`${getTodayManila()}T00:00:00Z`);
+  while (true) {
+    if (!isScheduledClassDay(cursor, classDays)) {
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+      continue;
+    }
+    const record = records.get(cursor.toISOString().slice(0, 10));
+    if (!record || record.status !== "present") break;
+    streak++;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   return streak;
 }
@@ -57,7 +78,7 @@ export function computeCategoryPct(memberId, assessments, category, term) {
   return { pct: totalMax > 0 ? (totalScore / totalMax) * 100 : 0, count: records.length };
 }
 
-export function computeEngagementStreak(memberId, attendance, scores, todayStr) {
+export function computeEngagementStreak(memberId, attendance, scores, todayStr, classDays) {
   const days = new Set();
   for (const a of attendance) {
     if (a.group_member_id === memberId && a.attendance_date) {
@@ -69,11 +90,17 @@ export function computeEngagementStreak(memberId, attendance, scores, todayStr) 
       days.add(toManilaDate(s.created_date));
     }
   }
+  if (!hasClassDays(classDays)) return 0;
   let streak = 0;
-  let d = new Date(todayStr + "T00:00:00");
-  while (days.has(d.toISOString().slice(0, 10))) {
+  const d = new Date(`${todayStr}T00:00:00Z`);
+  while (true) {
+    if (!isScheduledClassDay(d, classDays)) {
+      d.setUTCDate(d.getUTCDate() - 1);
+      continue;
+    }
+    if (!days.has(d.toISOString().slice(0, 10))) break;
     streak++;
-    d.setDate(d.getDate() - 1);
+    d.setUTCDate(d.getUTCDate() - 1);
   }
   return streak;
 }

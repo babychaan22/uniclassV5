@@ -8,6 +8,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
 import { getTodayManila } from "@/lib/week";
+import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import { getActiveStudentAccount } from "@/lib/studentContext";
 import { Check, X, ClipboardCheck, Lock, CalendarDays, TrendingUp } from "lucide-react";
 
@@ -21,6 +22,7 @@ export default function StudentAttendance() {
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyRange, setHistoryRange] = useState("30");
+  const [classroom, setClassroom] = useState(null);
   const today = getTodayManila();
 
   useEffect(() => {
@@ -29,7 +31,11 @@ export default function StudentAttendance() {
       const a = await getActiveStudentAccount(user.id);
       if (!a) return;
       setAccount(a);
-      const mem = await db.entities.GroupMember.filter({ group_id: a.group_id });
+      const [classroomRecord, mem] = await Promise.all([
+        db.entities.Classroom.get(a.classroom_id),
+        db.entities.GroupMember.filter({ group_id: a.group_id }),
+      ]);
+      setClassroom(classroomRecord);
       setMembers(mem);
       const [att, personalHistory] = await Promise.all([
         db.entities.Attendance.filter({ group_id: a.group_id, attendance_date: today }),
@@ -46,7 +52,9 @@ export default function StudentAttendance() {
     load();
   }, [user]);
 
-  const canEdit = !!account?.is_representative && Object.keys(existing).length === 0;
+  const hasSchedule = hasClassDays(classroom?.class_days);
+  const todayIsClassDay = !hasSchedule || isScheduledClassDay(new Date(`${today}T00:00:00Z`), classroom?.class_days);
+  const canEdit = !!account?.is_representative && Object.keys(existing).length === 0 && todayIsClassDay;
 
   function toggle(memberId) {
     if (!canEdit) return;
@@ -89,7 +97,12 @@ export default function StudentAttendance() {
         <p className="text-ink/60 font-mono text-sm">{today}</p>
       </div>
 
-      {!canEdit && (
+      {!todayIsClassDay ? (
+        <ClayCard color="sky" className="p-4 flex items-center gap-3">
+          <CalendarDays className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-display font-bold">No class is scheduled today, so attendance and personal streaks are paused.</p>
+        </ClayCard>
+      ) : !canEdit && (
         <ClayCard color="sun" className="p-4 flex items-center gap-3">
           <Lock className="w-5 h-5 shrink-0" />
           <p className="text-sm font-display font-bold">Attendance is locked after the representative saves it. Only the teacher can make a correction.</p>

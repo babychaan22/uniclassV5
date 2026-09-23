@@ -11,6 +11,8 @@ import { deleteClassroom } from "@/lib/secureActions";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import ClassDaySelector from "@/components/ClassDaySelector";
+import { hasClassDays } from "@/lib/classDays";
 import { Users, Check, X, Plus, Calendar, Hash, BookOpen, ChevronRight, Copy } from "lucide-react";
 
 function genJoinCode() {
@@ -24,7 +26,7 @@ export default function TeacherOnboarding() {
   const [classrooms, setClassrooms] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true });
+  const [form, setForm] = useState({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true, class_days: [] });
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -76,6 +78,10 @@ export default function TeacherOnboarding() {
 
   async function createClass(e) {
     e.preventDefault();
+    if (!hasClassDays(form.class_days)) {
+      setError("Select the days this class meets before creating it.");
+      return;
+    }
     setCreating(true);
     setError("");
     try {
@@ -89,11 +95,12 @@ export default function TeacherOnboarding() {
         p_uses_groups: form.uses_groups,
         p_join_code: joinCode,
       }), "Creating class");
+      const classroom = await db.entities.Classroom.update(cr.id, { class_days: form.class_days });
       invalidateTeacherClassroom();
       invalidateClassroomContext();
-      setClassrooms((prev) => [cr, ...prev]);
-      setActiveId(cr.id);
-      setForm({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true });
+      setClassrooms((prev) => [classroom, ...prev]);
+      setActiveId(classroom.id);
+      setForm({ grade_level: "Grade 8", section: "", subject: "", school_year: "2026-2027", num_groups: 8, uses_groups: true, class_days: [] });
     } catch (err) {
       setError(err?.message || "Class creation failed. Please try again.");
     } finally { setCreating(false); }
@@ -181,6 +188,7 @@ export default function TeacherOnboarding() {
             </div>
           </div>
           <div className="rounded-xl border-2 border-ink/15 bg-cream p-3"><label className="flex items-center gap-2 font-display font-bold text-sm"><input type="checkbox" checked={form.uses_groups} onChange={(e) => setForm({ ...form, uses_groups: e.target.checked })} /> This class uses groups</label><p className="text-xs text-ink/50 mt-1">Turn off for individual students. Each student will have their own private access to attendance, scores, uploads, and representative tools.</p></div>
+          <ClassDaySelector value={form.class_days} onChange={(class_days) => setForm({ ...form, class_days })} />
           <ClayButton type="submit" color="purple" size="md" className="w-full" disabled={creating}>
             <Plus className="w-4 h-4" /> {creating ? "Creating..." : "Create Class & Code"}
           </ClayButton>

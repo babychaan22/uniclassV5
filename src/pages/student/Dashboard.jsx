@@ -33,7 +33,8 @@ export default function StudentDashboard() {
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [members, rankResult, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
+      const [classroom, members, rankResult, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
+        db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
         db.entities.Attendance.filter({ classroom_id: classroomId }),
@@ -46,7 +47,7 @@ export default function StudentDashboard() {
       if (rankResult.error) throw rankResult.error;
 
       const memberCards = members.map((m) => {
-        const streak = computeAttendanceStreak(m.id, attendance);
+        const streak = computeAttendanceStreak(m.id, attendance, classroom?.class_days);
         const act = computeActivityPct(m.id, scores, activities);
         const pts = computeParticipationPoints(m.id, logs);
         return { member: m, streak, activityPct: act.pct, points: pts };
@@ -60,9 +61,9 @@ export default function StudentDashboard() {
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 
-      const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila());
+      const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
 
-      setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, classroom, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();
@@ -70,7 +71,7 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
@@ -183,7 +184,8 @@ export default function StudentDashboard() {
         <div className="flex-1">
           <p className="font-display font-extrabold text-3xl font-mono leading-none">{personalStreak}</p>
           <p className="font-display font-bold text-sm">your personal day{personalStreak === 1 ? "" : "s"} in a row</p>
-          <p className="text-xs text-ink/60">{personalStreak > 0 ? "Your own attendance and activity keep this streak alive!" : "Your attendance or activity today starts your own streak 🔥"}</p>
+          <p className="text-xs text-ink/60">{personalStreak > 0 ? "Your own attendance and activity keep this streak alive!" : "Your attendance or activity on a class day starts your own streak 🔥"}</p>
+          <p className="mt-1 text-[10px] text-ink/45">Only your scheduled class days count.</p>
         </div>
       </ClayCard>
 
