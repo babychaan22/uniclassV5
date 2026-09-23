@@ -155,9 +155,9 @@ export default function StudentBadges() {
                   <p className="text-xs text-ink/50">{info.desc}</p>
                 </div>
               </div>
-              <ClayChip color={isClaimed ? "lime" : isPending ? "sky" : isEligible ? "sun" : "cream"}>
-                {isClaimed ? <><Check className="w-3 h-3" /> Approved</> : isPending ? "Awaiting teacher approval" : isEligible ? `Eligible · +${info.points}pts` : "Not eligible"}
-              </ClayChip>
+              <div className="flex flex-wrap gap-2"><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : isEligible ? "sun" : "cream"}>
+                {isClaimed ? <><Check className="w-3 h-3" /> Approved</> : isPending ? "Awaiting teacher approval" : isEligible ? "Eligible" : "Not eligible"}
+              </ClayChip><ClayChip color="sun">+{info.points} pts</ClayChip></div>
               <div className="mt-3">
                 {isEligible && !isClaimed && !isPending && endOfWeek && (
                   <ClayButton color="pink" size="sm" className="w-full" onClick={() => redeem(type)} disabled={redeeming === type}>
@@ -174,7 +174,7 @@ export default function StudentBadges() {
         <h2 className="font-display font-bold text-lg">Teacher badges</h2>
         <div className="grid sm:grid-cols-2 gap-4">{customBadges.map((badge) => {
           const key = `custom:${badge.id}`; const isClaimed = claimed[key]; const isPending = pending[key];
-          return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Weekend badge"}</p></div></div><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : "sun"}>{isClaimed ? "Approved" : isPending ? "Awaiting teacher approval" : `${badge.badge_scope} · +${badge.points} pts`}</ClayChip>{badge.badge_scope === "group" && <p className="text-[11px] text-ink/50 mt-2">Points are added to the group only after teacher approval.</p>}{endOfWeek && !isClaimed && !isPending && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Request approval"}</ClayButton>}</ClayCard>;
+          return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Weekend badge"}</p></div></div><div className="flex flex-wrap gap-2"><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : "sun"}>{isClaimed ? "Approved" : isPending ? "Awaiting teacher approval" : badge.badge_scope}</ClayChip><ClayChip color="sun">+{badge.points} pts</ClayChip></div>{badge.badge_scope === "group" && <p className="text-[11px] text-ink/50 mt-2">Points are added to the group only after teacher approval.</p>}{endOfWeek && !isClaimed && !isPending && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Request approval"}</ClayButton>}</ClayCard>;
         })}</div>
       </>}
     </div>

@@ -70,6 +70,7 @@ const TEACHER_NAV_SECTIONS = [
     icon: Users,
     items: [
       { label: "Roster",         path: ROUTES.TEACHER.ROSTER,             icon: Users },
+      { label: "Attendance",     path: ROUTES.TEACHER.ATTENDANCE,         icon: ClipboardCheck },
       { label: "Accounts",      path: ROUTES.TEACHER.STUDENT_MANAGEMENT, icon: UserCheck },
       { label: "Announcements", path: ROUTES.TEACHER.ANNOUNCEMENTS,      icon: Megaphone },
     ],

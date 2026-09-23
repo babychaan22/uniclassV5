@@ -19,6 +19,7 @@ import { invokeLLM } from "@/lib/aiService";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { NovaAsset, UIAsset } from "@/components/visual/UIAsset";
+import { formatMissionDeadline, getMissionProgress } from '@/lib/missionProgress';
 
 const PROMPT_TEMPLATES = {
   true_false: {
@@ -71,7 +72,7 @@ export default function TeacherMissions() {
   const [groups, setGroups] = useState([]);
   const [members, setMembers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
-  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
   const [creating, setCreating] = useState(false);
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -104,7 +105,7 @@ export default function TeacherMissions() {
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
     const [ds, catalog, classes] = await Promise.all([
-      getClassroomDataset(c.id, ['groups','submissions','members']),
+      getClassroomDataset(c.id, ['groups','members','submissions']),
       db.entities.Mission.filter({ created_by: user.id }),
       getTeacherClassrooms(user.id),
     ]);
@@ -129,6 +130,7 @@ export default function TeacherMissions() {
       xp_reward: Number(form.xp_reward),
       max_score: Number(form.max_score),
       deadline: form.deadline || undefined,
+      deadline_at: form.deadline ? new Date(`${form.deadline}T${form.deadline_time || '23:59'}:00+08:00`).toISOString() : undefined,
       is_active: false,
       created_by: user.id,
       applies_to_all_classes: targetAllClasses,
@@ -146,7 +148,7 @@ export default function TeacherMissions() {
         : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
-    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
     setAiContent(null);
     setGenMsg(null);
     setTargetAllClasses(true);
@@ -337,7 +339,7 @@ export default function TeacherMissions() {
               )}
             </>
           )}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-4 gap-3">
             <div>
               <label className="font-display font-bold text-xs mb-1 block">XP Reward</label>
               <input type="number" min="0" className="clay-input font-mono" value={form.xp_reward} onChange={(e) => setForm({ ...form, xp_reward: e.target.value })} required />
@@ -347,8 +349,12 @@ export default function TeacherMissions() {
               <input type="number" min="1" className="clay-input font-mono" value={form.max_score} onChange={(e) => setForm({ ...form, max_score: e.target.value })} required />
             </div>
             <div>
-              <label className="font-display font-bold text-xs mb-1 block">Deadline</label>
+              <label className="font-display font-bold text-xs mb-1 block">Deadline date</label>
               <input type="date" className="clay-input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            </div>
+            <div>
+              <label className="font-display font-bold text-xs mb-1 block">Deadline time</label>
+              <input type="time" className="clay-input" value={form.deadline_time} disabled={!form.deadline} onChange={(e) => setForm({ ...form, deadline_time: e.target.value })} />
             </div>
           </div>
           <div className="rounded-xl border-2 border-ink bg-clay-sky/20 p-3 space-y-3">
@@ -400,9 +406,7 @@ export default function TeacherMissions() {
 
       {missions.map((m) => {
         const isAi = m.formative_type && m.formative_type !== "manual";
-        const gradedCount = isAi
-          ? submissions.filter((s) => s.mission_id === m.id && s.group_member_id).length
-          : groups.filter((g) => submissions.find((s) => s.mission_id === m.id && s.group_id === g.id)).length;
+        const progress = getMissionProgress(m, submissions, groups, members);
         let aiParsed = null, akParsed = {};
         if (isAi) {
           try { aiParsed = JSON.parse(m.ai_content || "{}"); } catch {}
@@ -420,9 +424,11 @@ export default function TeacherMissions() {
                 <div className="flex flex-wrap gap-2 mt-2">
                   <ClayChip color="sun">+{m.xp_reward} XP</ClayChip>
                   <ClayChip color="purple">/{m.max_score} max</ClayChip>
-                  {m.deadline && <ClayChip color="sky">Due {m.deadline}</ClayChip>}
+                  {formatMissionDeadline(m) && <ClayChip color="sky">Due {formatMissionDeadline(m)}</ClayChip>}
                   {m.formative_type && m.formative_type !== "manual" && <ClayChip color="purple">{m.formative_type.replace("_", " ")}</ClayChip>}
-                  <ClayChip color="sky">{isAi ? `${gradedCount}/${members.length} student responses` : `${gradedCount}/${groups.length} graded`}</ClayChip>
+                  <ClayChip color="sky">{progress.completed}/{progress.total} {progress.individual ? 'students' : 'groups'} done</ClayChip>
+                  <ClayChip color="lime">{progress.completion}% complete</ClayChip>
+                  <ClayChip color="pink">{progress.accuracy}% accurate</ClayChip>
                   <ClayChip color={m.is_active ? "lime" : "cream"}>{m.is_active ? "Active" : "Hidden"}</ClayChip>
                 </div>
               </div>
@@ -443,7 +449,7 @@ export default function TeacherMissions() {
                 {stats.length > 0 && (
                   <div className="mt-3 rounded-xl border-2 border-ink/15 bg-clay-sky/20 p-3">
                     <p className="text-xs font-display font-bold">Learning signal</p>
-                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted student response{stats[0].total === 1 ? "" : "s"}.</p>
+                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted learner response{stats[0].total === 1 ? "" : "s"}.</p>
                     <div className="mt-2 space-y-1.5">
                       {hardest.map((q, i) => (
                         <div key={`${q.prompt}-${i}`} className="flex items-center gap-2 text-xs">
@@ -458,8 +464,18 @@ export default function TeacherMissions() {
               </div>
             )}
             <div className="mt-3 border-t-2 border-ink/15 pt-3 space-y-2">
-              <p className="text-xs font-display font-bold">{isAi ? `Student mission progress (XP = score/${m.max_score} × ${m.xp_reward})` : `Per-group status (XP = score/${m.max_score} × ${m.xp_reward})`}</p>
+              <p className="text-xs font-display font-bold">{progress.individual ? 'Student progress by group' : `Per-group status (XP = score/${m.max_score} × ${m.xp_reward})`}</p>
               {groups.map((g) => {
+                if (progress.individual) {
+                  const groupMembers = members.filter((member) => member.group_id === g.id);
+                  const answeredIds = new Set(progress.submissions.filter((submission) => submission.group_id === g.id && submission.group_member_id).map((submission) => submission.group_member_id));
+                  const answered = groupMembers.filter((member) => answeredIds.has(member.id));
+                  const waiting = groupMembers.filter((member) => !answeredIds.has(member.id));
+                  return <details key={g.id} className="rounded-xl border-2 border-ink/15 bg-cream px-3 py-2">
+                    <summary className="cursor-pointer list-none flex items-center gap-2"><span className="font-display font-bold text-sm flex-1">Group {g.group_number}</span><ClayChip color={answered.length === groupMembers.length && groupMembers.length ? 'lime' : 'sun'}>{answered.length}/{groupMembers.length} answered</ClayChip></summary>
+                    <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2"><div><p className="font-display font-bold text-clay-lime">Answered ({answered.length})</p><p className="text-ink/65">{answered.length ? answered.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None yet'}</p></div><div><p className="font-display font-bold text-clay-coral">Not answered ({waiting.length})</p><p className="text-ink/65">{waiting.length ? waiting.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'Everyone has responded'}</p></div></div>
+                  </details>;
+                }
                 const sub = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id);
                 const groupMembers = members.filter((member) => member.group_id === g.id);
                 const groupSubmissions = submissions.filter((submission) => submission.mission_id === m.id && submission.group_id === g.id && submission.group_member_id);

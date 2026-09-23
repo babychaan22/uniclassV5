@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -37,6 +37,8 @@ export default function TeacherDashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
+  const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
+  const [hoveredChart, setHoveredChart] = useState({ attendance: null, activity: null, participation: null });
 
   const refresh = () => setReloadKey((k) => k + 1);
 
@@ -45,7 +47,10 @@ export default function TeacherDashboard() {
       if (!user) return;
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const ds = await getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']);
+      const [ds, teacherClasses] = await Promise.all([
+        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']),
+        getTeacherClassrooms(user.id),
+      ]);
       const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
       const term = terms.find((t) => t.is_active) || terms[0] || null;
@@ -82,23 +87,28 @@ export default function TeacherDashboard() {
         return { group: g, avgTotal, tag, color, memberCount: gm.length };
       });
 
+      const memberNames = Object.fromEntries(members.map((member) => [member.id, `${member.last_name}, ${member.first_name}`]));
       const dateMap = {};
       for (const a of attendance) {
-        if (!dateMap[a.attendance_date]) dateMap[a.attendance_date] = { date: a.attendance_date, present: 0, absent: 0 };
-        if (a.status === "present") dateMap[a.attendance_date].present++;
-        else dateMap[a.attendance_date].absent++;
+        if (!dateMap[a.attendance_date]) dateMap[a.attendance_date] = { date: a.attendance_date, present: 0, absent: 0, presentNames: [], absentNames: [] };
+        if (a.status === "present") { dateMap[a.attendance_date].present++; dateMap[a.attendance_date].presentNames.push(memberNames[a.group_member_id] || 'Student'); }
+        else { dateMap[a.attendance_date].absent++; dateMap[a.attendance_date].absentNames.push(memberNames[a.group_member_id] || 'Student'); }
       }
       const trend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
-      const groupPoints = groups.map((g) => ({
-        name: `G${g.group_number}`,
-        points: logs.filter((l) => l.group_id === g.id).reduce((s, l) => s + (l.points_awarded || 0), 0),
-      }));
+      const pointSets = classroom.uses_groups ? groups.map((group) => ({ id: group.id, name: `Group ${group.group_number}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: 'class', name: 'Whole class', members }];
+      const groupPoints = pointSets.map((set) => {
+        const setLogs = classroom.uses_groups ? logs.filter((log) => log.group_id === set.id) : logs;
+        const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+        const wholeGroup = setLogs.filter((log) => !log.group_member_id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0);
+        return { name: set.name, points: setLogs.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), breakdown, wholeGroup };
+      });
 
       const groupActivity = groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);
-        const avg = gm.length > 0 ? gm.reduce((s, m) => s + computeActivityPct(m.id, scores, activities).pct, 0) / gm.length : 0;
-        return { name: `G${g.group_number}`, avg: Math.round(avg) };
+        const breakdown = gm.map((member) => ({ name: memberNames[member.id], rate: Math.round(computeActivityPct(member.id, scores, activities).pct) }));
+        const avg = breakdown.length > 0 ? breakdown.reduce((sum, member) => sum + member.rate, 0) / breakdown.length : 0;
+        return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown };
       });
 
       const weekStarts = [];
@@ -124,8 +134,19 @@ export default function TeacherDashboard() {
         .slice(0, 6)
         .map((l) => ({ ...l, groupNumber: groups.find((g) => g.id === l.group_id)?.group_number }));
 
+      const attentionByClass = await Promise.all(teacherClasses.map(async (item) => {
+        const source = item.id === classroom.id ? ds : await getClassroomDataset(item.id, ['members', 'attendance', 'groupAccounts']);
+        const todayAttendance = source.attendance.filter((record) => record.attendance_date === getTodayManila());
+        const attendanceByMember = Object.fromEntries(todayAttendance.map((record) => [record.group_member_id, record]));
+        const needsAttendance = source.members.filter((member) => attendanceByMember[member.id]?.status !== 'present').map((member) => ({
+          id: member.id,
+          name: `${member.last_name}, ${member.first_name}`,
+          status: attendanceByMember[member.id]?.status === 'absent' ? 'Absent' : 'No record',
+        }));
+        return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance };
+      }));
       setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs });
+      setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass });
       setLoading(false);
     }
     load();
@@ -134,7 +155,7 @@ export default function TeacherDashboard() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
@@ -154,6 +175,11 @@ export default function TeacherDashboard() {
     { label: "Activities", value: activityAverage, color: "bg-clay-lime" },
     { label: "Participation", value: memberRows.length ? Math.round((onTrack / memberRows.length) * 100) : 0, color: "bg-clay-purple" },
   ];
+  const selectChartBar = (key) => (state) => {
+    const selected = state?.activePayload?.[0]?.payload;
+    if (!selected) return;
+    setHoveredChart((current) => ({ ...current, [key]: current[key] === selected ? null : selected }));
+  };
 
   async function applyPenalty(groupId, points, note) {
     await db.entities.ParticipationLog.create({
@@ -266,6 +292,15 @@ export default function TeacherDashboard() {
 
       <AtRiskAlerts memberRows={memberRows} />
 
+      <ClayCard className="p-4 no-print">
+        <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
+        <p className="mb-2 text-xs text-ink/60">Select a class to see which students need attendance follow-up.</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => {
+          const expanded = expandedAttentionClass === item.classroom.id;
+          return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.missingToday} without a present record today · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">All clear</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">Everyone is marked present today.</p>}</div>}</div>;
+        })}</div>
+      </ClayCard>
+
       {pending.length > 0 && (
         <PendingApprovalBulk pending={pending} groups={groups} onApproveAll={approveAll} onApproveOne={approveOne} />
       )}
@@ -274,43 +309,46 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4">
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><span className="text-xs text-ink/60">Present / absent</span></div>
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} onClick={selectChartBar('attendance')} style={{ cursor: 'pointer' }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
+              <Tooltip content={() => null} cursor={{ fill: '#A6E22E1A' }} />
               <Bar dataKey="present" fill="#A6E22E" radius={[3, 3, 0, 0]} />
               <Bar dataKey="absent" fill="#FF6B57" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Attendance" entry={hoveredChart.attendance}><div className="grid grid-cols-2 gap-3"><div><p className="font-display font-bold text-clay-lime">Present ({hoveredChart.attendance?.present || 0})</p><CompactList entries={hoveredChart.attendance?.presentNames} /></div><div><p className="font-display font-bold text-clay-coral">Absent ({hoveredChart.attendance?.absent || 0})</p><CompactList entries={hoveredChart.attendance?.absentNames} /></div></div></DashboardChartDetail>
         </ClayCard>
 
         <ClayCard className="p-4">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Group Activity Avg</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupActivity}>
+            <BarChart data={groupActivity} onClick={selectChartBar('activity')} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-              <Tooltip />
+              <Tooltip content={() => null} cursor={{ fill: '#8B5CF61A' }} />
               <Bar dataKey="avg" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Activity scores" entry={hoveredChart.activity}>{hoveredChart.activity?.breakdown?.length ? <div className="space-y-0.5">{hoveredChart.activity.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.rate}%</span></p>)}</div> : <p>No activity scores yet.</p>}</DashboardChartDetail>
         </ClayCard>
 
         <ClayCard className="p-4 lg:col-span-2">
           <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4" /> Participation Points by Group</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupPoints}>
+            <BarChart data={groupPoints} onClick={selectChartBar('participation')} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
+              <Tooltip content={() => null} cursor={{ fill: '#4FD1F21A' }} />
               <Bar dataKey="points" fill="#FF5FA8" radius={[6, 6, 0, 0]}>
                 {groupPoints.map((_, i) => <Cell key={i} fill="#4FD1F2" />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <DashboardChartDetail title="Participation points" entry={hoveredChart.participation}><p className="font-display font-bold">Whole Group: {hoveredChart.participation?.wholeGroup || 0} points</p>{hoveredChart.participation?.breakdown?.length ? <div className="mt-1 space-y-0.5">{hoveredChart.participation.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>)}</div> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hoveredChart.participation?.points || 0} points</p></DashboardChartDetail>
         </ClayCard>
       </div>
 
@@ -390,4 +428,12 @@ function weekEndOf(ws) {
   const d = new Date(ws + "T00:00:00");
   d.setDate(d.getDate() + 6);
   return d.toISOString().slice(0, 10);
+}
+
+function DashboardChartDetail({ title, entry, children }) {
+  return <div className="mt-2 min-h-14 rounded-xl border-2 border-ink/10 bg-cream px-3 py-2 text-xs" aria-live="polite">{entry ? <><p className="font-display font-bold">{title}: {entry.name || entry.date}</p><div className="mt-1 max-h-24 overflow-y-auto pr-1 text-ink/75">{children}</div></> : <p className="text-ink/55">Select a bar to see its compact breakdown.</p>}</div>;
+}
+
+function CompactList({ entries = [] }) {
+  return entries.length ? <div className="max-h-20 overflow-y-auto pr-1 text-ink/75">{entries.map((entry, index) => <p key={`${entry}-${index}`} className="truncate">{entry}</p>)}</div> : <p className="text-ink/55">None</p>;
 }

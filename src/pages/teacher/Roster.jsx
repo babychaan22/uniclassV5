@@ -16,6 +16,7 @@ import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { Save, Loader2, UserCog, Trash2, Crown } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import RepresentativeRosterRequests from '@/components/teacher/RepresentativeRosterRequests';
 
 export default function Roster() {
   const { user } = useAuth();
@@ -101,6 +102,11 @@ export default function Roster() {
       <div>
         {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
+
+      <RepresentativeRosterRequests classroomId={classroom.id} members={members} onReviewed={async () => {
+        invalidateClassroomContext();
+        await load();
+      }} />
 
       {groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);

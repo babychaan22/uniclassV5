@@ -1,14 +1,15 @@
 // AI/formative missions are submitted by individual learners. Manual missions
-// retain the teacher's existing group-grade workflow.
+// retain the teacher's existing group-grade workflow. A member id is also used
+// as a safe fallback for older individual records.
 export function missionUsesIndividualProgress(mission, submissions = []) {
-  if (mission?.formative_type && mission.formative_type !== 'manual') return true;
+  if (mission?.formative_type && mission.formative_type !== "manual") return true;
   return submissions.some((submission) => submission.mission_id === mission?.id && !!submission.group_member_id);
 }
 
 export function getMissionMaxScore(mission) {
   try {
-    const content = JSON.parse(mission?.ai_content || '{}');
-    if (mission?.formative_type === 'drag_drop' && Array.isArray(content.left)) return content.left.length || Number(mission.max_score) || 0;
+    const content = JSON.parse(mission?.ai_content || "{}");
+    if (mission?.formative_type === "drag_drop" && Array.isArray(content.left)) return content.left.length || Number(mission.max_score) || 0;
     if (Array.isArray(content.questions)) return content.questions.length || Number(mission.max_score) || 0;
   } catch {}
   return Number(mission?.max_score) || 0;
@@ -38,6 +39,8 @@ export function missionDeadlineAt(mission) {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   if (!mission.deadline) return null;
+  // Older missions only had a date. They remain available until the end of
+  // that Manila calendar day, while new missions always use a precise time.
   const date = new Date(`${mission.deadline}T23:59:59+08:00`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -49,5 +52,6 @@ export function isMissionLocked(mission, now = new Date()) {
 
 export function formatMissionDeadline(mission) {
   const deadline = missionDeadlineAt(mission);
-  return deadline ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(deadline) : null;
+  if (!deadline) return null;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(deadline);
 }

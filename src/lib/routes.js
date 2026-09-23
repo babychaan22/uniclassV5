@@ -28,6 +28,7 @@ export const ROUTES = {
     MISSION_ARCHIVE:    '/teacher/mission-archive',
     SCORE_IMPORT:       '/teacher/score-import',
     ACTIVITIES:         '/teacher/activities',
+    ATTENDANCE:         '/teacher/attendance',
     EXPORT_DATA:        '/teacher/export-data',
     HELP_GUIDE:         '/teacher/help-guide',
     BADGES:             '/teacher/badges',

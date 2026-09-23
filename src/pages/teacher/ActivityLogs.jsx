@@ -4,7 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from "@/lib/teacherClassroom";
+import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
@@ -59,27 +59,29 @@ export default function ActivityLogs() {
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
     setMembers(members);
 
-    const logEntries = logs.map((l) => ({
+    const logEntries = logs.map((l) => {
+      const movedOriginal = Number(l.points_awarded || 0) === 0 && (l.note?.startsWith('Recipient correction:') || l.note?.startsWith('Superseded duplicate:'));
+      return {
       id: `log-${l.id}`,
       type: l.event_type || "scan",
-      points: Number(l.points_awarded || 0),
-      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? null : 'Individual'),
-      memberLabel: l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null,
-      note: l.event_type === 'mission_redemption'
+      points: movedOriginal ? null : Number(l.points_awarded || 0),
+      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+      memberLabel: movedOriginal ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
+      note: movedOriginal ? l.note : (l.event_type === 'mission_redemption'
         ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
-        : l.note,
+        : l.note),
       created_date: l.created_date,
       sourceLogId: l.id,
       group_id: l.group_id,
       group_member_id: l.group_member_id,
       correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
-    }));
+    }; });
 
     const redemptionEntries = redemptions.map((r) => ({
       id: `redemption-${r.id}`,
       type: "redemption",
       points: -Math.abs(r.points_spent || 0),
-      groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : null,
+      groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: null,
       note: r.reward_title,
       created_date: r.created_date,
@@ -89,7 +91,7 @@ export default function ActivityLogs() {
       id: `badge-${b.id}`,
       type: "badge",
       points: null,
-      groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : null,
+      groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: null,
       note: b.title,
       created_date: b.created_date,
@@ -108,8 +110,9 @@ export default function ActivityLogs() {
     setLoadingMore(false);
   }
 
-  async function saveCorrection(sourceLogId, targetMemberId, reason) {
-    await correctParticipationRecipient(sourceLogId, targetMemberId, reason);
+  async function saveCorrection(sourceLogId, targetMemberId) {
+    await correctParticipationRecipient(sourceLogId, targetMemberId);
+    invalidateClassroomDataset();
     setCorrection(null);
     setNotice('Points were moved and the original award was kept in the audit history.');
     await load();
@@ -124,59 +127,35 @@ export default function ActivityLogs() {
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <p className="mb-1 text-sm font-display font-bold text-clay-purple">Classroom history</p>
-        <h1 className="text-3xl font-display font-extrabold tracking-tight sm:text-4xl flex items-center gap-2"><ScrollText className="w-7 h-7" /> Activity Logs</h1>
-        <p className="mt-2 text-ink/60 text-sm sm:text-base">Every scan, gacha result, redemption, and badge award in your classroom.</p>
-      </div>
+  const groupedEntries = Object.values(entries.reduce((groups, entry) => {
+    const key = entry.groupLabel || 'Whole class';
+    if (!groups[key]) groups[key] = { label: key, entries: [] };
+    groups[key].entries.push(entry);
+    return groups;
+  }, {}));
 
+  return (
+    <div className="max-w-2xl mx-auto space-y-5">
+      <div>
+        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2">
+          <ScrollText className="w-6 h-6" /> Activity Logs
+        </h1>
+        <p className="text-ink/60 text-sm">Every scan, gacha result, redemption, and badge award in your classroom.</p>
+      </div>
       {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
+
 
       {entries.length === 0 && (
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
       )}
 
-      {entries.map((e) => {
-        const meta = LABELS[e.type] || { label: e.type, color: "purple" };
-        return (
-          <ClayCard key={e.id} className="p-4 transition-transform hover:-translate-y-0.5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <ClayChip color={meta.color}>{meta.label}</ClayChip>
-                  {e.groupLabel && <ClayChip color="sky">{e.groupLabel}</ClayChip>}
-                </div>
-                {(e.memberLabel || e.note) && (
-                  <p className="text-sm text-ink/70 mt-2 truncate">
-                    {e.memberLabel ? `${e.memberLabel} — ` : ""}
-                    {e.note}
-                  </p>
-                )}
-                {e.created_date && (
-                  <p className="text-[10px] text-ink/40 mt-1 font-mono">
-                    {new Date(e.created_date).toLocaleString()}
-                  </p>
-                )}
-              </div>
-              {e.points != null && (
-                <div className="text-right shrink-0 flex items-center gap-1">
-                  {e.type === "badge" ? (
-                    <Award className="w-5 h-5 text-clay-sun" />
-                  ) : (
-                    <p className={`font-mono font-extrabold text-lg ${e.points < 0 ? "text-clay-coral" : "text-clay-lime"}`}>
-                      {e.points > 0 ? "+" : ""}
-                      {e.points}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            {e.correctable && <div className="mt-3 border-t-2 border-ink/10 pt-3"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-4 w-4" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}
-          </ClayCard>
-        );
-      })}
+      {groupedEntries.map((section) => <ClayCard key={section.label} className="p-3">
+        <div className="mb-2 flex items-center justify-between"><p className="font-display font-bold text-sm">{section.label}</p><ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip></div>
+        <div className="divide-y divide-ink/10">{section.entries.map((e) => {
+          const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
+          return <div key={e.id} className="py-2 first:pt-0 last:pb-0"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><ClayChip color={meta.color}>{meta.label}</ClayChip>{e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}</div>{e.note && <p className="mt-1 truncate text-xs text-ink/65">{e.note}</p>}<p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p></div>{e.points != null && <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>{e.points > 0 ? '+' : ''}{e.points}</p>}</div>{e.correctable && <div className="mt-2"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}</div>;
+        })}</div>
+      </ClayCard>)}
       {hasMore && <ClayButton onClick={() => load(page + 1)} color="white" className="w-full" disabled={loadingMore}>
         {loadingMore ? "Loading…" : "Load older activity"}
       </ClayButton>}

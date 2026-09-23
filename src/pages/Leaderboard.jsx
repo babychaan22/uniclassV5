@@ -16,6 +16,7 @@ export default function Leaderboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
+  const [studentRows, setStudentRows] = useState([]);
 
   useEffect(() => {
     load();
@@ -28,8 +29,9 @@ export default function Leaderboard() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const [groups, logs, submissions] = await Promise.all([
+    const [groups, members, logs, submissions] = await Promise.all([
       db.entities.Group.filter({ classroom_id: c.id }),
+      db.entities.GroupMember.filter({ classroom_id: c.id }),
       db.entities.ParticipationLog.filter({ classroom_id: c.id }),
       db.entities.MissionSubmission.filter({ classroom_id: c.id }),
     ]);
@@ -40,20 +42,28 @@ export default function Leaderboard() {
       const missions = submissions.filter((s) => s.group_id === g.id).length;
       return { group: g, points: Math.round(pts), missions };
     }).sort((a, b) => b.points - a.points || b.missions - a.missions);
+    const students = members.map((member) => {
+      const points = logs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (log.event_type === 'behavior_penalty' ? -Math.abs(log.points_awarded || 0) : (log.points_awarded || 0)), 0);
+      const missions = submissions.filter((submission) => submission.group_member_id === member.id).length;
+      return { member, points: Math.round(points), missions };
+    }).sort((a, b) => b.points - a.points || b.missions - a.missions);
     setRows(rows);
+    setStudentRows(students);
     setLoading(false);
   }
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   const max = Math.max(...rows.map((r) => r.points), 1);
+  const maxStudent = Math.max(...studentRows.map((r) => r.points), 1);
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Trophy className="w-6 h-6" /> Student Leaderboard</h1>
-        <p className="text-ink/60 text-sm">Every group in the selected class, ranked by participation points and mission completions.</p>
+        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Trophy className="w-6 h-6" /> Class Leaderboard</h1>
+        <p className="text-ink/60 text-sm">Groups and individual students are ranked within the selected class.</p>
       </div>
 
+      <h2 className="font-display font-bold text-lg">Group ranking</h2>
       <div className="space-y-2">
         {rows.map((r, i) => {
           const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
@@ -75,6 +85,15 @@ export default function Leaderboard() {
             </ClayCard>
           );
         })}
+      </div>
+
+      <h2 className="font-display font-bold text-lg pt-2">Individual ranking</h2>
+      <div className="space-y-2">
+        {studentRows.map((r, i) => {
+          const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+          return <ClayCard key={r.member.id} className={`p-4 ${i < 3 ? 'border-clay-sun' : ''}`}><div className="flex items-center gap-3"><span className="font-mono font-extrabold text-lg w-8 text-center">{medal || i + 1}</span><div className="flex-1"><div className="mb-1 flex justify-between"><span className="font-display font-bold">{r.member.last_name}, {r.member.first_name}</span><span className="font-mono text-sm">{r.points} pts</span></div><div className="h-5 overflow-hidden rounded-full border-2 border-ink bg-cream"><div className={`h-full ${i === 0 ? 'bg-clay-sun' : 'bg-clay-sky'}`} style={{ width: `${(r.points / maxStudent) * 100}%` }} /></div></div><ClayChip color="purple"><Target className="w-3 h-3" /> {r.missions}</ClayChip></div></ClayCard>;
+        })}
+        {studentRows.length === 0 && <p className="text-center text-sm text-ink/50">No individual points yet.</p>}
       </div>
     </div>
   );
