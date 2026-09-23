@@ -10,7 +10,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
 import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
-import { ScrollText, Award, ArrowRightLeft } from "lucide-react";
+import { ScrollText, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { correctParticipationRecipient } from '@/lib/secureActions';
 

@@ -13,7 +13,6 @@ import { claimBadgeDefinition } from "@/lib/secureActions";
 import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { Check, Loader2 } from "lucide-react";
 import NovaMessage from "@/components/NovaMessage";
-import { UIAsset } from "@/components/visual/UIAsset";
 
 const BADGE_INFO = {
   weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, icon: "🎯" },

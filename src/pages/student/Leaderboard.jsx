@@ -11,7 +11,7 @@ import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Trophy, Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
+import { Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
 import { computeParticipationPoints } from "@/lib/stats";
 import { supabase } from '@/api/supabaseClient';
 import { ROUTES } from '@/lib/routes';
