@@ -2,12 +2,16 @@ const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Image, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers } from '@/lib/teacherClassroom';
 import ClayCard from '@/components/ClayCard';
 import ClayButton from '@/components/ClayButton';
+import NovaEmptyState from '@/components/mascot/NovaEmptyState';
+import NovaMessage from '@/components/NovaMessage';
+import UserAvatar from '@/components/visual/UserAvatar';
+import { UIAsset } from '@/components/visual/UIAsset';
 import { ROUTES } from '@/lib/routes';
 
 export default function TeacherEvidence() {
@@ -71,19 +75,27 @@ export default function TeacherEvidence() {
   }, {});
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
-      <div className="flex items-start justify-between gap-3">
+    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(300px,.72fr)] lg:items-center">
         <div>
-          <h1 className="text-2xl font-display font-extrabold flex items-center gap-2"><Image className="w-6 h-6" /> Activity Proof</h1>
-          <p className="text-ink/60 text-sm">Review the images students or representatives uploaded before scores were submitted.</p>
+          <p className="text-sm font-semibold text-[var(--uc-purple)]">Score reliability</p>
+          <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Activity proof</h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Review images uploaded by students or representatives before scores are submitted.</p>
         </div>
+        <NovaMessage variant="assessment" tone="violet" title="Every proof tells part of the story.">Open a tile to inspect the work at full size.</NovaMessage>
+      </section>
+      <div className="flex justify-end">
         <ClayButton onClick={load} color="white" className="shrink-0" aria-label="Refresh activity proof"><RefreshCw className="w-4 h-4" /></ClayButton>
       </div>
       {error && <ClayCard color="coral" className="p-4 text-sm">{error}</ClayCard>}
       {loading ? <div className="py-16 text-center text-ink/60">Loading activity proof…</div> : rows.length === 0 ? (
-        <ClayCard className="p-8 text-center text-ink/60">No activity proof has been uploaded yet.</ClayCard>
+        <NovaEmptyState
+          variant="teacher"
+          title="No activity proof yet"
+          description="Students will upload activity proof after they submit their scores. It will appear here for your review."
+        />
       ) : (
-        <div className="space-y-4">{Object.values(sections).map((section) => <ClayCard key={section.key} className="p-3"><div className="flex items-center justify-between gap-2 mb-2"><div><p className="font-display font-extrabold text-sm">{section.activityLabel}</p><p className="text-xs text-ink/55">{section.groupLabel} · {section.rows.length} proof{section.rows.length === 1 ? '' : 's'}</p></div></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{section.rows.map((row) => <a key={row.id} href={row.signedUrl || undefined} target="_blank" rel="noreferrer" className="rounded-lg border-2 border-ink/15 bg-cream overflow-hidden"><div className="h-20 bg-ink/5">{row.signedUrl ? <img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-full w-full object-cover" loading="lazy" /> : <div className="h-full flex items-center justify-center text-xs text-ink/50">Unavailable</div>}</div><p className="p-2 text-xs font-display font-bold truncate">{row.memberLabel}</p></a>)}</div></ClayCard>)}</div>
+        <div className="space-y-4">{Object.values(sections).map((section) => <ClayCard key={section.key} className="p-4 sm:p-5"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-3"><UIAsset name="resources" className="h-10 w-10" /><div><p className="font-display text-lg font-extrabold text-[var(--uc-navy-950)]">{section.activityLabel}</p><p className="text-xs text-ink/55">{section.groupLabel} · {section.rows.length} proof{section.rows.length === 1 ? '' : 's'}</p></div></div></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{section.rows.map((row) => <a key={row.id} href={row.signedUrl || undefined} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-ink/5 bg-[var(--uc-bg)] transition-transform hover:-translate-y-0.5"><div className="h-28 bg-ink/5 sm:h-32">{row.signedUrl ? <img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-xs text-ink/50">Unavailable</div>}</div><div className="flex items-center gap-2 p-2.5"><UserAvatar name={row.memberLabel} size="sm" /><p className="min-w-0 truncate text-xs font-display font-bold text-[var(--uc-navy-950)]">{row.memberLabel}</p></div></a>)}</div></ClayCard>)}</div>
       )}
       {!loading && hasMore && <ClayButton onClick={() => load(page + 1)} disabled={loadingMore} color="white" className="w-full">
         {loadingMore ? 'Loading…' : 'Load older proof'}

@@ -4,7 +4,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
-import { Award, Plus, Trash2, Loader2 } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { reviewBadgeClaim } from '@/lib/secureActions';
 
 export default function TeacherBadges() {
@@ -41,9 +43,9 @@ export default function TeacherBadges() {
     finally { setReviewing(null); }
   }
   if (!classroom) return <div className="py-20 text-center">Loading…</div>;
-  return <div className="max-w-2xl mx-auto space-y-5">
-    <div><h1 className="text-2xl font-display font-extrabold flex items-center gap-2"><Award className="w-6 h-6" /> Badges</h1><p className="text-ink/60 text-sm">Create weekend badges and approve group badge requests.</p></div>
-    <ClayCard className="p-5"><form onSubmit={create} className="space-y-3">
+  return <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+    <section className="grid gap-4 lg:grid-cols-[1fr_minmax(300px,.72fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Weekly recognition</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Badges</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">Create meaningful achievements and approve group requests before points are awarded.</p></div><NovaMessage variant="achievement" tone="yellow" title="Small wins deserve to be seen.">Keep badge criteria clear and celebrate progress together.</NovaMessage></section>
+    <ClayCard className="p-5"><div className="mb-4 flex items-center gap-3"><UIAsset name="assessment" className="h-11 w-11" /><div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Create badge</h2><p className="text-sm text-ink/60">Badges can be shared across your classes.</p></div></div><form onSubmit={create} className="space-y-3">
       <input className="clay-input" placeholder="Badge title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required />
       <textarea className="clay-input" rows={2} placeholder="What should students celebrate?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
       <div className="grid grid-cols-3 gap-2"><input className="clay-input" placeholder="🏅" value={form.icon} onChange={e => setForm({ ...form, icon: e.target.value })} /><select className="clay-input" value={form.badge_scope} onChange={e => setForm({ ...form, badge_scope: e.target.value })}><option value="group">Group badge</option><option value="personal">Personal badge</option></select><input className="clay-input" type="number" min="0" value={form.points} onChange={e => setForm({ ...form, points: e.target.value })} /></div>

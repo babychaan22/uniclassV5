@@ -10,13 +10,15 @@ import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Switch } from "@/components/ui/switch";
-import { Target, Plus, Trash2, Loader2, Sparkles, ImagePlus, Upload, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
-import { generateMissionImage, invokeLLM } from "@/lib/aiService";
-import MascotWidget from "@/components/MascotWidget";
+import { invokeLLM } from "@/lib/aiService";
+import NovaEmptyState from "@/components/mascot/NovaEmptyState";
+import NovaMessage from "@/components/NovaMessage";
+import { NovaAsset, UIAsset } from "@/components/visual/UIAsset";
 
 const PROMPT_TEMPLATES = {
   true_false: {
@@ -67,15 +69,14 @@ export default function TeacherMissions() {
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [missions, setMissions] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [members, setMembers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
   const [creating, setCreating] = useState(false);
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState(null);
-  const [missionImage, setMissionImage] = useState(null);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [imageGenerations, setImageGenerations] = useState(0);
   const [draftKey] = useState(() => crypto.randomUUID());
   const [grading, setGrading] = useState(null);
   const [gradeVal, setGradeVal] = useState("");
@@ -103,12 +104,13 @@ export default function TeacherMissions() {
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
     const [ds, catalog, classes] = await Promise.all([
-      getClassroomDataset(c.id, ['groups','submissions']),
+      getClassroomDataset(c.id, ['groups','submissions','members']),
       db.entities.Mission.filter({ created_by: user.id }),
       getTeacherClassrooms(user.id),
     ]);
     setMissions([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
+    setMembers(ds.members);
     setSubmissions(ds.submissions);
     setTeacherClasses(classes);
     setTargetClassIds((current) => current.length ? current : [c.id]);
@@ -132,7 +134,6 @@ export default function TeacherMissions() {
       applies_to_all_classes: targetAllClasses,
       target_classroom_ids: targetAllClasses ? [] : targetClassIds,
       target_statuses: targetStatuses,
-      image_url: missionImage || undefined,
       formative_type: form.formative_type,
       ai_content: isAi && aiContent
         ? JSON.stringify({
@@ -147,8 +148,6 @@ export default function TeacherMissions() {
     });
     setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
     setAiContent(null);
-    setMissionImage(null);
-    setImageGenerations(0);
     setGenMsg(null);
     setTargetAllClasses(true);
     setTargetClassIds([classroom.id]);
@@ -156,22 +155,6 @@ export default function TeacherMissions() {
     setCreating(false);
     invalidateClassroomDataset();
     load();
-  }
-
-  async function generateImage() {
-    if (!form.title || !form.content || !form.learning_target) { setGenMsg("Add a title, topic, and learning target first."); return; }
-    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
-    setGeneratingImage(true); setGenMsg(null);
-    try {
-      const imageUrl = await generateMissionImage({
-        draftKey,
-        prompt: `Create a clear, age-appropriate educational illustration for a formative assessment titled "${form.title}". Learning target: ${form.learning_target}. Topic: ${form.content}. No answers, logos, or watermark. Use a focused, friendly learning-app style.`,
-      });
-      setMissionImage(imageUrl);
-      setImageGenerations((count) => count + 1);
-      setGenMsg("Image generated. Review it before creating the mission.");
-    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
-    setGeneratingImage(false);
   }
 
   function updateQuestion(index, patch) {
@@ -195,21 +178,6 @@ export default function TeacherMissions() {
       updateQuestion(index, { image_url: data.publicUrl });
       setGenMsg(`Visual added to question ${index + 1}.`);
     } catch (err) { setGenMsg("Image upload failed: " + (err.message || "error")); }
-    setGeneratingImage(false);
-  }
-
-  async function generateQuestionImage(question, index) {
-    if (imageGenerations >= 3) { setGenMsg("This mission has reached its 3-image limit."); return; }
-    setGeneratingImage(true); setGenMsg(null);
-    try {
-      const imageUrl = await generateMissionImage({
-        draftKey,
-        prompt: `Create a precise, age-appropriate educational visual that helps a student answer this exact question.\nMission title: ${form.title}\nLearning target: ${form.learning_target}\nTopic: ${form.content}\nQuestion: ${question.prompt}\nIf the question needs a diagram (for example a coordinate plane, graph, geometric figure, map, timeline, science setup, or labeled object), draw the diagram accurately with the necessary labels, axes, values, points, or symbols. Do not add decorative text, answers, logos, or watermarks. Keep the visual clear, high-contrast, and focused on the question.`,
-      });
-      updateQuestion(index, { image_url: imageUrl });
-      setImageGenerations((count) => count + 1);
-      setGenMsg(`Visual generated for question ${index + 1}. Review it before creating the mission.`);
-    } catch (err) { setGenMsg("Image generation failed: " + (err.message || "error")); }
     setGeneratingImage(false);
   }
 
@@ -277,14 +245,14 @@ export default function TeacherMissions() {
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Target className="w-6 h-6" /> Group Missions</h1>
-        <p className="text-ink/60 text-sm">Create formative-assessment missions. Students earn XP and redeem it into participation points.</p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(310px,.7fr)] lg:items-center">
+        <div><p className="text-sm font-semibold text-[var(--uc-purple)]">Formative assessment</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Create a mission</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">Design a focused assessment, attach question visuals when they help, then target the learners who need it.</p></div>
+        <NovaMessage variant="assessment" tone="violet" title="Great questions create brighter learning.">Nova can help you prepare a student-ready formative check.</NovaMessage>
+      </section>
 
       <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-sm mb-3">New Mission</h2>
+        <div className="mb-4 flex items-center gap-3"><UIAsset name="assessment" className="h-12 w-12" /><div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Mission details</h2><p className="text-sm text-ink/60">Start with the learning target students should practice.</p></div></div>
         <form onSubmit={createMission} className="space-y-3">
           <div>
             <label className="font-display font-bold text-xs mb-1 block">Title</label>
@@ -338,10 +306,7 @@ export default function TeacherMissions() {
               <ClayButton type="button" color="sky" size="sm" className="w-full" disabled={generating} onClick={generateAI}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}
               </ClayButton>
-              <ClayButton type="button" color="lime" size="sm" className="w-full" disabled={generatingImage || imageGenerations >= 3} onClick={generateImage}>
-                {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate mission cover image ({imageGenerations}/3)</>}
-              </ClayButton>
-              <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state={generating ? "ai_thinking" : "quest"} size="sm" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[rgba(50,169,237,.14)] bg-[var(--uc-blue-soft)] p-3"><NovaAsset pose={generating ? "thinking" : "ai"} className="h-12 w-12 shrink-0" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
               {genMsg && <p className={`text-xs font-display font-bold ${genMsg.includes("failed") || genMsg.includes("Add") ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
               {aiContent && (
                 <div className="space-y-3">
@@ -361,9 +326,8 @@ export default function TeacherMissions() {
                               <button type="button" onClick={() => updateQuestion(index, { image_url: undefined })} className="absolute right-2 top-2 clay-btn bg-clay-coral p-1.5 text-white" aria-label={`Remove visual from question ${index + 1}`}><X className="w-4 h-4" /></button>
                             </div>
                           ) : <p className="text-xs text-ink/50">No visual attached.</p>}
-                          <div className="grid grid-cols-2 gap-2">
+                          <div>
                             <label className={`clay-btn bg-clay-sky px-2 py-2 text-xs cursor-pointer ${generatingImage ? "pointer-events-none opacity-60" : ""}`}><Upload className="w-4 h-4" /> Upload visual<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { uploadQuestionImage(e.target.files?.[0], index); e.target.value = ""; }} /></label>
-                            <ClayButton type="button" color="lime" size="sm" className="px-2 text-xs" disabled={generatingImage || imageGenerations >= 3} onClick={() => generateQuestionImage(question, index)}>{generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ImagePlus className="w-4 h-4" /> Generate visual</>}</ClayButton>
                           </div>
                         </div>
                       ))}
@@ -371,7 +335,6 @@ export default function TeacherMissions() {
                   )}
                 </div>
               )}
-              {missionImage && <div className="rounded-xl border-2 border-ink overflow-hidden"><img src={missionImage} alt="Generated mission illustration" className="w-full max-h-64 object-cover" /></div>}
             </>
           )}
           <div className="grid grid-cols-3 gap-3">
@@ -427,11 +390,19 @@ export default function TeacherMissions() {
         </form>
       </ClayCard>
 
-      {missions.length === 0 && <div className="flex flex-col items-center gap-2 py-3 text-center"><MascotWidget state="quest" /><p className="text-ink/50 text-sm">Nova is ready when you are—create your first mission above.</p></div>}
+      {missions.length === 0 && (
+        <NovaEmptyState
+          variant="idea"
+          title="No missions yet"
+          description="Nova is ready when you are—create your first mission above."
+        />
+      )}
 
       {missions.map((m) => {
-        const gradedCount = groups.filter((g) => submissions.find((s) => s.mission_id === m.id && s.group_id === g.id)).length;
         const isAi = m.formative_type && m.formative_type !== "manual";
+        const gradedCount = isAi
+          ? submissions.filter((s) => s.mission_id === m.id && s.group_member_id).length
+          : groups.filter((g) => submissions.find((s) => s.mission_id === m.id && s.group_id === g.id)).length;
         let aiParsed = null, akParsed = {};
         if (isAi) {
           try { aiParsed = JSON.parse(m.ai_content || "{}"); } catch {}
@@ -451,7 +422,7 @@ export default function TeacherMissions() {
                   <ClayChip color="purple">/{m.max_score} max</ClayChip>
                   {m.deadline && <ClayChip color="sky">Due {m.deadline}</ClayChip>}
                   {m.formative_type && m.formative_type !== "manual" && <ClayChip color="purple">{m.formative_type.replace("_", " ")}</ClayChip>}
-                  <ClayChip color="sky">{gradedCount}/{groups.length} graded</ClayChip>
+                  <ClayChip color="sky">{isAi ? `${gradedCount}/${members.length} student responses` : `${gradedCount}/${groups.length} graded`}</ClayChip>
                   <ClayChip color={m.is_active ? "lime" : "cream"}>{m.is_active ? "Active" : "Hidden"}</ClayChip>
                 </div>
               </div>
@@ -472,7 +443,7 @@ export default function TeacherMissions() {
                 {stats.length > 0 && (
                   <div className="mt-3 rounded-xl border-2 border-ink/15 bg-clay-sky/20 p-3">
                     <p className="text-xs font-display font-bold">Learning signal</p>
-                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted group response{stats[0].total === 1 ? "" : "s"}.</p>
+                    <p className="text-[11px] text-ink/60 mt-0.5">Based on {stats[0].total} submitted student response{stats[0].total === 1 ? "" : "s"}.</p>
                     <div className="mt-2 space-y-1.5">
                       {hardest.map((q, i) => (
                         <div key={`${q.prompt}-${i}`} className="flex items-center gap-2 text-xs">
@@ -487,16 +458,20 @@ export default function TeacherMissions() {
               </div>
             )}
             <div className="mt-3 border-t-2 border-ink/15 pt-3 space-y-2">
-              <p className="text-xs font-display font-bold">Per-group status (XP = score/{m.max_score} × {m.xp_reward})</p>
+              <p className="text-xs font-display font-bold">{isAi ? `Student mission progress (XP = score/${m.max_score} × ${m.xp_reward})` : `Per-group status (XP = score/${m.max_score} × ${m.xp_reward})`}</p>
               {groups.map((g) => {
                 const sub = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id);
+                const groupMembers = members.filter((member) => member.group_id === g.id);
+                const groupSubmissions = submissions.filter((submission) => submission.mission_id === m.id && submission.group_id === g.id && submission.group_member_id);
                 const isGradingThis = grading?.missionId === m.id && grading?.groupId === g.id;
                 let subAnswers = null;
                 if (isAi && sub?.answers) { try { subAnswers = JSON.parse(sub.answers); } catch {} }
                 return (
                   <div key={g.id} className="flex items-center gap-2">
                     <span className="font-display font-bold text-sm w-24 shrink-0">Group {g.group_number}</span>
-                    {isGradingThis ? (
+                    {isAi ? (
+                      <div className="flex flex-1 flex-wrap items-center gap-2"><ClayChip color={groupSubmissions.length === groupMembers.length && groupMembers.length ? "lime" : "sun"}>{groupSubmissions.length}/{groupMembers.length} submitted</ClayChip>{groupSubmissions.map((studentSubmission) => { const member = members.find((item) => item.id === studentSubmission.group_member_id); return <ClayChip key={studentSubmission.id} color="sky">{member ? `${member.first_name} ${member.last_name}` : "Student"}: {studentSubmission.score} → {studentSubmission.xp_earned} XP</ClayChip>; })}</div>
+                    ) : isGradingThis ? (
                       <div className="flex-1 space-y-2">
                         {isAi && <MissionAnswerReview type={m.formative_type} content={aiParsed} answerKey={akParsed} groupAnswers={subAnswers} />}
                         <form onSubmit={(e) => saveGrade(e, m, g)} className="flex gap-2">

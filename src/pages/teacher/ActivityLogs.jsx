@@ -125,15 +125,14 @@ export default function ActivityLogs() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2">
-          <ScrollText className="w-6 h-6" /> Activity Logs
-        </h1>
-        <p className="text-ink/60 text-sm">Every scan, gacha result, redemption, and badge award in your classroom.</p>
+        <p className="mb-1 text-sm font-display font-bold text-clay-purple">Classroom history</p>
+        <h1 className="text-3xl font-display font-extrabold tracking-tight sm:text-4xl flex items-center gap-2"><ScrollText className="w-7 h-7" /> Activity Logs</h1>
+        <p className="mt-2 text-ink/60 text-sm sm:text-base">Every scan, gacha result, redemption, and badge award in your classroom.</p>
       </div>
-      {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
 
+      {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
 
       {entries.length === 0 && (
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
@@ -142,7 +141,7 @@ export default function ActivityLogs() {
       {entries.map((e) => {
         const meta = LABELS[e.type] || { label: e.type, color: "purple" };
         return (
-          <ClayCard key={e.id} className="p-4">
+          <ClayCard key={e.id} className="p-4 transition-transform hover:-translate-y-0.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -173,8 +172,8 @@ export default function ActivityLogs() {
                   )}
                 </div>
               )}
-            {e.correctable && <div className="mt-3 border-t-2 border-ink/10 pt-3"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-4 w-4" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}
             </div>
+            {e.correctable && <div className="mt-3 border-t-2 border-ink/10 pt-3"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-4 w-4" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}
           </ClayCard>
         );
       })}

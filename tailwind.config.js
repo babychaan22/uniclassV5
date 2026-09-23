@@ -46,14 +46,14 @@ module.exports = {
   			ring: 'hsl(var(--ring))',
   			ink: '#17162B',
   			cream: '#FFF8EF',
-  			clay: {
-  				purple: '#8B5CF6',
-  				pink: '#FF5FA8',
-  				lime: '#A6E22E',
-  				sun: '#FFD93D',
-  				sky: '#4FD1F2',
-  				coral: '#FF6B57',
-  			},
+    clay: {
+    			purple: '#8E5CF6',
+    			pink: '#F34A9B',
+    			lime: '#84D92C',
+    			sun: '#FFC52C',
+    			sky: '#32A9ED',
+    			coral: '#EB5757',
+    		},
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',

@@ -11,7 +11,10 @@ import { supabase } from "@/api/supabaseClient";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Users, Save, Loader2, UserCog, Trash2, Crown } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import UserAvatar from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { Save, Loader2, UserCog, Trash2, Crown } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
 export default function Roster() {
@@ -86,10 +89,16 @@ export default function Roster() {
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,.75fr)] lg:items-center">
+        <div>
+          <p className="text-sm font-semibold text-[var(--uc-purple)]">Class management</p>
+          <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Student roster</h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Edit names, tidy duplicates, and choose the representative for each group.</p>
+        </div>
+        <NovaMessage variant="learning" tone="blue" title="A well-kept class helps everyone shine.">Review each group whenever learners join or change roles.</NovaMessage>
+      </section>
       <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Users className="w-6 h-6" /> Student Roster</h1>
-        <p className="text-ink/60 text-sm">Edit, remove duplicates, or assign a new representative for each group.</p>
         {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
 
@@ -97,9 +106,10 @@ export default function Roster() {
         const gm = members.filter((m) => m.group_id === g.id);
         if (gm.length === 0) return null;
         return (
-          <ClayCard key={g.id} className="p-4">
-            <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4" /> Group {g.group_number}{g.group_name ? ` — ${g.group_name}` : ""} <ClayChip color="cream">{gm.length}</ClayChip>
+          <ClayCard key={g.id} className="p-4 sm:p-5">
+            <h2 className="mb-4 flex items-center gap-3 font-display text-lg font-extrabold text-[var(--uc-navy-950)]">
+              <UIAsset name="students" className="h-10 w-10" />
+              <span>Group {g.group_number}{g.group_name ? ` — ${g.group_name}` : ""}</span> <ClayChip color="cream">{gm.length} members</ClayChip>
             </h2>
             <div className="space-y-2">
               {gm.map((mem) => {
@@ -107,7 +117,7 @@ export default function Roster() {
                 const editing = !!v;
                 const memberAccount = accounts.find((a) => a.group_member_id === mem.id);
                 return (
-                  <div key={mem.id} className="flex flex-wrap items-center gap-2 p-2 rounded-xl border-2 border-ink/15 bg-cream">
+                  <div key={mem.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-ink/5 bg-[var(--uc-bg)] p-3">
                     {editing ? (
                       <>
                         <input className="clay-input text-sm w-32" value={v.last_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, last_name: e.target.value.toUpperCase() } })} placeholder="LAST" />
@@ -122,7 +132,8 @@ export default function Roster() {
                       </>
                     ) : (
                       <>
-                        <span className="font-display font-bold text-sm flex-1 min-w-0">{mem.last_name}, {mem.first_name}</span>
+                        <UserAvatar name={`${mem.last_name}-${mem.first_name}`} size="sm" />
+                        <span className="min-w-0 flex-1 font-display text-sm font-bold text-[var(--uc-navy-950)]">{mem.last_name}, {mem.first_name}</span>
                         {memberAccount?.is_representative && <ClayChip color="purple">Rep</ClayChip>}
                         {mem.is_account_holder && <ClayChip color="sky">Account</ClayChip>}
                         <ClayButton size="sm" color="sky" onClick={() => startEdit(mem)}><UserCog className="w-4 h-4" /> Edit</ClayButton>

@@ -37,3 +37,5 @@ dist-ssr
 
 # Supabase CLI local metadata
 /supabase/.temp
+
+.vercel

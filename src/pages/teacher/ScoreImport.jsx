@@ -7,10 +7,12 @@ import { useAuth } from "@/lib/AuthContext";
 import { getClassroomGroups, getClassroomMembers } from "@/lib/teacherClassroom";
 
 import Papa from "papaparse";
+import Nova from "@/components/mascot/Nova";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Upload, Download, Loader2, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import { Upload, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
 const TEMPLATE_HEADERS = ["group_number", "last_name", "first_name", "category", "item_label", "score", "max_score"];
@@ -144,14 +146,15 @@ export default function ScoreImport() {
   if (loadingClass && !selectedClassroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Upload className="w-6 h-6" /> Score Import</h1>
-        <p className="text-ink/60 text-sm">Pick a class, download a prefilled CSV template, then upload the filled scores.</p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr] lg:items-center">
+        <div><p className="mb-1 text-sm font-display font-bold text-clay-purple">Assessment tools</p><h1 className="text-3xl font-display font-extrabold tracking-tight sm:text-4xl flex items-center gap-2"><Upload className="w-7 h-7" /> Import scores</h1><p className="mt-2 text-ink/60 text-sm sm:text-base">Pick a class, download a prefilled CSV template, then upload the filled scores.</p></div>
+        <NovaMessage variant="idea" title="Bring scores in quickly" tone="blue">Your template already includes the students in the selected class.</NovaMessage>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[.95fr_1.05fr]">
       <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-sm mb-3">Step 1 — Select Class</h2>
+        <div className="mb-4 flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-clay-purple text-sm font-display font-bold text-white">1</span><div><h2 className="font-display font-bold text-lg">Select class</h2><p className="text-xs text-ink/55">Choose the roster for this import.</p></div></div>
         <label className="font-display font-bold text-xs mb-1 block">Class</label>
         <select className="clay-input" value={selectedId} onChange={onChangeClass}>
           {classrooms.map((c) => <option key={c.id} value={c.id}>{c.grade_level} · {c.section}{c.subject ? ` · ${c.subject}` : ""}</option>)}
@@ -166,15 +169,15 @@ export default function ScoreImport() {
       </ClayCard>
 
       <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" /> Step 2 — Template</h2>
+        <div className="mb-4 flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-clay-sky text-sm font-display font-bold text-white">2</span><div><h2 className="font-display font-bold text-lg">Download template</h2><p className="text-xs text-ink/55">Use the prepared file for this class.</p></div></div>
         <p className="text-xs text-ink/60 mb-3">Columns: {TEMPLATE_HEADERS.join(", ")}. Categories: {CATEGORIES.join(", ")}. Student rows are prefilled — fill the last 4 columns.</p>
         <ClayButton color="sky" size="sm" onClick={downloadTemplate} disabled={!selectedId || members.length === 0}>
           <Download className="w-4 h-4" /> Download CSV Template
         </ClayButton>
       </ClayCard>
 
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Upload className="w-4 h-4" /> Step 3 — Upload Filled CSV</h2>
+      <ClayCard className="p-5 lg:col-span-2">
+        <div className="mb-4 flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-clay-lime text-sm font-display font-bold text-ink">3</span><div><h2 className="font-display font-bold text-lg">Upload completed file</h2><p className="text-xs text-ink/55">We match each score to the current roster.</p></div></div>
         <input type="file" accept=".csv" onChange={handleFile} disabled={busy || !selectedId} className="clay-input p-2" />
         {busy && <p className="text-xs text-ink/60 mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Processing...</p>}
         {result && (
@@ -182,15 +185,18 @@ export default function ScoreImport() {
             {result.error ? (
               <ClayChip color="coral">{result.error}</ClayChip>
             ) : (
-              <div className="flex gap-2">
-                <ClayChip color="lime"><CheckCircle2 className="w-3 h-3" /> {result.ok} imported</ClayChip>
-                {result.fail > 0 && <ClayChip color="coral">{result.fail} unmatched</ClayChip>}
+              <div className="flex items-center gap-3 rounded-xl border border-[rgba(16,32,101,.08)] bg-clay-lime/5 p-3">
+                <Nova variant="celebrate" size="sm" className="h-10 w-10" />
+                <div className="flex gap-2">
+                  <ClayChip color="lime"><CheckCircle2 className="w-3 h-3" /> {result.ok} imported</ClayChip>
+                  {result.fail > 0 && <ClayChip color="coral">{result.fail} unmatched</ClayChip>}
+                </div>
               </div>
             )}
           </div>
         )}
       </ClayCard>
+      </div>
     </div>
   );
 }
-

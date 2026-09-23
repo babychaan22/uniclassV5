@@ -11,7 +11,9 @@ import ClayChip from "@/components/ClayChip";
 import { redeemBadge } from "@/lib/badgeService";
 import { claimBadgeDefinition } from "@/lib/secureActions";
 import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
-import { Award, Check, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
 
 const BADGE_INFO = {
   weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, icon: "🎯" },
@@ -124,22 +126,17 @@ export default function StudentBadges() {
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-extrabold flex items-center gap-2"><Award className="w-6 h-6" /> Badges</h1>
-          <p className="text-ink/60 text-sm font-mono">Week of {weekStart}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Weekly achievements</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Badges</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">Celebrate consistent attendance, effort, and teamwork. Week of {weekStart}.</p></div><NovaMessage variant="achievement" tone="yellow" title="You’re building something brilliant.">Eligible badges can be requested at the end of the week.</NovaMessage></section>
 
       {result && <ClayCard color="sky" className="p-3 text-center"><p className="font-display font-bold text-sm">{result.title} requested</p><p className="text-xs text-ink/60 mt-1">Your teacher must approve it before points are added.</p></ClayCard>}
 
       {error && <p className="text-clay-coral font-display font-bold text-sm text-center">{error}</p>}
 
       {!endOfWeek && (
-        <ClayCard className="p-4 text-center">
-          <p className="font-display font-bold text-sm">🔒 Badges unlock at the end of the week (Saturday &amp; Sunday).</p>
-          <p className="text-xs text-ink/50 mt-1">Come back then to compare your group's activity, points &amp; attendance and claim rewards.</p>
+        <ClayCard tone="yellow" className="p-4 text-center">
+          <p className="font-display font-bold text-sm mb-1">🔒 Badges unlock at the end of the week (Saturday &amp; Sunday).</p>
+          <p className="text-xs text-ink/50">Come back then to compare your group's activity, points &amp; attendance and claim rewards.</p>
         </ClayCard>
       )}
 

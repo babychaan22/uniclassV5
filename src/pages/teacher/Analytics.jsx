@@ -7,8 +7,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayCard from "@/components/ClayCard";
-import { BarChart3, TrendingUp } from "lucide-react";
-import { ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from "recharts";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { ResponsiveContainer, XAxis, YAxis, Tooltip, BarChart, Bar, Cell } from "recharts";
 import { ROUTES } from '@/lib/routes';
 
 function weekKey(d) {
@@ -57,47 +58,60 @@ export default function TeacherAnalytics() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   const visibleAttendance = range === 'all' ? attendanceTrend : attendanceTrend.slice(-Number(range));
+  const currentAttendance = visibleAttendance.at(-1)?.rate || 0;
+  const leadingGroup = groupPoints.slice().sort((a, b) => b.points - a.points)[0];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><BarChart3 className="w-6 h-6" /> Teacher Analytics</h1>
-        <p className="text-ink/60 text-sm">Attendance and participation trends across all groups this term.</p>
-      </div>
+    <div className="space-y-6">
+      <section className="grid items-center gap-4 lg:grid-cols-[1fr_.9fr]">
+        <div>
+          <p className="mb-2 text-sm font-display font-bold text-clay-purple">Classroom insights</p>
+          <h1 className="uc-page-title text-4xl leading-[.92] sm:text-5xl">See the progress behind every class day.</h1>
+          <p className="mt-3 max-w-xl text-sm text-ink/60 sm:text-base">A clear view of attendance and participation across your selected class.</p>
+        </div>
+        <NovaMessage variant="teacher" tone="blue" title="The story in your data">
+          Use the date selector to spot progress early and celebrate the wins that matter.
+        </NovaMessage>
+      </section>
 
-      <ClayCard className="p-4">
-        <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance rate</h2><select aria-label="Analytics date range" className="clay-input w-auto py-1 text-xs" value={range} onChange={(event) => setRange(event.target.value)}><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="12">12 weeks</option><option value="all">All</option></select></div>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <ClayCard className="p-4"><p className="text-xs font-display font-bold text-ink/55">Latest attendance</p><p className="mt-1 font-mono text-3xl font-extrabold text-clay-sky">{currentAttendance}%</p><p className="mt-1 text-xs text-ink/55">for the most recent recorded week</p></ClayCard>
+        <ClayCard className="p-4"><p className="text-xs font-display font-bold text-ink/55">Participation leader</p><p className="mt-1 font-display text-2xl font-extrabold text-clay-purple">{leadingGroup?.name || "—"}</p><p className="mt-1 text-xs text-ink/55">{leadingGroup ? `${leadingGroup.points} points earned` : "No points recorded yet"}</p></ClayCard>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+      <ClayCard className="p-4 sm:p-5">
+        <div className="mb-4 flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="uc-icon-tile bg-clay-sky/15"><UIAsset name="attendance" className="h-10 w-10" /></span><div><h2 className="font-display font-bold text-lg">Attendance rate</h2><p className="text-xs text-ink/55">Weekly student presence</p></div></div><select aria-label="Analytics date range" className="clay-input w-auto min-h-9 py-1 text-xs" value={range} onChange={(event) => setRange(event.target.value)}><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="12">12 weeks</option><option value="all">All</option></select></div>
         {visibleAttendance.length === 0 ? (
           <p className="text-ink/50 text-sm text-center py-6">No attendance recorded yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={visibleAttendance} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#0001" />
               <XAxis dataKey="week" tick={{ fontSize: 11 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="rate" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="rate" radius={[10, 10, 0, 0]}>{visibleAttendance.map((_, index) => <Cell key={index} fill={["#8E5CF6", "#F34A9B", "#32A9ED", "#84D92C"][index % 4]} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
       </ClayCard>
 
-      <ClayCard className="p-4">
-        <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Participation Points by Group</h2>
+      <ClayCard className="p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-3"><span className="uc-icon-tile bg-clay-lime/20"><UIAsset name="students" className="h-10 w-10" /></span><div><h2 className="font-display font-bold text-lg">Group participation</h2><p className="text-xs text-ink/55">Points earned by each group</p></div></div>
         {groupPoints.every((g) => g.points === 0) ? (
           <p className="text-ink/50 text-sm text-center py-6">No participation points logged yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={groupPoints} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#0001" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="points" fill="#A6E22E" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="points" radius={[10, 10, 0, 0]}>{groupPoints.map((_, index) => <Cell key={index} fill={["#32A9ED", "#8E5CF6", "#F34A9B", "#84D92C"][index % 4]} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
       </ClayCard>
+      </div>
     </div>
   );
 }

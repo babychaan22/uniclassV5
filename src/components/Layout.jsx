@@ -10,10 +10,39 @@ import {
   Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import { MascotBadge } from "@/components/MascotWidget";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
 import TeacherClassSwitcher from "@/components/TeacherClassSwitcher";
 import OfflineStatus from "@/components/OfflineStatus";
+import BrandMark from "@/components/BrandMark";
+import UserAvatar from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
+
+const NAV_ASSET_BY_LABEL = {
+  Dashboard: "home",
+  Analytics: "analytics",
+  Missions: "assessment",
+  "QR Generator": "upload",
+  "Score Import": "upload",
+  Activities: "assessment",
+  "Reward Catalog": "reward",
+  Rewards: "reward",
+  Badges: "badge",
+  Roster: "students",
+  Accounts: "students",
+  Announcements: "notifications",
+  "Activity Logs": "analytics",
+  "Activity Proof": "view",
+  "Export Data": "download",
+  "Mission Archive": "resources",
+  Leaderboard: "reward",
+  "Class Setup": "settings",
+  Settings: "settings",
+  "Help Guide": "help",
+  Help: "help",
+  Attendance: "attendance",
+  "Activity Scores": "assessment",
+  "Scan QR": "upload",
+};
 
 const TEACHER_NAV_SECTIONS = [
   {
@@ -94,6 +123,18 @@ export default function Layout() {
         { label: "Reports", path: ROUTES.TEACHER.ANALYTICS, icon: BarChart3 },
       ]
     : STUDENT_NAV;
+  const headerLinks = isTeacher
+    ? [
+        { label: "Dashboard", path: ROUTES.TEACHER.DASHBOARD },
+        { label: "Classes", path: ROUTES.TEACHER.ROSTER },
+        { label: "Students", path: ROUTES.TEACHER.STUDENT_MANAGEMENT },
+        { label: "Resources", path: ROUTES.TEACHER.ACTIVITIES },
+      ]
+    : [
+        { label: "Dashboard", path: ROUTES.STUDENT.DASHBOARD },
+        { label: "Missions", path: ROUTES.STUDENT.MISSIONS },
+        { label: "Rewards", path: ROUTES.STUDENT.REWARDS },
+      ];
 
   useEffect(() => {
     const current = TEACHER_NAV_SECTIONS.find((section) => section.items.some((item) => item.path === location.pathname));
@@ -104,10 +145,11 @@ export default function Layout() {
 
   const NavItem = ({ item }) => {
     const Icon = item.icon;
+    const assetName = NAV_ASSET_BY_LABEL[item.label];
     const active = location.pathname === item.path;
     return (
-      <Link key={item.path} to={item.path} onClick={() => setOpen(false)} className={`clay-btn justify-start px-3 py-2 text-sm ${active ? "bg-clay-pink text-white" : "bg-cream text-ink"}`}>
-        <Icon className="w-5 h-5" />
+      <Link key={item.path} to={item.path} onClick={() => setOpen(false)} className={`flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-display font-bold transition-colors ${active ? "bg-clay-purple text-white shadow-[0_4px_10px_rgba(142,92,246,.22)]" : "text-ink/70 hover:bg-clay-purple/10 hover:text-ink"}`}>
+        {assetName ? <UIAsset name={assetName} className="h-4 w-4" /> : <Icon className="w-4 h-4" />}
         {item.label}
       </Link>
     );
@@ -129,30 +171,36 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-[var(--uc-bg)]">
       <OfflineStatus />
-      <header className="sticky top-0 z-40 bg-clay-purple text-white border-b-[3px] border-ink no-print">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
+        <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
           <Link to={isTeacher ? ROUTES.TEACHER.DASHBOARD : ROUTES.STUDENT.DASHBOARD} className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-clay-pink border-[3px] border-ink flex items-center justify-center shadow-[2px_2px_0_#17162B]">
-              <MascotBadge />
-            </div>
-            <span className="font-display font-extrabold text-lg sm:text-xl">UniClass</span>
+            <BrandMark />
+            <span className="font-display text-xl font-extrabold tracking-tight text-[var(--uc-navy-950)] sm:text-2xl">UniClass</span>
           </Link>
+          <nav aria-label="Primary" className="ml-8 hidden flex-1 items-center gap-1 xl:flex">
+            {headerLinks.map((item) => {
+              const active = location.pathname === item.path;
+              return <Link key={item.path} to={item.path} className={`rounded-xl px-4 py-2 text-sm font-display font-bold transition-colors ${active ? "bg-clay-purple/15 text-[var(--uc-navy-950)]" : "text-ink/65 hover:bg-clay-purple/8 hover:text-ink"}`}>{item.label}</Link>;
+            })}
+          </nav>
+          <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block xl:hidden">Teach. Learn. Grow. Together.</p>
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
-            <span className="hidden sm:block text-sm font-display font-bold opacity-90">{user?.email}</span>
+            <button type="button" aria-label="Notifications" className="hidden rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10 sm:inline-flex"><UIAsset name="notifications" className="h-5 w-5" /></button>
+            <span className="hidden sm:flex"><UserAvatar name={user?.email} size="md" /></span>
             <ThemeToggle />
-            <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-pink text-white px-2 py-2" aria-label="Menu">
+            <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 flex gap-6">
-        <aside className="hidden lg:block w-56 shrink-0 no-print">
-          <nav className="flex flex-col gap-3">
+      <div className="mx-auto flex max-w-[1440px] gap-6 px-4 py-5 sm:px-6 lg:py-7">
+        <aside className="hidden w-56 shrink-0 lg:block no-print">
+          <nav className="sticky top-[5.75rem] flex max-h-[calc(100vh-7rem)] flex-col gap-3 overflow-y-auto rounded-[22px] border border-[rgba(16,32,101,.06)] bg-white/85 p-3 shadow-[var(--uc-shadow-sm)]">
             {isTeacher ? (
               TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
             ) : (
@@ -160,21 +208,21 @@ export default function Layout() {
                 {STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} />)}
               </div>
             )}
-            <button onClick={handleLogout} className="clay-btn justify-start px-4 py-3 text-sm bg-clay-coral text-white mt-2">
+            <button onClick={handleLogout} className="mt-2 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-display font-bold text-clay-coral transition-colors hover:bg-clay-coral/10">
               <LogOut className="w-5 h-5" /> Log out
             </button>
           </nav>
         </aside>
 
         {open && (
-          <div className="lg:hidden fixed inset-0 top-16 z-30 bg-cream/95 backdrop-blur no-print" onClick={() => setOpen(false)}>
-            <nav className="flex flex-col gap-2 p-4">
+          <div className="fixed inset-0 top-16 z-30 bg-[var(--uc-bg)]/95 backdrop-blur lg:hidden no-print" onClick={() => setOpen(false)}>
+            <nav className="mx-auto flex max-h-[calc(100vh-4rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
               {isTeacher ? (
                 TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
               ) : (
                 STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} />)
               )}
-              <button onClick={handleLogout} className="clay-btn justify-start px-4 py-3 text-sm bg-clay-coral text-white mt-4">
+              <button onClick={handleLogout} className="mt-4 flex min-h-11 items-center gap-2 rounded-xl bg-clay-coral px-4 py-3 text-sm font-display font-bold text-white">
                 <LogOut className="w-5 h-5" /> Log out
               </button>
             </nav>
@@ -186,14 +234,15 @@ export default function Layout() {
         </main>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-clay-purple border-t-[3px] border-ink no-print">
-        <div className="flex overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden items-center h-16 gap-1 px-2">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(29,38,88,.08)] backdrop-blur no-print">
+        <div className="flex h-16 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {nav.map((item) => {
             const Icon = item.icon;
+            const assetName = NAV_ASSET_BY_LABEL[item.label];
             const active = location.pathname === item.path;
             return (
-              <Link key={item.path} to={item.path} className={`flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-lg shrink-0 ${active ? "text-clay-sun" : "text-white/70"}`}>
-                <Icon className="w-5 h-5" />
+            <Link key={item.path} to={item.path} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 shrink-0 ${active ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+                {assetName ? <UIAsset name={assetName} className="h-5 w-5" /> : <Icon className="w-5 h-5" />}
                 <span className="text-[10px] font-display font-bold">{item.label.split(" ")[0]}</span>
               </Link>
             );

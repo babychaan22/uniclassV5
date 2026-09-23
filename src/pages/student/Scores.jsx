@@ -9,7 +9,10 @@ import { ensureGroupActivity, recordActivityEvidence } from "@/lib/secureActions
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
-import { FileText, Lock, AlertTriangle, Loader2 } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import UserAvatar from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { Lock, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function StudentScores() {
   const { user } = useAuth();
@@ -152,11 +155,15 @@ export default function StudentScores() {
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><FileText className="w-6 h-6" /> Activity Scores</h1>
-        <p className="text-ink/60">Scores are permanent once saved — no edits after.</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center">
+        <div>
+          <p className="text-sm font-semibold text-[var(--uc-purple)]">Activity submission</p>
+          <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Activity scores</h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Upload proof for every group member, record scores carefully, then submit once.</p>
+        </div>
+        <NovaMessage variant="learning" tone="blue" title="Proof first, then scores.">A clear photo keeps your group’s work easy to review.</NovaMessage>
+      </section>
 
       {!canEdit && (
         <ClayCard color="sun" className="p-4 flex items-center gap-3">
@@ -165,8 +172,8 @@ export default function StudentScores() {
         </ClayCard>
       )}
 
-      <ClayCard className="p-4">
-        <label className="font-display font-bold text-sm mb-2 block">Activity Number</label>
+      <ClayCard className="p-4 sm:p-5">
+        <div className="mb-3 flex items-center gap-3"><UIAsset name="assessment" className="h-11 w-11" /><div><label className="block font-display text-lg font-extrabold text-[var(--uc-navy-950)]">Choose an activity</label><p className="text-xs text-ink/60">The newest activities appear first.</p></div></div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {assignedActivities.map((assigned) => { const n = assigned.activity_number;
             const isLocked = lockedActivities[n];
@@ -174,7 +181,7 @@ export default function StudentScores() {
             return (
               <button key={n} onClick={() => setActivityNum(n)}
                 title={assigned.title || `Activity ${n}`}
-                className={`clay-btn h-14 w-full justify-center px-3 text-sm relative truncate ${isSelected ? "bg-clay-pink text-white" : isLocked ? "bg-ink/10 text-ink/40" : "bg-cream text-ink"}`}>
+                className={`clay-btn h-16 w-full justify-center px-3 text-sm relative truncate ${isSelected ? "bg-clay-purple text-white" : isLocked ? "bg-ink/10 text-ink/40" : "bg-white text-ink"}`}>
                 {isLocked && <Lock className="w-3 h-3 absolute top-0.5 right-0.5" />}
                 {assigned.title || `Activity ${n}`}
               </button>
@@ -204,6 +211,7 @@ export default function StudentScores() {
           <div className="space-y-3">
             {members.map((m) => (
               <ClayCard key={m.id} className="p-4 flex items-center gap-3">
+                <UserAvatar name={`${m.last_name}-${m.first_name}`} size="sm" />
                 <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className={`text-xs font-bold ${evidenceByMember[m.id] ? "text-clay-lime" : "text-clay-coral"}`}>{evidenceByMember[m.id] ? "Proof uploaded" : "Proof required"}</p></div>
                 <label className={`clay-btn bg-clay-sky text-ink px-2 py-2 text-xs cursor-pointer ${proofBusy ? "opacity-60 pointer-events-none" : ""}`}>{proofBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Upload proof"}<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={proofBusy} onChange={(e) => { uploadProof(e.target.files?.[0], m.id); e.target.value = ""; }} /></label>
                 <div className="flex items-center gap-2">

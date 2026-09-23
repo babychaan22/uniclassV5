@@ -1,12 +1,10 @@
 
 import { useEffect, useState } from "react";
 import ClayCard from "@/components/ClayCard";
-import { TrendingUp } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 
 const db = globalThis.__B44_DB__;
-
-const PALETTE = ["#8B5CF6", "#FF5FA8", "#4FD1F2", "#A6E22E", "#FFD93D", "#FF6B57", "#6C9EFF", "#F59E0B"];
 
 function weekEnds(start, end) {
   const out = [];
@@ -62,7 +60,7 @@ function categoryPct(memberId, assessments, cat, upTo) {
 
 // Fetches its own assessments + grading terms so a failure never blocks the
 // rest of the student dashboard (which passes the already-loaded data below).
-export default function TrendCharts({ classroomId, members, attendance, scores, activities, logs }) {
+export default function TrendCharts({ classroomId, members, currentMemberId, attendance, scores, activities, logs, range = "week" }) {
   const [extra, setExtra] = useState(null);
 
   useEffect(() => {
@@ -81,52 +79,54 @@ export default function TrendCharts({ classroomId, members, attendance, scores, 
 
   const { assessments, terms } = extra;
   const term = terms.find((t) => t.is_active) || terms[0];
-  const weeks = term ? weekEnds(term.start_date, term.end_date) : recentWeekEnds(8);
+  const allWeeks = term ? weekEnds(term.start_date, term.end_date) : recentWeekEnds(8);
+  const rangeCount = range === "week" ? 1 : range === "month" ? 4 : allWeeks.length;
+  const weeks = allWeeks.slice(-rangeCount);
   if (weeks.length === 0) return null;
+  const member = members.find((item) => item.id === currentMemberId) || members[0];
+  if (!member) return null;
 
-  const metrics = [
-    { key: "attendance", label: "Attendance %", calc: (id, up) => attRate(id, attendance, up) },
-    { key: "participation", label: "Participation Pts", calc: (id, up) => participation(id, logs, up) },
-    { key: "activity", label: "Activity %", calc: (id, up) => activityPct(id, scores, activities, up) },
-    { key: "quiz", label: "Quiz %", calc: (id, up) => categoryPct(id, assessments, "quiz", up) },
-    { key: "exam", label: "Major Exam %", calc: (id, up) => categoryPct(id, assessments, "major_exam", up) },
-    { key: "perf", label: "Performance Task %", calc: (id, up) => categoryPct(id, assessments, "performance_task", up) },
-  ];
-
-  const labelOf = (m) => `${m.first_name} ${m.last_name[0]}.`;
-
-  const charts = metrics.map((metric) => ({
-    ...metric,
-    data: weeks.map((w) => {
-      const row = { week: w.slice(5) };
-      members.forEach((m) => { row[labelOf(m)] = metric.calc(m.id, w); });
-      return row;
-    }),
-  }));
+  const lastWeek = weeks[weeks.length - 1];
+  const attendancePct = attRate(member.id, attendance, lastWeek);
+  const activity = activityPct(member.id, scores, activities, lastWeek);
+  const learningBars = [
+    { name: "Activities", value: activity, color: "#A6E22E" },
+    { name: "Quizzes", value: categoryPct(member.id, assessments, "quiz", lastWeek), color: "#4FD1F2" },
+    { name: "Performance", value: categoryPct(member.id, assessments, "performance_task", lastWeek), color: "#8B5CF6" },
+  ].filter((item) => item.value > 0 || item.name === "Activities");
+  const weeklyPoints = weeks.map((weekEnd) => {
+    const start = new Date(`${weekEnd}T00:00:00`);
+    start.setDate(start.getDate() - 6);
+    const weekStart = start.toISOString().slice(0, 10);
+    return {
+      week: weekEnd.slice(5),
+      points: logs
+        .filter((log) => log.group_member_id === member.id && (log.created_date || "").slice(0, 10) >= weekStart && (log.created_date || "").slice(0, 10) <= weekEnd)
+        .reduce((sum, log) => sum + (log.points_awarded || 0), 0),
+    };
+  });
 
   return (
-    <ClayCard className="p-4">
-      <h2 className="font-display font-bold text-lg mb-1 flex items-center gap-2"><TrendingUp className="w-5 h-5" /> Term Trends</h2>
-      <p className="text-xs text-ink/60 mb-3">{term ? `${term.term_label} · ` : ""}cumulative progress by week for each group member</p>
-      <div className="grid sm:grid-cols-2 gap-4">
-        {charts.map((c) => (
-          <div key={c.key} className="rounded-xl border-2 border-ink/15 bg-cream/40 p-2">
-            <p className="font-display font-bold text-xs mb-1">{c.label}</p>
-            <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={c.data} margin={{ top: 4, right: 6, left: -22, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
-                <XAxis dataKey="week" tick={{ fontSize: 9 }} />
-                <YAxis tick={{ fontSize: 9 }} />
-                <Tooltip />
-                {members.map((m, i) => (
-                  <Line key={m.id} type="monotone" dataKey={labelOf(m)} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={false} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
-      </div>
-    </ClayCard>
+    <section aria-label="Your progress" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ClayCard className="p-4 sm:p-5">
+        <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-sky/15"><UIAsset name="attendance" className="h-8 w-8" /></span>Attendance</p>
+        <div className="mx-auto mt-4 flex h-32 w-32 items-center justify-center rounded-full" style={{ background: `conic-gradient(#32A9ED ${attendancePct}%, #E8EDF5 0)` }}>
+          <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white"><strong className="font-mono text-2xl text-[var(--uc-navy-950)]">{attendancePct}%</strong><span className="text-[10px] text-ink/60">present</span></div>
+        </div>
+      </ClayCard>
+      <ClayCard className="p-4 sm:p-5">
+        <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-purple/12"><UIAsset name="analytics" className="h-8 w-8" /></span>Learning progress</p>
+        <div className="mt-5 space-y-4">
+          {learningBars.map((item) => <div key={item.name}><div className="mb-1 flex justify-between text-xs font-display font-bold"><span>{item.name}</span><span>{Math.round(item.value)}%</span></div><div className="uc-progress-track"><div className="uc-progress-fill" style={{ width: `${Math.min(item.value, 100)}%`, backgroundColor: item.color }} /></div></div>)}
+        </div>
+      </ClayCard>
+      <ClayCard className="p-4 sm:col-span-2 sm:p-5 lg:col-span-1">
+        <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-pink/12"><UIAsset name="analytics" className="h-8 w-8" /></span>Points earned</p>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={weeklyPoints} margin={{ top: 14, right: 0, left: -28, bottom: 0 }}><XAxis dataKey="week" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="points" fill="#FF5FA8" radius={[8, 8, 0, 0]} /></BarChart>
+        </ResponsiveContainer>
+      </ClayCard>
+      <p className="sm:col-span-2 lg:col-span-3 text-xs text-ink/60">{term ? `${term.term_label} · ` : ""}Progress reflects the selected period.</p>
+    </section>
   );
 }
-

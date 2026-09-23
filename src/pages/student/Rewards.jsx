@@ -9,7 +9,10 @@ import { getActiveStudentAccount } from "@/lib/studentContext";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Gift, Loader2, Sparkles } from "lucide-react";
+import NovaEmptyState from "@/components/mascot/NovaEmptyState";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { redeemReward } from '@/lib/secureActions';
 
@@ -63,17 +66,12 @@ export default function StudentRewards() {
   const { group, active, gross, spent, pending, available, redemptions } = data;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Rewards Shop</h1>
-        <p className="text-ink/60 text-sm">Trade your group&apos;s participation points for rewards available across your enrolled classes.</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Group rewards</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Rewards shop</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">Use group participation points for teacher-approved rewards available across your enrolled classes.</p></div><NovaMessage variant="achievement" tone="pink" title="Great teamwork earns great things.">Choose a reward together, then wait for your teacher’s approval.</NovaMessage></section>
 
       <ClayCard color="purple" className="p-5">
         <div className="flex items-center gap-4">
-          <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">
-            <Sparkles className="w-8 h-8 text-ink" />
-          </div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="assessment" className="h-14 w-14" /></div>
           <div className="flex-1 text-white">
             <p className="font-mono font-extrabold text-4xl leading-none">{Math.round(available)}</p>
             <p className="font-display font-bold text-sm">Points available to spend</p>
@@ -85,7 +83,11 @@ export default function StudentRewards() {
       {msg && <p className={`font-display font-bold text-sm text-center ${msg.ok ? "text-clay-lime" : "text-clay-coral"}`}>{msg.text}</p>}
 
       {active.length === 0 ? (
-        <p className="text-ink/50 text-sm text-center">No rewards available right now.</p>
+        <NovaEmptyState
+          variant="achievement"
+          title="No rewards available right now"
+          description="Rewards will appear here once you've earned enough points. Keep earning activity and attendance points!"
+        />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {active.map((r) => {

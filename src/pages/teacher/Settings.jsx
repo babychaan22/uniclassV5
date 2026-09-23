@@ -9,6 +9,8 @@ import { getTeacherClassroom, invalidateTeacherClassroom } from "@/lib/teacherCl
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import UserAvatar from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
 import { Settings as SettingsIcon, Loader2, Save, Check, User, Calendar, RefreshCw, SlidersHorizontal, Hash, Trash2, Copy } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
@@ -152,29 +154,53 @@ export default function TeacherSettings() {
   const weightSum = WEIGHT_KEYS.reduce((s, w) => s + Number(weights[w.key] || 0), 0);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><SettingsIcon className="w-6 h-6" /> Classroom Settings</h1>
-        <p className="text-ink/60 text-sm">Manage your account, class display, grading weights, class code, and terms — all in one place.</p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+      <section className="uc-card relative overflow-hidden px-5 py-5 sm:px-7 sm:py-6">
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[var(--uc-purple)]">Account & classroom preferences</p>
+            <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Settings</h1>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink/60">Keep your profile, class details, grading setup, and terms organized in one friendly place.</p>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl bg-[var(--uc-purple-soft)] px-4 py-3 sm:min-w-[240px]">
+            <UserAvatar name={user?.email || user?.full_name} size="lg" />
+            <div className="min-w-0">
+              <p className="truncate font-display text-lg font-extrabold text-[var(--uc-navy-950)]">{fullName || "Teacher"}</p>
+              <p className="truncate text-xs text-ink/60">Teacher account</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {msg && <p className={`font-display font-bold text-sm ${msg.ok ? "text-clay-lime" : "text-clay-coral"}`}>{msg.text}</p>}
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`clay-btn px-4 py-2 text-sm ${tab === t.id ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>
-              <Icon className="w-4 h-4" /> {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="uc-card flex gap-2 overflow-x-auto p-2 lg:flex-col lg:overflow-visible">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
+                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-display font-bold transition-colors ${active ? "bg-[var(--uc-purple-soft)] text-[var(--uc-navy-950)]" : "text-ink/60 hover:bg-[var(--uc-purple-soft)]/60 hover:text-[var(--uc-navy-950)]"}`}>
+                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? "bg-white shadow-[var(--uc-shadow-sm)]" : "bg-[var(--uc-bg)]"}`}>
+                  <Icon className={`h-4 w-4 ${active ? "text-[var(--uc-purple)]" : "text-ink/55"}`} />
+                </span>
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
 
+        <div className="min-w-0 space-y-4">
       {tab === "account" && (
         <ClayCard className="p-5 space-y-3">
-          <h2 className="font-display font-bold text-sm">Account Information</h2>
+          <div className="flex items-center gap-3 border-b border-ink/5 pb-4">
+            <UserAvatar name={user?.email || fullName} size="lg" />
+            <div>
+              <h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Profile information</h2>
+              <p className="text-sm text-ink/60">This name appears across your classrooms.</p>
+            </div>
+          </div>
           <div>
             <label className="font-display font-bold text-xs mb-1 block">Email (read-only)</label>
             <input className="clay-input opacity-60" value={user.email || ""} readOnly />
@@ -191,7 +217,10 @@ export default function TeacherSettings() {
 
       {tab === "class" && (
         <ClayCard className="p-5 space-y-3">
-          <h2 className="font-display font-bold text-sm">Class Display Name</h2>
+          <div className="flex items-center gap-3">
+            <UIAsset name="classes" className="h-11 w-11" />
+            <div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Class display</h2><p className="text-sm text-ink/60">How this classroom is labeled for you and your learners.</p></div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-display font-bold text-xs mb-1 block">Grade Level</label>
@@ -218,7 +247,7 @@ export default function TeacherSettings() {
 
       {tab === "weights" && (
         <ClayCard className="p-5 space-y-3">
-          <h2 className="font-display font-bold text-sm">Grading Weight Configuration</h2>
+          <div className="flex items-center gap-3"><UIAsset name="analytics" className="h-11 w-11" /><div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Grading weights</h2><p className="text-sm text-ink/60">Balance each assessment category to reach 100%.</p></div></div>
           <div className="grid grid-cols-2 gap-3">
             {WEIGHT_KEYS.map((w) => (
               <div key={w.key}>
@@ -303,6 +332,8 @@ export default function TeacherSettings() {
           )}
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }

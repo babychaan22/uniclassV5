@@ -9,7 +9,9 @@ import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Megaphone, Plus, Trash2, Loader2, Pin, PinOff } from "lucide-react";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
+import { Plus, Trash2, Loader2, Pin, PinOff } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 
 export default function TeacherAnnouncements() {
@@ -61,14 +63,11 @@ export default function TeacherAnnouncements() {
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Megaphone className="w-6 h-6" /> Announcements</h1>
-        <p className="text-ink/60 text-sm">Draft and pin updates that appear on your students' dashboard.</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(300px,.72fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Class communication</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Announcements</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">Post the updates your students need to see on their dashboard.</p></div><NovaMessage variant="notification" tone="pink" title="Keep everyone in the loop.">Pinned updates are easier for every learner to find.</NovaMessage></section>
 
       <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-sm mb-3">New Announcement</h2>
+        <div className="mb-4 flex items-center gap-3"><UIAsset name="notifications" className="h-11 w-11" /><div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">New announcement</h2><p className="text-sm text-ink/60">Write a concise update for your class.</p></div></div>
         <form onSubmit={create} className="space-y-3">
           <div>
             <label className="font-display font-bold text-xs mb-1 block">Title</label>

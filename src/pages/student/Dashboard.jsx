@@ -10,13 +10,12 @@ import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Flame, Star, Trophy, Users, Megaphone, Target, ArrowRight } from "lucide-react";
-import {
-  computeAttendanceStreak, computeActivityPct, computeParticipationPoints,
-  computeEngagementStreak,
-} from "@/lib/stats";
+import { Flame, Star, Trophy, Users, Megaphone, ArrowRight } from "lucide-react";
+import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila } from "@/lib/week";
 import TrendCharts from "@/components/student/TrendCharts";
+import DashboardRangeTabs from "@/components/DashboardRangeTabs";
+import NovaMessage from "@/components/NovaMessage";
 import { ROUTES } from '@/lib/routes';
 
 export default function StudentDashboard() {
@@ -24,6 +23,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState("week");
 
   useEffect(() => {
     async function load() {
@@ -59,8 +59,7 @@ export default function StudentDashboard() {
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 
-      const memberIds = members.map((m) => m.id);
-      const groupPartStreak = computeEngagementStreak(memberIds, attendance, scores, getTodayManila());
+      const groupPartStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila());
 
       setData({ account, group, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, groupPartStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
@@ -74,13 +73,84 @@ export default function StudentDashboard() {
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
+  const myMemberId = account.group_member_id;
+  const myAttendanceRate = attendance.length ? Math.round((attendance.filter((a) => a.group_member_id === myMemberId && a.status === "present").length / Math.max(1, attendance.filter((a) => a.group_member_id === myMemberId).length)) * 100) : 0;
+  const myActivityPct = memberCards.find((c) => c.member.id === myMemberId)?.activityPct || 0;
+  const myPoints = memberCards.find((c) => c.member.id === myMemberId)?.points || 0;
+
+  const studentProgressAreas = [
+    { label: "Attendance", value: myAttendanceRate, color: "bg-clay-sky" },
+    { label: "Activity", value: Math.round(myActivityPct), color: "bg-clay-lime" },
+    { label: "Participation", value: memberCards.length ? Math.round((memberCards.filter((c) => c.points > 0).length / memberCards.length) * 100) : 0, color: "bg-clay-purple" },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div><h1 className="text-2xl font-display font-extrabold">Group {group.group_number} Dashboard</h1><p className="text-ink/60">Welcome, {account.first_name}!</p></div>
-        <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn bg-cream text-ink px-3 py-2 text-xs">Join another class</Link>
+      <section className="grid items-center gap-4 lg:grid-cols-[1fr_.82fr] no-print">
+        <div>
+          <h1 className="uc-page-title text-4xl leading-none sm:text-5xl">Hi, {account.first_name}!</h1>
+          <p className="mt-3 text-sm text-ink/60 sm:text-base">Keep going—your everyday effort is adding up.</p>
+          <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn mt-4 bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
+        </div>
+        <NovaMessage variant="teacher" tone="violet" title="Small steps, big progress!" className="hidden lg:flex">
+          {missions?.length ? `${missions.length} mission${missions.length === 1 ? " is" : "s are"} ready for your group.` : "Your effort this week is building something great."}
+        </NovaMessage>
+      </section>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DashboardRangeTabs value={range} onChange={setRange} />
+        <ClayChip color="sky">Group {group.group_number}</ClayChip>
       </div>
+
+      <section className="no-print">
+        <div className="grid grid-cols-2 gap-3 text-center sm:gap-3">
+          <ClayCard className="p-3">
+            <div className="font-mono text-2xl font-extrabold text-clay-sky">{myAttendanceRate}%</div>
+            <p className="text-xs font-display font-bold text-ink/60">Attendance</p>
+          </ClayCard>
+          <ClayCard className="p-3">
+            <div className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(myActivityPct)}%</div>
+            <p className="text-xs font-display font-bold text-ink/60">Activity</p>
+          </ClayCard>
+        </div>
+      </section>
+
+      {(missions.length > 0 || memberCards.some((c) => c.activityPct < 60)) && (
+        <ClayCard className="p-3">
+          <h3 className="font-display text-xs font-bold text-ink/60 mb-2">Needs attention</h3>
+          <ul className="space-y-1 text-sm">
+            {missions
+              .slice()
+              .sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""))
+              .filter((m) => m.deadline)
+              .slice(0, 2)
+              .map((m) => (
+                <li key={m.id} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-sun" />
+                  <span>Due {m.deadline}: {m.title}</span>
+                </li>
+              ))}
+            {memberCards.some((c) => c.activityPct < 60) && (
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-coral" />
+                <span>Activity below 60% — submit scores soon</span>
+              </li>
+            )}
+          </ul>
+        </ClayCard>
+      )}
+
+      <section className="no-print">
+        <div className="mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Your progress</h2><p className="text-xs text-ink/60">Building habits across categories</p></div></div>
+        <div className="space-y-3">
+          {studentProgressAreas.map((area) => (
+            <div key={area.label}>
+              <div className="mb-1 flex justify-between text-sm font-display font-bold"><span>{area.label}</span><span>{area.value}%</span></div>
+              <div className="h-4 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${area.color}`} style={{ width: `${area.value}%` }} /></div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {announcements?.length > 0 && (
         <div className="space-y-2">
@@ -93,34 +163,32 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      <ClayCard color="sky" className="p-5">
-        <div className="flex items-start gap-3">
-          <div className="clay-medallion bg-clay-sun w-12 h-12 flex items-center justify-center shrink-0"><Target className="w-6 h-6" /></div>
-          <div className="flex-1">
-            <p className="font-display font-extrabold text-lg">Today&apos;s learning</p>
+      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="lg:hidden">
             {missions?.length ? (
               <>
-                <p className="text-sm text-ink/70">You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
-                <p className="text-xs text-ink/60 mt-1">Next up: {missions[0].title}</p>
+                <p>You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
+                <p className="mt-1 text-xs text-ink/55">Next up: {missions[0].title}</p>
               </>
-            ) : <p className="text-sm text-ink/70">No active missions right now. Keep your group streak going.</p>}
-            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="inline-flex items-center gap-1 font-display font-bold text-sm mt-3 underline">Open missions <ArrowRight className="w-4 h-4" /></Link>}
-          </div>
-        </div>
-      </ClayCard>
+            ) : <p>No active missions right now. Keep your group streak going.</p>}
+            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="mt-3 inline-flex items-center gap-1 font-display text-sm font-bold underline">Open missions <ArrowRight className="w-4 h-4" /></Link>}
+      </NovaMessage>
 
-      <ClayCard className="p-5 flex items-center gap-4">
+      <TrendCharts classroomId={group.classroom_id} members={members} currentMemberId={account.group_member_id} attendance={attendance} scores={scores} activities={activities} logs={logs} range={range} />
+
+      <ClayCard tone="green" className="p-4 flex items-center gap-4">
         <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">
           <Flame className="w-8 h-8 text-clay-coral" />
         </div>
         <div className="flex-1">
           <p className="font-display font-extrabold text-3xl font-mono leading-none">{groupPartStreak}</p>
-          <p className="font-display font-bold text-sm">day{groupPartStreak === 1 ? "" : "s"} in a row with attendance or activity</p>
-          <p className="text-xs text-ink/60">{groupPartStreak > 0 ? "Keep the streak alive!" : "Log attendance or an activity score today to start your streak 🔥"}</p>
+          <p className="font-display font-bold text-sm">your personal day{groupPartStreak === 1 ? "" : "s"} in a row</p>
+          <p className="text-xs text-ink/60">{groupPartStreak > 0 ? "Your own attendance and activity keep this streak alive!" : "Your attendance or activity today starts your own streak 🔥"}</p>
         </div>
       </ClayCard>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <section>
+        <div className="mb-3 flex items-center gap-2"><Users className="h-5 w-5 text-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
+      <div className="grid gap-4 sm:grid-cols-2">
         {memberCards.map(({ member, streak, activityPct, points }) => (
           <ClayCard key={member.id} className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -147,8 +215,7 @@ export default function StudentDashboard() {
           </ClayCard>
         ))}
       </div>
-
-      <TrendCharts classroomId={group.classroom_id} members={members} attendance={attendance} scores={scores} activities={activities} logs={logs} />
+      </section>
 
       <ClayCard className="p-5">
         <h2 className="font-display font-bold text-lg mb-3 flex items-center gap-2"><Users className="w-5 h-5" /> Group Leaderboard</h2>

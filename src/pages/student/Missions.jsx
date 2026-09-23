@@ -13,10 +13,13 @@ import { computeActivityPct, computeAttendanceRate, computeCategoryPct, computeP
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Target, Zap, Loader2, Rocket, History } from "lucide-react";
+import { Loader2, Rocket, History } from "lucide-react";
 import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
+import NovaEmptyState from "@/components/mascot/NovaEmptyState";
+import NovaMessage from "@/components/NovaMessage";
+import { UIAsset } from "@/components/visual/UIAsset";
 import { completeLearningReview, redeemMissionPoints } from '@/lib/secureActions';
 import { missionTargetsClass } from '@/lib/missionAudience';
 
@@ -114,21 +117,20 @@ export default function StudentMissions() {
   const gradedCount = completedMissions.length;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div className="flex items-center gap-3">
-        <MascotWidget state="quest" size="md" />
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center">
         <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Target className="w-6 h-6" /> Group Missions</h1>
-        <p className="text-ink/60 text-sm">Nova&apos;s quests earn XP, then turn it into participation points.</p>
-        <p className="text-xs text-ink/50 mt-1">Your current learning status: {classification.tag}</p>
+          <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning quests</p>
+          <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">My missions</h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Complete your own teacher-assigned activities, learn from feedback, and exchange your XP for your participation points.</p>
+          <p className="mt-2 inline-flex rounded-full bg-[var(--uc-green-soft)] px-3 py-1 text-xs font-semibold text-[var(--uc-navy-950)]">Learning status: {classification.tag}</p>
         </div>
-      </div>
+        <NovaMessage variant="assessment" tone="violet" title="Ready for your next step?">Take your time. Feedback will help you strengthen each topic.</NovaMessage>
+      </section>
 
       <ClayCard color="purple" className="p-5">
         <div className="flex items-center gap-4">
-          <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">
-            <Zap className="w-8 h-8 text-ink" />
-          </div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="assessment" className="h-14 w-14" /></div>
           <div className="flex-1 text-white">
             <p className="font-mono font-extrabold text-4xl leading-none">{available}</p>
             <p className="font-display font-bold text-sm">XP available to redeem</p>
@@ -169,9 +171,9 @@ export default function StudentMissions() {
       )}
 
       {active.length > 0 && (
-        <ClayCard className="p-4">
+        <ClayCard className="p-4 sm:p-5">
           <div className="flex justify-between mb-2">
-            <span className="font-display font-bold text-sm">Mission Progress</span>
+            <span className="flex items-center gap-2 font-display font-bold text-sm"><UIAsset name="analytics" className="h-7 w-7" /> Mission progress</span>
             <span className="font-mono text-sm">{gradedCount}/{active.length} graded</span>
           </div>
           <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">
@@ -184,7 +186,11 @@ export default function StudentMissions() {
       <div>
         <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Rocket className="w-5 h-5" /> Active Missions</h2>
         {currentMissions.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-ink bg-clay-sky/30 p-3"><MascotWidget state="waiting" size="sm" /><p className="text-ink/60 text-sm">Nova is watching for the next quest. Check back when your teacher posts one.</p></div>
+          <NovaEmptyState
+            variant="teacher"
+            title="No active missions"
+            description="Nova is watching for the next quest. Check back when your teacher posts one."
+          />
         ) : (
           <div className="space-y-3">
             {currentMissions.map((m) => {

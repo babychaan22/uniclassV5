@@ -11,6 +11,7 @@ import ClayChip from "@/components/ClayChip";
 import CapsulePop from "@/components/CapsulePop";
 import Tambiolo from "@/components/Tambiolo";
 import MascotWidget from "@/components/MascotWidget";
+import Nova from "@/components/mascot/Nova";
 import { peekQrCode, scanAndResolve } from "@/lib/scanService";
 import { GACHA_OUTCOMES, MOOD_COLOR } from "@/lib/gacha";
 import { getWeekStartManila } from "@/lib/week";
@@ -317,7 +318,10 @@ export default function StudentScan() {
       {phase === "result" && result && (
         <div className="text-center">
           <CapsulePop trigger={Date.now()} className="flex flex-col items-center">
-            <MascotWidget state="excited" size="md" className="mb-3" />
+            <div className="relative mb-3">
+              <MascotWidget state="excited" size="md" />
+              <Nova variant="celebrate" size="sm" className="absolute -bottom-1 -right-2 h-8 w-8 opacity-90" />
+            </div>
             <ClayCard color={result.gacha ? MOOD_COLOR[result.gacha.mood] : "lime"} className="p-8 text-center max-w-xs mx-auto">
               <div className="text-5xl mb-2">
                 {result.gacha ? GACHA_OUTCOMES.find((o) => o.mult === result.gacha.multiplier)?.emoji : "🎉"}

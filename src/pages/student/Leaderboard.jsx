@@ -7,6 +7,10 @@ import { useAuth } from "@/lib/AuthContext";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import NovaEmptyState from "@/components/mascot/NovaEmptyState";
+import NovaMessage from "@/components/NovaMessage";
+import UserAvatar from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
 import { Trophy, Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
 import { computeParticipationPoints } from "@/lib/stats";
 import { supabase } from '@/api/supabaseClient';
@@ -62,13 +66,12 @@ export default function StudentLeaderboard() {
   const podiumColor = ["bg-clay-sun", "bg-clay-purple text-white", "bg-clay-coral text-white"];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Current classroom</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Class leaderboard</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">See every group in this class. Switch classes from the header to view another ranking.</p>{myRank > 0 && <span className="mt-3 inline-flex rounded-full bg-[var(--uc-purple-soft)] px-3 py-1 text-xs font-bold text-[var(--uc-navy-950)]">Your group ranks #{myRank} of {groupRows.length}</span>}</div><NovaMessage variant="achievement" tone="pink" title="Every effort counts.">Celebrate progress with your classmates and keep growing together.</NovaMessage></section>
       <ClayCard color="purple" className="p-5 text-center">
-        <div className="clay-medallion bg-clay-sun w-16 h-16 mx-auto flex items-center justify-center mb-2">
-          <Trophy className="w-8 h-8 text-clay-coral" />
-        </div>
-        <h1 className="text-2xl font-display font-extrabold text-white">Class Leaderboard</h1>
-        <p className="text-white/80 text-sm">Every group in your current class is included. Switch class to see its ranking. 🚀</p>
+        <UIAsset name="analytics" className="mx-auto mb-2 h-16 w-16" />
+        <h2 className="text-2xl font-display font-extrabold text-white">Group standing</h2>
+        <p className="text-white/80 text-sm">Points update as participation is recorded.</p>
         {myRank > 0 && (
           <div className="mt-3 inline-flex items-center gap-2 clay-chip px-3 py-1 bg-clay-pink text-white">
             <Crown className="w-4 h-4" /> Your group ranks #{myRank} of {groupRows.length}
@@ -140,7 +143,7 @@ export default function StudentLeaderboard() {
               return (
                 <div key={r.member.id} className="flex items-center gap-3">
                   <span className="font-mono font-bold w-6 text-center">{i < 3 ? medal[i] : i + 1}</span>
-                  <div className="flex-1">
+                  <UserAvatar name={`${r.member.last_name}-${r.member.first_name}`} size="sm" /><div className="flex-1">
                     <div className="flex justify-between mb-1">
                       <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>{r.member.last_name}, {r.member.first_name[0]}. {isMe && "· You"}</span>
                       <span className="font-mono text-sm">{r.points} pts</span>
@@ -152,7 +155,13 @@ export default function StudentLeaderboard() {
                 </div>
               );
             })}
-            {indRows.length === 0 && <p className="text-ink/50 text-sm text-center">No points earned yet — be the first! 🏆</p>}
+            {indRows.length === 0 && (
+              <NovaEmptyState
+                variant="achievement"
+                title="No points earned yet"
+                description="Be the first to earn points — complete an activity or scan your attendance QR code!"
+              />
+            )}
           </div>
         </ClayCard>
       )}

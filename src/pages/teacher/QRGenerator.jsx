@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import NovaMessage from "@/components/NovaMessage";
 import { QrCode as QrIcon, Printer, Download, Loader2 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -65,30 +66,36 @@ export default function TeacherQRGenerator() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1">QR Code Generator</h1>
-        <p className="text-ink/60">General codes · usable by any approved UniClass class · each code works once</p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="grid items-center gap-4 xl:grid-cols-[1fr_.8fr]">
+        <div>
+          <p className="mb-2 text-sm font-display font-bold text-clay-purple">Classroom tools</p>
+          <h1 className="uc-page-title text-4xl leading-[.92]">QR Code Generator</h1>
+          <p className="mt-3 text-sm text-ink/60">General codes · usable by any approved UniClass class · each code works once</p>
+        </div>
+        <NovaMessage variant="idea" tone="pink" title="A quick class moment">
+          Generate a batch, print it, and let each scan turn participation into progress.
+        </NovaMessage>
       </div>
 
       <ClayCard className="p-6 no-print">
-        <form onSubmit={generate} className="grid sm:grid-cols-3 gap-4">
-          <div>
+        <form onSubmit={generate} className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.8fr)_minmax(0,.8fr)]">
+          <div className="min-w-0">
             <label className="font-display font-bold text-sm mb-1 block">Type</label>
             <select className="clay-input" value={form.qr_type} onChange={(e) => setForm({ ...form, qr_type: e.target.value })}>
               <option value="standard">Standard (fixed points)</option>
               <option value="gacha">Gacha (risk for multiplier)</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="font-display font-bold text-sm mb-1 block">Base Points</label>
             <input type="number" min="1" className="clay-input" value={form.base_points} onChange={(e) => setForm({ ...form, base_points: e.target.value })} required />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="font-display font-bold text-sm mb-1 block">Batch Size</label>
             <input type="number" min="1" max="40" className="clay-input" value={form.batch_size} onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })} required />
           </div>
-          <div className="sm:col-span-3 flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 xl:col-span-3">
             <ClayButton type="submit" color="pink" size="md" disabled={generating}>
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrIcon className="w-5 h-5" />}
               {generating ? "Generating..." : "Generate Batch"}
