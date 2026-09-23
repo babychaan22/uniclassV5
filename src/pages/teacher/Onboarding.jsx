@@ -33,6 +33,8 @@ export default function TeacherOnboarding() {
   const [term, setTerm] = useState({ term_label: "Term 1", start_date: "", end_date: "" });
   const [terms, setTerms] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [selectedClassDays, setSelectedClassDays] = useState([]);
+  const [savingClassDays, setSavingClassDays] = useState(false);
   const [error, setError] = useState("");
 
   function withTimeout(promise, label, ms = 20000) {
@@ -47,6 +49,7 @@ export default function TeacherOnboarding() {
 
   useEffect(() => { load(); }, [user]);
   useEffect(() => { if (activeId) loadDetails(activeId); }, [activeId]);
+  useEffect(() => { setSelectedClassDays(active?.class_days || []); }, [active?.id, active?.class_days]);
 
   async function load() {
     if (!user) return;
@@ -132,6 +135,25 @@ export default function TeacherOnboarding() {
       setActiveId(remaining[0]?.id || null);
     } catch (err) {
       setError(err?.message || "Class could not be deleted. Check that you are the class teacher.");
+    }
+  }
+
+  async function saveClassDays() {
+    if (!active) return;
+    if (!hasClassDays(selectedClassDays)) {
+      setError("Select at least one day for this class.");
+      return;
+    }
+    setSavingClassDays(true);
+    setError("");
+    try {
+      const updated = await db.entities.Classroom.update(active.id, { class_days: selectedClassDays });
+      setClassrooms((items) => items.map((item) => item.id === updated.id ? updated : item));
+      invalidateTeacherClassroom();
+    } catch (err) {
+      setError(err?.message || "Class days could not be saved. Please try again.");
+    } finally {
+      setSavingClassDays(false);
     }
   }
 
@@ -230,6 +252,17 @@ export default function TeacherOnboarding() {
             <div className="flex items-center justify-center gap-3"><p className="text-4xl font-mono font-bold tracking-widest text-white">{active.join_code}</p><ClayButton color="sky" size="sm" onClick={copyJoinCode} aria-label="Copy class code">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copied" : "Copy"}</ClayButton></div>
             <p className="text-white/70 text-sm mt-2">{active.grade_level} · {active.section} · {active.subject} · {active.school_year}</p>
             <p className="text-white/60 text-xs mt-1">Give this code to your students.</p>
+          </ClayCard>
+
+          <ClayCard className="p-5 space-y-3">
+            <div>
+              <h2 className="font-display font-bold text-base">Class meeting days</h2>
+              <p className="mt-1 text-sm text-ink/60">Set this class’s actual timetable. Only these days count toward attendance and student streaks.</p>
+            </div>
+            <ClassDaySelector value={selectedClassDays} onChange={setSelectedClassDays} compact />
+            <ClayButton color="purple" size="md" className="w-full" onClick={saveClassDays} disabled={savingClassDays}>
+              {savingClassDays ? "Saving class days..." : "Save class days"}
+            </ClayButton>
           </ClayCard>
 
           <ClayCard className="p-5">
