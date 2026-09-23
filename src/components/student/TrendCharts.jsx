@@ -8,32 +8,35 @@ const db = globalThis.__B44_DB__;
 
 function weekEnds(start, end) {
   const out = [];
-  const d = new Date(start + "T00:00:00");
-  d.setDate(d.getDate() + 6);
-  const limit = new Date(end + "T00:00:00");
+  const d = new Date(`${start}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + ((7 - d.getUTCDay()) % 7));
+  const limit = new Date(`${end}T00:00:00Z`);
   const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
   if (limit > today) limit.setTime(today.getTime());
   while (d <= limit) {
     out.push(d.toISOString().slice(0, 10));
-    d.setDate(d.getDate() + 7);
+    d.setUTCDate(d.getUTCDate() + 7);
   }
+  const currentKey = limit.toISOString().slice(0, 10);
+  if (out.at(-1) !== currentKey) out.push(currentKey);
   return out;
 }
 
 function recentWeekEnds(n) {
   const out = [];
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   for (let i = n - 1; i >= 0; i--) {
     const e = new Date(d);
-    e.setDate(e.getDate() - i * 7);
+    e.setUTCDate(e.getUTCDate() - i * 7);
     out.push(e.toISOString().slice(0, 10));
   }
   return out;
 }
 
-function attRate(memberId, attendance, upTo) {
-  const recs = attendance.filter((a) => a.group_member_id === memberId && (a.attendance_date || "") <= upTo);
+function attRate(memberId, attendance, start, end) {
+  const recs = attendance.filter((a) => a.group_member_id === memberId && (a.attendance_date || "") >= start && (a.attendance_date || "") <= end);
   if (!recs.length) return 0;
   return Math.round((recs.filter((a) => a.status === "present").length / recs.length) * 100);
 }
@@ -42,16 +45,16 @@ function participation(memberId, logs, upTo) {
     .filter((l) => l.group_member_id === memberId && (l.created_date || "").slice(0, 10) <= upTo)
     .reduce((s, l) => s + (l.event_type === "behavior_penalty" ? -Math.abs(l.points_awarded || 0) : l.points_awarded || 0), 0);
 }
-function activityPct(memberId, scores, activities, upTo) {
+function activityPct(memberId, scores, activities, start, end) {
   const actIds = new Set(activities.map((a) => a.id));
-  const recs = scores.filter((s) => s.group_member_id === memberId && actIds.has(s.activity_id) && (s.created_date || "").slice(0, 10) <= upTo);
+  const recs = scores.filter((s) => s.group_member_id === memberId && actIds.has(s.activity_id) && (s.created_date || "").slice(0, 10) >= start && (s.created_date || "").slice(0, 10) <= end);
   if (!recs.length) return 0;
   let tot = 0, max = 0;
   for (const r of recs) { const a = activities.find((x) => x.id === r.activity_id); const m = a?.max_score || 10; tot += r.score; max += m; }
   return max ? Math.round((tot / max) * 100) : 0;
 }
-function categoryPct(memberId, assessments, cat, upTo) {
-  const recs = assessments.filter((a) => a.group_member_id === memberId && a.category === cat && (a.created_date || "").slice(0, 10) <= upTo);
+function categoryPct(memberId, assessments, cat, start, end) {
+  const recs = assessments.filter((a) => a.group_member_id === memberId && a.category === cat && (a.created_date || "").slice(0, 10) >= start && (a.created_date || "").slice(0, 10) <= end);
   if (!recs.length) return 0;
   let tot = 0, max = 0;
   for (const r of recs) { tot += r.score; max += r.max_score; }
@@ -87,16 +90,19 @@ export default function TrendCharts({ classroomId, members, currentMemberId, att
   if (!member) return null;
 
   const lastWeek = weeks[weeks.length - 1];
-  const attendancePct = attRate(member.id, attendance, lastWeek);
-  const activity = activityPct(member.id, scores, activities, lastWeek);
+  const rangeStartDate = new Date(`${weeks[0]}T00:00:00Z`);
+  rangeStartDate.setUTCDate(rangeStartDate.getUTCDate() - 6);
+  const rangeStart = range === "term" && term ? term.start_date : rangeStartDate.toISOString().slice(0, 10);
+  const attendancePct = attRate(member.id, attendance, rangeStart, lastWeek);
+  const activity = activityPct(member.id, scores, activities, rangeStart, lastWeek);
   const learningBars = [
     { name: "Activities", value: activity, color: "#A6E22E" },
-    { name: "Quizzes", value: categoryPct(member.id, assessments, "quiz", lastWeek), color: "#4FD1F2" },
-    { name: "Performance", value: categoryPct(member.id, assessments, "performance_task", lastWeek), color: "#8B5CF6" },
+    { name: "Quizzes", value: categoryPct(member.id, assessments, "quiz", rangeStart, lastWeek), color: "#4FD1F2" },
+    { name: "Performance", value: categoryPct(member.id, assessments, "performance_task", rangeStart, lastWeek), color: "#8B5CF6" },
   ].filter((item) => item.value > 0 || item.name === "Activities");
   const weeklyPoints = weeks.map((weekEnd) => {
-    const start = new Date(`${weekEnd}T00:00:00`);
-    start.setDate(start.getDate() - 6);
+    const start = new Date(`${weekEnd}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - 6);
     const weekStart = start.toISOString().slice(0, 10);
     return {
       week: weekEnd.slice(5),

@@ -189,7 +189,7 @@ export default function Layout() {
           <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block xl:hidden">Teach. Learn. Grow. Together.</p>
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
-            <button type="button" aria-label="Notifications" className="hidden rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10 sm:inline-flex"><UIAsset name="notifications" className="h-5 w-5" /></button>
+            {isTeacher && <Link to={ROUTES.TEACHER.ANNOUNCEMENTS} aria-label="Announcements" className="hidden rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10 sm:inline-flex"><UIAsset name="notifications" className="h-5 w-5" /></Link>}
             <span className="hidden sm:flex"><UserAvatar name={user?.email} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">

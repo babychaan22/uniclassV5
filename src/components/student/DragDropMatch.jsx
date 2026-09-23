@@ -54,7 +54,7 @@ export default function DragDropMatch({ left, right, answers, onSubmit, submitti
             role="button"
             tabIndex={selectedItem ? 0 : -1}
             onClick={() => assignSelected(cat)}
-            onKeyDown={(event) => { if (selectedItem && (event.key === "Enter" || event.key === " ")) assignSelected(cat); }}
+            onKeyDown={(event) => { if (selectedItem && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); assignSelected(cat); } }}
             className={`rounded-xl border-[3px] border-dashed p-3 min-h-[96px] text-left transition-all duration-150 ${selectedItem ? "cursor-pointer border-clay-purple bg-clay-purple/10 hover:-translate-y-0.5 hover:shadow-md active:scale-[.98]" : "border-ink/25 bg-cream"}`}
           >
             <p className="font-display font-bold text-sm mb-2">{cat}</p>
@@ -62,7 +62,7 @@ export default function DragDropMatch({ left, right, answers, onSubmit, submitti
               {byCategory(cat).map((it) => (
                 <span key={it} className="clay-chip px-2 py-1 text-xs bg-clay-pink text-white inline-flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                   {it}
-                  <span role="button" tabIndex={0} aria-label={`Remove ${it} from ${cat}`} onClick={() => remove(it)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") remove(it); }} className="rounded p-0.5 hover:bg-white/20"><X className="w-3 h-3" /></span>
+                  <span role="button" tabIndex={0} aria-label={`Remove ${it} from ${cat}`} onClick={(event) => { event.stopPropagation(); remove(it); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); remove(it); } }} className="rounded p-0.5 hover:bg-white/20"><X className="w-3 h-3" /></span>
                 </span>
               ))}
               {byCategory(cat).length === 0 && <span className="text-[10px] text-ink/40">{selectedItem ? "Tap to place the selected tile" : "Select a tile first"}</span>}

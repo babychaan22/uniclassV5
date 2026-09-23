@@ -10,11 +10,15 @@ import ClayCard from "@/components/ClayCard";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
 const shortTitle = (title, max = 15) => title?.length > max ? `${title.slice(0, max - 1)}…` : (title || "Mission");
+const logPoints = (log) => {
+  const points = Number(log?.points_awarded) || 0;
+  return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
+};
 
 function weekKey(day) {
-  const date = new Date(`${day}T00:00:00`);
-  const currentDay = date.getDay();
-  date.setDate(date.getDate() + (currentDay === 0 ? -6 : 1 - currentDay));
+  const date = new Date(`${day}T00:00:00Z`);
+  const currentDay = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() + (currentDay === 0 ? -6 : 1 - currentDay));
   return date.toISOString().slice(0, 10);
 }
 
@@ -76,9 +80,9 @@ export default function TeacherAnalytics() {
 
     const points = groupSets.map((set) => {
       const relevant = classroom.uses_groups ? (data.logs || []).filter((log) => log.group_id === set.id) : (data.logs || []);
-      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: relevant.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-      const wholeGroup = relevant.filter((log) => !log.group_member_id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0);
-      return { name: set.name, label: set.name, points: relevant.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), students, wholeGroup };
+      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: relevant.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + logPoints(log), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+      const wholeGroup = relevant.filter((log) => !log.group_member_id).reduce((sum, log) => sum + logPoints(log), 0);
+      return { name: set.name, label: set.name, points: relevant.reduce((sum, log) => sum + logPoints(log), 0), students, wholeGroup };
     });
 
     const missions = (data.missions || []).map((mission) => {

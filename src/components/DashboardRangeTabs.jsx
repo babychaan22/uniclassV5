@@ -9,11 +9,12 @@ const OPTIONS = [
 
 export default function DashboardRangeTabs({ value, onChange, className = "" }) {
   return (
-    <div aria-label="Dashboard date range" className={cn("inline-flex rounded-2xl border border-[rgba(16,32,101,.08)] bg-white p-1 shadow-[var(--uc-shadow-sm)]", className)}>
+    <div role="group" aria-label="Dashboard date range" className={cn("inline-flex rounded-2xl border border-[rgba(16,32,101,.08)] bg-white p-1 shadow-[var(--uc-shadow-sm)]", className)}>
       {OPTIONS.map((option) => (
         <button
           key={option.value}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
             "min-h-9 rounded-xl px-3 text-xs font-display font-bold transition-colors sm:px-4 sm:text-sm",

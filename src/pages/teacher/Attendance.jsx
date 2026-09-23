@@ -24,9 +24,9 @@ export default function TeacherAttendance() {
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
 
-  async function load() {
+  async function load({ showSpinner = true } = {}) {
     if (!user) return;
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     const activeClassroom = await getTeacherClassroom(user.id);
     if (!activeClassroom) {
       navigate(ROUTES.TEACHER.ONBOARDING);
@@ -74,7 +74,7 @@ export default function TeacherAttendance() {
         });
       }
       invalidateClassroomDataset();
-      await load();
+      await load({ showSpinner: false });
       setMessage(`${fullName(member)} marked ${status}.`);
     } catch (error) {
       setMessage(error?.message || "Attendance could not be saved. Please try again.");

@@ -28,6 +28,11 @@ import { UIAsset } from "@/components/visual/UIAsset";
 import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
 
+const logPoints = (log) => {
+  const points = Number(log?.points_awarded) || 0;
+  return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
+};
+
 export default function TeacherDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -99,9 +104,9 @@ export default function TeacherDashboard() {
       const pointSets = classroom.uses_groups ? groups.map((group) => ({ id: group.id, name: `Group ${group.group_number}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: 'class', name: 'Whole class', members }];
       const groupPoints = pointSets.map((set) => {
         const setLogs = classroom.uses_groups ? logs.filter((log) => log.group_id === set.id) : logs;
-        const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-        const wholeGroup = setLogs.filter((log) => !log.group_member_id).reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0);
-        return { name: set.name, points: setLogs.reduce((sum, log) => sum + (Number(log.points_awarded) || 0), 0), breakdown, wholeGroup };
+        const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + logPoints(log), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+        const wholeGroup = setLogs.filter((log) => !log.group_member_id).reduce((sum, log) => sum + logPoints(log), 0);
+        return { name: set.name, points: setLogs.reduce((sum, log) => sum + logPoints(log), 0), breakdown, wholeGroup };
       });
 
       const groupActivity = groups.map((g) => {
@@ -123,7 +128,7 @@ export default function TeacherDashboard() {
         for (const g of groups) {
           entry[`G${g.group_number}`] = logs
             .filter((l) => l.group_id === g.id && (l.created_date || "").slice(0, 10) >= ws && (l.created_date || "").slice(0, 10) <= we)
-            .reduce((s, l) => s + (l.points_awarded || 0), 0);
+            .reduce((s, l) => s + logPoints(l), 0);
         }
         return entry;
       });
@@ -161,8 +166,10 @@ export default function TeacherDashboard() {
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
   const filteredRows = (filter === "all" ? memberRows : memberRows.filter((r) => r.cls.tag === filter))
     .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
-  const visibleTrend = chartRange === "term" ? trend : trend.slice(-(chartRange === "month" ? 30 : 7));
   const todayStr = getTodayManila();
+  const monthStart = new Date(`${todayStr}T00:00:00Z`);
+  monthStart.setUTCDate(monthStart.getUTCDate() - 29);
+  const visibleTrend = chartRange === "term" ? trend : trend.filter((item) => item.date >= (chartRange === "month" ? monthStart.toISOString().slice(0, 10) : getWeekStartManila()));
   const attendanceRate = attendance.length ? Math.round((attendance.filter((record) => record.status === "present").length / attendance.length) * 100) : 0;
   const activityAverage = groupActivity.length ? Math.round(groupActivity.reduce((sum, item) => sum + item.avg, 0) / groupActivity.length) : 0;
   const classProgress = Math.round((attendanceRate + activityAverage) / (attendanceRate > 0 || activityAverage > 0 ? 2 : 1)) || 0;
@@ -305,7 +312,7 @@ export default function TeacherDashboard() {
         <PendingApprovalBulk pending={pending} groups={groups} onApproveAll={approveAll} onApproveOne={approveOne} />
       )}
 
-      <div className="hidden lg:grid-cols-2 gap-4 no-print">
+      <div className="grid gap-4 lg:grid-cols-2 no-print">
         <ClayCard className="p-4">
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><span className="text-xs text-ink/60">Present / absent</span></div>
           <ResponsiveContainer width="100%" height={150}>

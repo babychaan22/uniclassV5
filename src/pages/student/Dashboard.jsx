@@ -116,7 +116,7 @@ export default function StudentDashboard() {
         </div>
       </section>
 
-      {(missions.length > 0 || memberCards.some((c) => c.activityPct < 60)) && (
+      {(missions.length > 0 || myActivityPct < 60) && (
         <ClayCard className="p-3">
           <h3 className="font-display text-xs font-bold text-ink/60 mb-2">Needs attention</h3>
           <ul className="space-y-1 text-sm">
@@ -131,10 +131,10 @@ export default function StudentDashboard() {
                   <span>Due {m.deadline}: {m.title}</span>
                 </li>
               ))}
-            {memberCards.some((c) => c.activityPct < 60) && (
+            {myActivityPct < 60 && (
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-coral" />
-                <span>Activity below 60% — submit scores soon</span>
+                <span>Your activity is below 60% — submit scores soon</span>
               </li>
             )}
           </ul>

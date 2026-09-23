@@ -77,7 +77,7 @@ export default function StudentAttendance() {
 
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const rangeStart = (() => { if (historyRange === 'all') return null; const date = new Date(`${today}T00:00:00`); date.setDate(date.getDate() - (Number(historyRange) - 1)); return date.toISOString().slice(0, 10); })();
+  const rangeStart = (() => { if (historyRange === 'all') return null; const date = new Date(`${today}T00:00:00Z`); date.setUTCDate(date.getUTCDate() - (Number(historyRange) - 1)); return date.toISOString().slice(0, 10); })();
   const visibleHistory = history.filter((record) => !rangeStart || record.attendance_date >= rangeStart);
   const presentHistory = visibleHistory.filter((record) => record.status === 'present').length;
   const attendanceRate = visibleHistory.length ? Math.round((presentHistory / visibleHistory.length) * 100) : 0;

@@ -7,7 +7,7 @@ export default function NovaEmptyState({
   variant = "idea",
   title = "Nothing here yet",
   description = "You're all caught up.",
-  actionLabel = "Get started",
+  actionLabel,
   actionHref,
   actionOnClick,
   className = "",
@@ -27,18 +27,8 @@ export default function NovaEmptyState({
         {title && <h3 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">{title}</h3>}
         {description && <p className="mt-1.5 text-sm leading-relaxed text-ink/60">{description}</p>}
         {children && <div className="mt-2">{children}</div>}
-        {actionLabel && (
-          <Link
-            to={actionHref || "#"}
-            onClick={actionOnClick}
-            className={cn(
-              "clay-btn mt-3 inline-flex items-center justify-center gap-2 bg-clay-purple px-5 py-2.5 text-sm font-display font-extrabold text-white",
-              !actionHref && "pointer-events-none opacity-50",
-            )}
-          >
-            {actionLabel}
-          </Link>
-        )}
+        {actionLabel && actionHref && <Link to={actionHref} className="clay-btn mt-3 inline-flex items-center justify-center gap-2 bg-clay-purple px-5 py-2.5 text-sm font-display font-extrabold text-white">{actionLabel}</Link>}
+        {actionLabel && !actionHref && actionOnClick && <button type="button" onClick={actionOnClick} className="clay-btn mt-3 inline-flex items-center justify-center gap-2 bg-clay-purple px-5 py-2.5 text-sm font-display font-extrabold text-white">{actionLabel}</button>}
       </div>
     </div>
   );

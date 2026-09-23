@@ -23,6 +23,11 @@ const TONES = {
     border: "border-[rgba(243,74,155,.08)]",
     text: "text-[var(--uc-navy-950)]",
   },
+  yellow: {
+    bg: "bg-[#FFF9E6]",
+    border: "border-[rgba(255,217,61,.22)]",
+    text: "text-[var(--uc-navy-950)]",
+  },
 };
 
 export default function NovaMessage({ variant = "welcome", tone = "violet", title, children, className = "" }) {
