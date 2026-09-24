@@ -45,5 +45,6 @@ export const ROUTES = {
     REWARDS:    '/student/rewards',
     HELP:       '/student/help',
     LEADERBOARD:'/student/leaderboard',
+    SETTINGS:   '/student/settings',
   },
 };

@@ -106,6 +106,7 @@ const STUDENT_NAV = [
   { label: "Missions",        path: ROUTES.STUDENT.MISSIONS,   icon: Target },
   { label: "Rewards",         path: ROUTES.STUDENT.REWARDS,    icon: Gift },
   { label: "Leaderboard",     path: ROUTES.STUDENT.LEADERBOARD,icon: Trophy },
+  { label: "Settings",        path: ROUTES.STUDENT.SETTINGS,   icon: Settings },
   { label: "Help",            path: ROUTES.STUDENT.HELP,       icon: HelpCircle },
 ];
 
@@ -190,7 +191,7 @@ export default function Layout() {
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             {isTeacher && <Link to={ROUTES.TEACHER.ANNOUNCEMENTS} aria-label="Announcements" className="hidden rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10 sm:inline-flex"><UIAsset name="notifications" className="h-5 w-5" /></Link>}
-            <span className="hidden sm:flex"><UserAvatar name={user?.email} size="md" /></span>
+            <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={user?.avatar_key} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

@@ -46,6 +46,7 @@ const TeacherBadges = lazy(() => import('./pages/teacher/Badges'));
 const StudentMissions = lazy(() => import('./pages/student/Missions'));
 const StudentRewards = lazy(() => import('./pages/student/Rewards'));
 const StudentHelp = lazy(() => import('./pages/student/Help'));
+const StudentSettings = lazy(() => import('./pages/student/Settings'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const CheckEmail = lazy(() => import('./pages/CheckEmail'));
 const Leaderboard = lazy(() => import('./pages/Leaderboard'));
@@ -119,6 +120,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.STUDENT.MISSIONS} element={<StudentMissions />} />
           <Route path={ROUTES.STUDENT.REWARDS} element={<StudentRewards />} />
           <Route path={ROUTES.STUDENT.HELP} element={<StudentHelp />} />
+          <Route path={ROUTES.STUDENT.SETTINGS} element={<StudentSettings />} />
           <Route path={ROUTES.STUDENT.LEADERBOARD} element={<StudentLeaderboard />} />
         </Route>
       </Route>
