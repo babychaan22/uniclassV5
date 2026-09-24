@@ -13,7 +13,6 @@ import ClayChip from "@/components/ClayChip";
 import { Flame, Star, Trophy, Users, Megaphone, ArrowRight } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila } from "@/lib/week";
-import TrendCharts from "@/components/student/TrendCharts";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
@@ -174,8 +173,6 @@ export default function StudentDashboard() {
             ) : <p>No active missions right now. Keep your group streak going.</p>}
             {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="mt-3 inline-flex items-center gap-1 font-display text-sm font-bold underline">Open missions <ArrowRight className="w-4 h-4" /></Link>}
       </NovaMessage>
-
-      <TrendCharts classroomId={group.classroom_id} members={members} currentMemberId={account.group_member_id} attendance={attendance} scores={scores} activities={activities} logs={logs} range={range} />
 
       <ClayCard tone="green" className="p-4 flex items-center gap-4">
         <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">

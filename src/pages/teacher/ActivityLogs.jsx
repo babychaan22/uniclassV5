@@ -80,10 +80,10 @@ export default function ActivityLogs() {
     const redemptionEntries = redemptions.map((r) => ({
       id: `redemption-${r.id}`,
       type: "redemption",
-      points: -Math.abs(r.points_spent || 0),
+      points: null,
       groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: null,
-      note: r.reward_title,
+      note: `${r.reward_title} · ${r.approval_status === 'approved' ? 'approved' : r.approval_status === 'rejected' ? 'declined' : 'awaiting approval'} · no points deducted`,
       created_date: r.created_date,
     }));
 

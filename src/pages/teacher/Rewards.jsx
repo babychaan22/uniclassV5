@@ -82,7 +82,7 @@ export default function TeacherRewards() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Rewards Shop</h1>
-        <p className="text-ink/60 text-sm">Define rewards students can claim with participation points in any of your classes.</p>
+        <p className="text-ink/60 text-sm">Define rewards students can request after reaching a group-points threshold in any of your classes.</p>
       </div>
 
       <ClayCard className="p-5">
@@ -103,7 +103,7 @@ export default function TeacherRewards() {
             <input className="clay-input" placeholder="What the reward grants" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
           <div>
-            <label className="font-display font-bold text-xs mb-1 block">Cost (participation points)</label>
+            <label className="font-display font-bold text-xs mb-1 block">Points threshold (not deducted)</label>
             <input type="number" min="1" className="clay-input font-mono" value={form.cost_points} onChange={(e) => setForm({ ...form, cost_points: e.target.value })} required />
           </div>
           <ClayButton type="submit" color="purple" size="md" className="w-full" disabled={creating}>
@@ -114,10 +114,10 @@ export default function TeacherRewards() {
 
       {requests.length > 0 && <ClayCard color="sun" className="p-5">
         <h2 className="font-display font-bold text-sm mb-1">Reward requests</h2>
-        <p className="text-xs text-ink/60 mb-3">Points are held while a request is pending. Approve only when the reward is ready to give.</p>
+        <p className="text-xs text-ink/60 mb-3">A group must reach the threshold to request a reward. Approval never deducts its earned points.</p>
         <div className="space-y-2">{requests.map((request) => {
           const group = groups.find((item) => item.id === request.group_id);
-          return <div key={request.id} className="rounded-xl border-2 border-ink bg-cream p-3 flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><p className="font-display font-bold text-sm">{request.reward_title}</p><p className="text-xs text-ink/60">Group {group?.group_number || '—'} · {request.points_spent} points</p></div><ClayButton size="sm" color="lime" disabled={reviewing === request.id} onClick={() => reviewRequest(request, true)}>{reviewing === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve'}</ClayButton><ClayButton size="sm" color="coral" disabled={reviewing === request.id} onClick={() => reviewRequest(request, false)}>Decline</ClayButton></div>;
+          return <div key={request.id} className="rounded-xl border-2 border-ink bg-cream p-3 flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><p className="font-display font-bold text-sm">{request.reward_title}</p><p className="text-xs text-ink/60">Group {group?.group_number || '—'} · threshold met</p></div><ClayButton size="sm" color="lime" disabled={reviewing === request.id} onClick={() => reviewRequest(request, true)}>{reviewing === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve'}</ClayButton><ClayButton size="sm" color="coral" disabled={reviewing === request.id} onClick={() => reviewRequest(request, false)}>Decline</ClayButton></div>;
         })}</div>
       </ClayCard>}
 
@@ -132,7 +132,7 @@ export default function TeacherRewards() {
                 <p className="font-display font-bold">{r.title}</p>
                 {r.description && <p className="text-xs text-ink/60 mt-0.5">{r.description}</p>}
                 <div className="flex flex-wrap gap-2 mt-2">
-                  <ClayChip color="sun">{r.cost_points} pts</ClayChip>
+                  <ClayChip color="sun">{r.cost_points} pts threshold</ClayChip>
                   <ClayChip color="sky">All your classes</ClayChip>
                   <ClayChip color={r.is_active ? "lime" : "cream"}>{r.is_active ? "Available" : "Hidden"}</ClayChip>
                 </div>

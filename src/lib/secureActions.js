@@ -60,6 +60,24 @@ export async function recordActivityEvidence(activityId, groupMemberId, storageP
   return data;
 }
 
+export async function requestActivityScoreEdit(activityScoreId, proposedScore) {
+  const { data, error } = await supabase.rpc('request_activity_score_edit', {
+    p_activity_score_id: activityScoreId,
+    p_proposed_score: proposedScore,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function reviewActivityScoreEdit(requestId, approve) {
+  const { data, error } = await supabase.rpc('review_activity_score_edit', {
+    p_request_id: requestId,
+    p_approve: approve,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function lookupClassroomByJoinCode(joinCode) {
   const { data, error } = await supabase.rpc('lookup_classroom_by_join_code', {
     p_join_code: joinCode,

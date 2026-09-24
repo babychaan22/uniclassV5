@@ -37,17 +37,14 @@ export default function StudentRewards() {
       db.entities.RewardRedemption.filter({ group_id: group.id }),
     ]);
     const gross = logs.reduce((sum, log) => sum + (log.points_awarded || 0), 0);
-    const spent = redemptions.filter((r) => r.approval_status === "approved").reduce((s, r) => s + (r.points_spent || 0), 0);
-    const pending = redemptions.filter((r) => r.approval_status === "pending").reduce((s, r) => s + (r.points_spent || 0), 0);
-    const available = Math.max(0, gross - spent - pending);
     const active = rewards
       .filter((r) => r.classroom_id === classroomId || r.applies_to_all_classes)
       .sort((a, b) => a.cost_points - b.cost_points);
-    setData({ account, group, classroomId, active, gross, spent, pending, available, redemptions });
+    setData({ account, group, classroomId, active, gross, redemptions });
   }
 
   async function redeem(r) {
-    if (data.available < r.cost_points) {
+    if (data.gross < r.cost_points) {
       setMsg({ ok: false, text: `Not enough points. You need ${r.cost_points}.` });
       return;
     }
@@ -63,7 +60,7 @@ export default function StudentRewards() {
   }
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
-  const { group, active, gross, spent, pending, available, redemptions } = data;
+  const { group, active, gross, redemptions } = data;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -73,9 +70,9 @@ export default function StudentRewards() {
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="assessment" className="h-14 w-14" /></div>
           <div className="flex-1 text-white">
-            <p className="font-mono font-extrabold text-4xl leading-none">{Math.round(available)}</p>
-            <p className="font-display font-bold text-sm">Points available to spend</p>
-            <p className="text-xs text-white/70">{`Group ${group.group_number} · Earned ${Math.round(gross)} · Approved ${Math.round(spent)} · Held ${Math.round(pending)}`}</p>
+            <p className="font-mono font-extrabold text-4xl leading-none">{Math.round(gross)}</p>
+            <p className="font-display font-bold text-sm">Group points earned</p>
+            <p className="text-xs text-white/70">Rewards require a points threshold; requesting one never deducts your points.</p>
           </div>
         </div>
       </ClayCard>
@@ -91,7 +88,7 @@ export default function StudentRewards() {
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {active.map((r) => {
-            const afford = available >= r.cost_points;
+            const afford = gross >= r.cost_points;
             const isPending = redemptions.some((request) => request.reward_id === r.id && request.approval_status === "pending");
             return (
               <ClayCard key={r.id} className="p-4 flex flex-col">
@@ -102,7 +99,7 @@ export default function StudentRewards() {
                     {r.description && <p className="text-xs text-ink/60 mt-0.5">{r.description}</p>}
                   </div>
                 </div>
-                <ClayChip color="sun" className="self-start mb-3">{r.cost_points} pts</ClayChip>
+                <ClayChip color="sun" className="self-start mb-3">{r.cost_points} pts required</ClayChip>
                 <ClayButton color={afford && !isPending ? "lime" : "cream"} size="sm" className="w-full mt-auto" disabled={!afford || isPending || redeeming === r.id} onClick={() => redeem(r)}>
                   {redeeming === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : isPending ? "Awaiting teacher approval" : afford ? "Request reward" : "Not enough points"}
                 </ClayButton>

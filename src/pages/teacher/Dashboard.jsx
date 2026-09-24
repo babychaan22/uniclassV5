@@ -13,25 +13,17 @@ import { computeClassification } from "@/lib/classification";
 import {
   computeAttendanceRate, computeActivityPct, computeParticipationPoints, computeCategoryPct,
 } from "@/lib/stats";
-import { Printer, TrendingUp, BarChart3, Award, Download, CheckCircle2 } from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid,
-} from "recharts";
+import { Printer, BarChart3, Award, Download, CheckCircle2 } from "lucide-react";
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
+import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import AtRiskAlerts from "@/components/teacher/AtRiskAlerts";
 import PendingApprovalBulk from "@/components/teacher/PendingApprovalBulk";
 import BehaviorPenalty from "@/components/teacher/BehaviorPenalty";
-import WeeklyPointsChart from "@/components/teacher/WeeklyPointsChart";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
-
-const logPoints = (log) => {
-  const points = Number(log?.points_awarded) || 0;
-  return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
-};
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -43,7 +35,6 @@ export default function TeacherDashboard() {
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
-  const [hoveredChart, setHoveredChart] = useState({ attendance: null, activity: null, participation: null });
 
   const refresh = () => setReloadKey((k) => k + 1);
 
@@ -101,36 +92,11 @@ export default function TeacherDashboard() {
       }
       const trend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
-      const pointSets = classroom.uses_groups ? groups.map((group) => ({ id: group.id, name: `Group ${group.group_number}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: 'class', name: 'Whole class', members }];
-      const groupPoints = pointSets.map((set) => {
-        const setLogs = classroom.uses_groups ? logs.filter((log) => log.group_id === set.id) : logs;
-        const breakdown = set.members.map((member) => ({ name: memberNames[member.id], points: setLogs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + logPoints(log), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-        const wholeGroup = setLogs.filter((log) => !log.group_member_id).reduce((sum, log) => sum + logPoints(log), 0);
-        return { name: set.name, points: setLogs.reduce((sum, log) => sum + logPoints(log), 0), breakdown, wholeGroup };
-      });
-
       const groupActivity = groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);
         const breakdown = gm.map((member) => ({ name: memberNames[member.id], rate: Math.round(computeActivityPct(member.id, scores, activities).pct) }));
         const avg = breakdown.length > 0 ? breakdown.reduce((sum, member) => sum + member.rate, 0) / breakdown.length : 0;
         return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown };
-      });
-
-      const weekStarts = [];
-      for (let w = 3; w >= 0; w--) {
-        const d = new Date();
-        d.setDate(d.getDate() - w * 7);
-        weekStarts.push(getWeekStartManila(d));
-      }
-      const weeklyPoints = weekStarts.map((ws) => {
-        const we = weekEndOf(ws);
-        const entry = { week: ws.slice(5) };
-        for (const g of groups) {
-          entry[`G${g.group_number}`] = logs
-            .filter((l) => l.group_id === g.id && (l.created_date || "").slice(0, 10) >= ws && (l.created_date || "").slice(0, 10) <= we)
-            .reduce((s, l) => s + logPoints(l), 0);
-        }
-        return entry;
       });
 
       const penaltyLogs = logs
@@ -141,17 +107,18 @@ export default function TeacherDashboard() {
 
       const attentionByClass = await Promise.all(teacherClasses.map(async (item) => {
         const source = item.id === classroom.id ? ds : await getClassroomDataset(item.id, ['members', 'attendance', 'groupAccounts']);
+        const isClassToday = !hasClassDays(item.class_days) || isScheduledClassDay(new Date(`${getTodayManila()}T00:00:00Z`), item.class_days);
         const todayAttendance = source.attendance.filter((record) => record.attendance_date === getTodayManila());
         const attendanceByMember = Object.fromEntries(todayAttendance.map((record) => [record.group_member_id, record]));
-        const needsAttendance = source.members.filter((member) => attendanceByMember[member.id]?.status !== 'present').map((member) => ({
+        const needsAttendance = (isClassToday ? source.members : []).filter((member) => attendanceByMember[member.id]?.status !== 'present').map((member) => ({
           id: member.id,
           name: `${member.last_name}, ${member.first_name}`,
           status: attendanceByMember[member.id]?.status === 'absent' ? 'Absent' : 'No record',
         }));
-        return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance };
+        return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance, isClassToday };
       }));
       setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass });
+      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass });
       setLoading(false);
     }
     load();
@@ -160,7 +127,7 @@ export default function TeacherDashboard() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupPoints, groupActivity, weeklyPoints, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
@@ -182,11 +149,6 @@ export default function TeacherDashboard() {
     { label: "Activities", value: activityAverage, color: "bg-clay-lime" },
     { label: "Participation", value: memberRows.length ? Math.round((onTrack / memberRows.length) * 100) : 0, color: "bg-clay-purple" },
   ];
-  const selectChartBar = (key) => (state) => {
-    const selected = state?.activePayload?.[0]?.payload;
-    if (!selected) return;
-    setHoveredChart((current) => ({ ...current, [key]: current[key] === selected ? null : selected }));
-  };
 
   async function applyPenalty(groupId, points, note) {
     await db.entities.ParticipationLog.create({
@@ -304,7 +266,7 @@ export default function TeacherDashboard() {
         <p className="mb-2 text-xs text-ink/60">Select a class to see which students need attendance follow-up.</p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => {
           const expanded = expandedAttentionClass === item.classroom.id;
-          return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.missingToday} without a present record today · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">All clear</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">Everyone is marked present today.</p>}</div>}</div>;
+          return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.isClassToday ? `${item.missingToday} without a present record today` : 'No class scheduled today'} · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">{item.isClassToday ? 'All clear' : 'Attendance paused'}</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">{item.isClassToday ? 'Everyone is marked present today.' : 'This class does not meet today.'}</p>}</div>}</div>;
         })}</div>
       </ClayCard>
 
@@ -312,54 +274,11 @@ export default function TeacherDashboard() {
         <PendingApprovalBulk pending={pending} groups={groups} onApproveAll={approveAll} onApproveOne={approveOne} />
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2 no-print">
-        <ClayCard className="p-4">
-          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display font-bold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Attendance</h2><span className="text-xs text-ink/60">Present / absent</span></div>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={visibleTrend} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} onClick={selectChartBar('attendance')} style={{ cursor: 'pointer' }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={() => null} cursor={{ fill: '#A6E22E1A' }} />
-              <Bar dataKey="present" fill="#A6E22E" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="absent" fill="#FF6B57" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <DashboardChartDetail title="Attendance" entry={hoveredChart.attendance}><div className="grid grid-cols-2 gap-3"><div><p className="font-display font-bold text-clay-lime">Present ({hoveredChart.attendance?.present || 0})</p><CompactList entries={hoveredChart.attendance?.presentNames} /></div><div><p className="font-display font-bold text-clay-coral">Absent ({hoveredChart.attendance?.absent || 0})</p><CompactList entries={hoveredChart.attendance?.absentNames} /></div></div></DashboardChartDetail>
-        </ClayCard>
-
-        <ClayCard className="p-4">
-          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Group Activity Avg</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupActivity} onClick={selectChartBar('activity')} style={{ cursor: 'pointer' }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-              <Tooltip content={() => null} cursor={{ fill: '#8B5CF61A' }} />
-              <Bar dataKey="avg" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <DashboardChartDetail title="Activity scores" entry={hoveredChart.activity}>{hoveredChart.activity?.breakdown?.length ? <div className="space-y-0.5">{hoveredChart.activity.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.rate}%</span></p>)}</div> : <p>No activity scores yet.</p>}</DashboardChartDetail>
-        </ClayCard>
-
-        <ClayCard className="p-4 lg:col-span-2">
-          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4" /> Participation Points by Group</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={groupPoints} onClick={selectChartBar('participation')} style={{ cursor: 'pointer' }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#17162B22" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={() => null} cursor={{ fill: '#4FD1F21A' }} />
-              <Bar dataKey="points" fill="#FF5FA8" radius={[6, 6, 0, 0]}>
-                {groupPoints.map((_, i) => <Cell key={i} fill="#4FD1F2" />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <DashboardChartDetail title="Participation points" entry={hoveredChart.participation}><p className="font-display font-bold">Whole Group: {hoveredChart.participation?.wholeGroup || 0} points</p>{hoveredChart.participation?.breakdown?.length ? <div className="mt-1 space-y-0.5">{hoveredChart.participation.breakdown.map((member) => <p key={member.name} className="flex justify-between gap-3"><span className="truncate">{member.name}</span><span className="font-mono">{member.points}</span></p>)}</div> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hoveredChart.participation?.points || 0} points</p></DashboardChartDetail>
-        </ClayCard>
-      </div>
-
-      <WeeklyPointsChart data={weeklyPoints} groups={groups} />
+      <ClayCard className="no-print p-4 text-center">
+        <p className="font-display font-bold">Detailed charts are in Analytics</p>
+        <p className="mt-1 text-xs text-ink/60">The dashboard now stays focused on daily actions and students who need support.</p>
+        <Link to={ROUTES.TEACHER.ANALYTICS} className="mt-3 inline-flex text-sm font-display font-bold text-clay-purple underline">Open analytics</Link>
+      </ClayCard>
 
       <BehaviorPenalty classroom={classroom} groups={groups} onPenalty={applyPenalty} penaltyLogs={penaltyLogs} />
 
@@ -429,18 +348,4 @@ export default function TeacherDashboard() {
       </ClayCard>
     </div>
   );
-}
-
-function weekEndOf(ws) {
-  const d = new Date(ws + "T00:00:00");
-  d.setDate(d.getDate() + 6);
-  return d.toISOString().slice(0, 10);
-}
-
-function DashboardChartDetail({ title, entry, children }) {
-  return <div className="mt-2 min-h-14 rounded-xl border-2 border-ink/10 bg-cream px-3 py-2 text-xs" aria-live="polite">{entry ? <><p className="font-display font-bold">{title}: {entry.name || entry.date}</p><div className="mt-1 max-h-24 overflow-y-auto pr-1 text-ink/75">{children}</div></> : <p className="text-ink/55">Select a bar to see its compact breakdown.</p>}</div>;
-}
-
-function CompactList({ entries = [] }) {
-  return entries.length ? <div className="max-h-20 overflow-y-auto pr-1 text-ink/75">{entries.map((entry, index) => <p key={`${entry}-${index}`} className="truncate">{entry}</p>)}</div> : <p className="text-ink/55">None</p>;
 }

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { getActiveStudentAccount } from "@/lib/studentContext";
 import { supabase } from "@/api/supabaseClient";
-import { ensureGroupActivity, recordActivityEvidence } from "@/lib/secureActions";
+import { ensureGroupActivity, recordActivityEvidence, requestActivityScoreEdit } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -31,6 +31,9 @@ export default function StudentScores() {
   const [proofBusy, setProofBusy] = useState(false);
   const [proofMsg, setProofMsg] = useState("");
   const [evidenceByMember, setEvidenceByMember] = useState({});
+  const [existingScores, setExistingScores] = useState({});
+  const [editRequests, setEditRequests] = useState({});
+  const [requestingEdits, setRequestingEdits] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -62,18 +65,25 @@ export default function StudentScores() {
       if (acts.length > 0) {
         setActivity(acts[0]);
         setMaxScore(acts[0].max_score);
-        const [existing, evidence] = await Promise.all([
+        const [existing, evidence, requests] = await Promise.all([
           db.entities.ActivityScore.filter({ activity_id: acts[0].id, group_id: account.group_id }),
           db.entities.ActivityEvidence.filter({ activity_id: acts[0].id, group_id: account.group_id }),
+          supabase.from('activity_score_edit_requests').select('*').eq('activity_id', acts[0].id).eq('group_id', account.group_id).eq('status', 'pending'),
         ]);
         setLocked(existing.length > 0);
+        const saved = Object.fromEntries(existing.map((item) => [item.group_member_id, item]));
+        setExistingScores(saved);
+        setScores(Object.fromEntries(existing.map((item) => [item.group_member_id, item.score])));
+        setEditRequests(Object.fromEntries((requests.data || []).map((item) => [item.activity_score_id, item])));
         setEvidenceByMember(Object.fromEntries(evidence.map((item) => [item.group_member_id, item])));
       } else {
         setActivity(null);
         setLocked(false);
         setEvidenceByMember({});
+        setExistingScores({});
+        setEditRequests({});
       }
-      setScores({});
+      if (!acts.length) setScores({});
     }
     loadActivity();
   }, [activityNum, account]);
@@ -122,7 +132,12 @@ export default function StudentScores() {
 
   async function confirmSave() {
     if (!canEdit) return;
-    const missingProofs = members.filter((m) => !evidenceByMember[m.id]);
+    const scoredMembers = members.filter((member) => Number(scores[member.id] || 0) > 0);
+    if (!scoredMembers.length) {
+      setError("Enter at least one score above zero. Students without a score will remain unsubmitted for this activity.");
+      return;
+    }
+    const missingProofs = scoredMembers.filter((m) => !evidenceByMember[m.id]);
     if (missingProofs.length > 0) {
       setError(`Upload activity proof for ${missingProofs.length} member${missingProofs.length === 1 ? "" : "s"} before submitting scores.`);
       return;
@@ -137,9 +152,9 @@ export default function StudentScores() {
       setSaving(false);
       return;
     }
-    const records = members.map((m) => ({
+    const records = scoredMembers.map((m) => ({
       group_member_id: m.id, activity_id: act.id, classroom_id: account.classroom_id, group_id: account.group_id,
-      score: scores[m.id] || 0, encoded_by: user.id,
+      score: Number(scores[m.id]), encoded_by: user.id,
     }));
     try {
       await db.entities.ActivityScore.bulkCreate(records);
@@ -150,6 +165,19 @@ export default function StudentScores() {
       setError("Failed to save: " + (err.message || "some scores may already exist"));
     }
     setSaving(false);
+  }
+
+  async function requestEdits() {
+    const changed = Object.values(existingScores).filter((saved) => Number(scores[saved.group_member_id]) !== Number(saved.score));
+    if (!changed.length) { setError("Change a saved score before requesting teacher approval."); return; }
+    setRequestingEdits(true); setError("");
+    try {
+      await Promise.all(changed.map((saved) => requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]))));
+      setEditRequests((current) => ({ ...current, ...Object.fromEntries(changed.map((saved) => [saved.id, { pending: true }])) }));
+      setProofMsg("Score edit request sent to your teacher for approval.");
+    } catch (err) {
+      setError(err?.message || "Could not request the score edit.");
+    } finally { setRequestingEdits(false); }
   }
 
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
@@ -191,11 +219,20 @@ export default function StudentScores() {
       </ClayCard>
 
       {locked ? (
-        <ClayCard color="coral" className="p-6 text-center">
-          <Lock className="w-10 h-10 mx-auto mb-2" />
-          <p className="font-display font-bold text-lg">Activity {activityNum} is locked</p>
-          <p className="text-white/80 text-sm">This activity has already been submitted and cannot be edited.</p>
-        </ClayCard>
+        <>
+          <ClayCard color="coral" className="p-5 text-center">
+            <Lock className="w-9 h-9 mx-auto mb-2" />
+            <p className="font-display font-bold text-lg">Activity {activityNum} is submitted</p>
+            <p className="text-white/80 text-sm">Saved scores stay protected. Representatives may request a correction for teacher approval.</p>
+          </ClayCard>
+          <div className="space-y-2">
+            {members.filter((member) => existingScores[member.id]).map((member) => {
+              const saved = existingScores[member.id]; const pendingRequest = editRequests[saved.id];
+              return <ClayCard key={member.id} className="p-3 flex items-center gap-3"><UserAvatar name={`${member.last_name}-${member.first_name}`} size="sm" /><p className="min-w-0 flex-1 truncate font-display font-bold text-sm">{member.last_name}, {member.first_name}</p><input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} /><span className="text-xs font-mono text-ink/50">/ {maxScore}</span>{pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Pending</span>}</ClayCard>;
+            })}
+          </div>
+          {canEdit && <ClayButton color="purple" size="md" className="w-full" disabled={requestingEdits} onClick={requestEdits}>{requestingEdits ? "Sending request..." : "Request score edit"}</ClayButton>}
+        </>
       ) : !canEdit ? (
         <ClayCard className="p-6 text-center">
           <p className="text-ink/60 text-sm">No scores submitted yet for Activity {activityNum}.</p>
@@ -235,7 +272,7 @@ export default function StudentScores() {
                 <AlertTriangle className="w-7 h-7 text-white" />
               </div>
               <h2 className="font-display font-bold text-lg">Are you sure?</h2>
-              <p className="text-ink/70 text-sm mt-1">Activity {activityNum} scores <strong>cannot be edited</strong> after you submit. Double-check every score.</p>
+              <p className="text-ink/70 text-sm mt-1">Only members with a score above zero will be submitted. Scores can later be corrected only after teacher approval.</p>
             </div>
             <div className="flex gap-3 mt-5">
               <ClayButton color="cream" className="flex-1" onClick={() => setShowConfirm(false)}>Cancel</ClayButton>
