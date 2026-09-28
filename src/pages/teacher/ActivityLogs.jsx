@@ -137,8 +137,15 @@ export default function ActivityLogs() {
     return groups;
   }, {}));
 
+  const orderedGroups = [...groupedEntries].sort((a, b) => {
+    const left = Number(a.groupId ?? 0);
+    const right = Number(b.groupId ?? 0);
+    if (left && right && left !== right) return left - right;
+    return String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' });
+  });
+
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="max-w-3xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2">
           <ScrollText className="w-6 h-6" /> Activity Logs
@@ -147,18 +154,59 @@ export default function ActivityLogs() {
       </div>
       {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
 
-
       {entries.length === 0 && (
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
       )}
 
-      {groupedEntries.map((section) => <ClayCard key={section.label} className="p-3">
-        <div className="mb-2 flex items-center justify-between"><p className="inline-flex items-center gap-1 font-display font-bold text-sm">{section.label} <GroupBadgeMarkers groupId={section.groupId} /></p><ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip></div>
-        <div className="divide-y divide-ink/10">{section.entries.map((e) => {
-          const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
-          return <div key={e.id} className="py-2 first:pt-0 last:pb-0"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><ClayChip color={meta.color}>{meta.label}</ClayChip>{e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}</div>{e.note && <p className="mt-1 truncate text-xs text-ink/65">{e.note}</p>}<p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p></div>{e.points != null && <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>{e.points > 0 ? '+' : ''}{e.points}</p>}</div>{e.correctable && <div className="mt-2"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}</div>;
-        })}</div>
-      </ClayCard>)}
+      {orderedGroups.length > 0 && (
+        <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
+          {orderedGroups.map((section) => (
+            <ClayCard key={section.label} className="p-3 border-2 border-ink/10 bg-cream/40 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-1 font-display font-bold text-sm text-ink/90">
+                  {section.label} <GroupBadgeMarkers groupId={section.groupId} />
+                </p>
+                <ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip>
+              </div>
+              <div className="space-y-2">
+                {section.entries.map((e) => {
+                  const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
+                  return (
+                    <div key={e.id} className="rounded-xl border border-ink/10 bg-white/80 px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <ClayChip color={meta.color}>{meta.label}</ClayChip>
+                            {e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}
+                          </div>
+                          {e.note && <p className="mt-1 text-xs text-ink/65 break-words">{e.note}</p>}
+                          <p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p>
+                        </div>
+                        {e.points != null && (
+                          <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>
+                            {e.points > 0 ? '+' : ''}{e.points}
+                          </p>
+                        )}
+                      </div>
+                      {e.correctable && (
+                        <div className="mt-2">
+                          <ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}>
+                            <ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient
+                          </ClayButton>
+                          {correction?.sourceLogId === e.sourceLogId && (
+                            <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ClayCard>
+          ))}
+        </div>
+      )}
+
       {hasMore && <ClayButton onClick={() => load(page + 1)} color="white" className="w-full" disabled={loadingMore}>
         {loadingMore ? "Loading…" : "Load older activity"}
       </ClayButton>}
