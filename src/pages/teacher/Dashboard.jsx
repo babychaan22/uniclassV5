@@ -9,6 +9,7 @@ import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalid
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { computeClassification } from "@/lib/classification";
 import {
   computeAttendanceRate, computeActivityPct, computeParticipationPoints, computeCategoryPct,
@@ -43,9 +44,10 @@ export default function TeacherDashboard() {
       if (!user) return;
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const [ds, teacherClasses] = await Promise.all([
-        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts']),
+      const [ds, teacherClasses, badgeDefinitions] = await Promise.all([
+        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges']),
         getTeacherClassrooms(user.id),
+        db.entities.BadgeDefinition.filter({ classroom_id: classroom.id }),
       ]);
       const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
@@ -118,7 +120,7 @@ export default function TeacherDashboard() {
         return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance, isClassToday };
       }));
       setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass });
+      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass });
       setLoading(false);
     }
     load();
@@ -127,7 +129,7 @@ export default function TeacherDashboard() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, penaltyLogs, attentionByClass } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, penaltyLogs, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
@@ -287,7 +289,7 @@ export default function TeacherDashboard() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {groupRows.map((r) => (
             <div key={r.group.id} className="clay-tile p-3 text-center">
-              <p className="font-display font-bold">Group {r.group.group_number}</p>
+              <p className="inline-flex items-center justify-center gap-1 font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
               <p className="font-mono text-2xl font-bold">{Math.round(r.avgTotal)}%</p>
               <ClayChip color={r.color}>{r.tag}</ClayChip>
               <ClayButton size="sm" color="purple" className="mt-2 w-full"
@@ -331,7 +333,7 @@ export default function TeacherDashboard() {
               {filteredRows.map((r) => (
                 <tr key={r.member.id} className="border-b border-ink/10">
                   <td className="py-2 pr-3 font-display font-bold">{r.member.last_name}, {r.member.first_name}</td>
-                  <td className="py-2 px-2">{r.group?.group_number}</td>
+                  <td className="py-2 px-2"><span className="inline-flex items-center gap-1">{r.group?.group_number}<GroupBadgeMarkers groupId={r.group?.id} badges={badges} definitions={badgeDefinitions} /></span></td>
                   <td className="py-2 px-2 font-mono">{Math.round(r.att.rate)}</td>
                   <td className="py-2 px-2 font-mono">{Math.round(r.act.pct)}</td>
                   <td className="py-2 px-2 font-mono">{r.quiz.count ? Math.round(r.quiz.pct) : "—"}</td>

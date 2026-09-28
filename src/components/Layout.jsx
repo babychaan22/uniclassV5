@@ -16,6 +16,7 @@ import OfflineStatus from "@/components/OfflineStatus";
 import BrandMark from "@/components/BrandMark";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
+import { GroupBadgeProvider } from "@/components/GroupBadgeContext";
 
 const NAV_ASSET_BY_LABEL = {
   Dashboard: "home",
@@ -173,6 +174,7 @@ export default function Layout() {
   };
 
   return (
+    <GroupBadgeProvider user={user} isTeacher={isTeacher} locationKey={location.pathname}>
     <div className="min-h-screen bg-[var(--uc-bg)]">
       <OfflineStatus />
       <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
@@ -252,5 +254,6 @@ export default function Layout() {
         </div>
       </nav>
     </div>
+    </GroupBadgeProvider>
   );
 }

@@ -9,6 +9,7 @@ import { missionTargetsClass } from "@/lib/missionAudience";
 import { formatMissionDeadline, getMissionProgress } from "@/lib/missionProgress";
 
 import ClayCard from "@/components/ClayCard";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import ClayChip from "@/components/ClayChip";
 import { Archive, Target, TrendingUp } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
@@ -93,7 +94,7 @@ export default function MissionArchive() {
               const answeredIds = new Set(progress.submissions.filter((submission) => submission.group_id === group.id).map((submission) => submission.group_member_id));
               const answered = groupMembers.filter((member) => answeredIds.has(member.id));
               const waiting = groupMembers.filter((member) => !answeredIds.has(member.id));
-              return <div key={group.id} className="text-xs"><p className="font-display font-bold">Group {group.group_number}</p><p className="text-clay-lime">Answered: {answered.length ? answered.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None'}</p><p className="text-clay-coral">Not answered: {waiting.length ? waiting.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None'}</p></div>;
+              return <div key={group.id} className="text-xs"><p className="inline-flex items-center gap-1 font-display font-bold">Group {group.group_number} <GroupBadgeMarkers groupId={group.id} /></p><p className="text-clay-lime">Answered: {answered.length ? answered.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None'}</p><p className="text-clay-coral">Not answered: {waiting.length ? waiting.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None'}</p></div>;
             })}</div></details>}
           </ClayCard>
         );

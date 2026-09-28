@@ -16,6 +16,14 @@ export function getWeekStartManila(date = new Date()) {
   return manilaDate.toISOString().slice(0, 10);
 }
 
+export function getBadgeDisplayWeekStartManila(date = new Date()) {
+  const weekStart = getWeekStartManila(date);
+  if (!isEndOfWeekManila(date)) return weekStart;
+  const nextMonday = new Date(`${weekStart}T00:00:00Z`);
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+  return nextMonday.toISOString().slice(0, 10);
+}
+
 export function getTodayManila() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -48,5 +56,10 @@ export function getManilaDayOfWeek(date = new Date()) {
 export function isEndOfWeekManila(date = new Date()) {
   const d = getManilaDayOfWeek(date);
   return d === "Sat" || d === "Sun";
+}
+
+export function isWeekdayManila(date = new Date()) {
+  const d = getManilaDayOfWeek(date);
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(d);
 }
 

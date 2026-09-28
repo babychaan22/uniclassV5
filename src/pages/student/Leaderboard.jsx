@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
@@ -36,10 +37,12 @@ export default function StudentLeaderboard() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [rankResult, members, logs] = await Promise.all([
+    const [rankResult, members, logs, badges, badgeDefinitions] = await Promise.all([
       supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
       db.entities.GroupMember.filter({ group_id: group.id }),
       db.entities.ParticipationLog.filter({ group_id: group.id }),
+      db.entities.Badge.filter({ classroom_id: classroomId }),
+      db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
     ]);
     if (rankResult.error) throw rankResult.error;
     const groupRows = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, pts: Math.round(row.points || 0), missionsDone: row.missions_done || 0 }))
@@ -51,12 +54,12 @@ export default function StudentLeaderboard() {
       .slice(0, 12);
 
     const myMember = members.find((m) => m.id === account.group_member_id) || members.find((m) => m.is_account_holder);
-    setData({ group, groupRows, indRows, myMemberId: myMember?.id });
+    setData({ group, groupRows, indRows, myMemberId: myMember?.id, badges, badgeDefinitions });
   }
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, groupRows, indRows, myMemberId } = data;
+  const { group, groupRows, indRows, myMemberId, badges, badgeDefinitions } = data;
   const myRank = groupRows.findIndex((r) => r.group.id === group.id) + 1;
   const maxPts = Math.max(...groupRows.map((r) => r.pts), 1);
   const maxInd = Math.max(...indRows.map((r) => r.points), 1);
@@ -98,7 +101,7 @@ export default function StudentLeaderboard() {
                   <div key={r.group.id} className="text-center">
                     <div className="text-3xl mb-1">{medal[place]}</div>
                     <div className={`${podiumColor[place]} ${heights[place]} rounded-t-2xl border-[3px] border-ink flex flex-col items-center justify-center shadow-[3px_3px_0_#17162B]`}>
-                      <p className="font-display font-extrabold">G{r.group.group_number}</p>
+                      <p className="inline-flex items-center gap-1 font-display font-extrabold">G{r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
                       <p className="font-mono font-bold text-lg">{r.pts}</p>
                       <p className="text-[10px] font-display opacity-80">pts</p>
                     </div>
@@ -118,7 +121,7 @@ export default function StudentLeaderboard() {
                     <span className="font-mono font-bold w-6 text-center">{i + 1}</span>
                     <div className="flex-1">
                       <div className="flex justify-between mb-1">
-                        <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {r.group.group_number} {isMe && "· You"}</span>
+                        <span className={`inline-flex items-center gap-1 font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /> {isMe && "· You"}</span>
                         <span className="font-mono text-sm">{r.pts} pts</span>
                       </div>
                       <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">

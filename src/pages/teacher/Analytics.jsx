@@ -7,6 +7,7 @@ import { getTeacherClassroom, getClassroomDataset } from "@/lib/teacherClassroom
 import { getMissionProgress } from "@/lib/missionProgress";
 import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
+import { getGroupBadgeItems } from "@/lib/groupBadges";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
 const shortTitle = (title, max = 15) => title?.length > max ? `${title.slice(0, max - 1)}…` : (title || "Mission");
@@ -50,7 +51,7 @@ export default function TeacherAnalytics() {
       navigate(ROUTES.TEACHER.ONBOARDING);
       return;
     }
-    const data = await getClassroomDataset(classroom.id, ["groups", "members", "attendance", "scores", "activities", "logs", "missions", "submissions"]);
+    const data = await getClassroomDataset(classroom.id, ["groups", "members", "attendance", "scores", "activities", "logs", "missions", "submissions", "badges"]);
     const members = data.members || [];
     const groups = data.groups || [];
     const memberNames = Object.fromEntries(members.map((member) => [member.id, fullName(member)]));
@@ -66,7 +67,11 @@ export default function TeacherAnalytics() {
     }
     const attendance = Object.values(attendanceByWeek).sort((a, b) => a.label.localeCompare(b.label)).map((item) => ({ ...item, rate: item.total ? Math.round((item.present / item.total) * 100) : 0 }));
 
-    const groupSets = classroom.uses_groups ? groups.slice().sort((a, b) => a.group_number - b.group_number).map((group) => ({ id: group.id, name: `Group ${group.group_number}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: "class", name: "Whole class", members }];
+    const badgeIconsByGroup = new Map();
+    for (const badge of getGroupBadgeItems(data.badges || [])) {
+      badgeIconsByGroup.set(badge.group_id, [...(badgeIconsByGroup.get(badge.group_id) || []), badge.icon]);
+    }
+    const groupSets = classroom.uses_groups ? groups.slice().sort((a, b) => a.group_number - b.group_number).map((group) => ({ id: group.id, name: `Group ${group.group_number}${badgeIconsByGroup.has(group.id) ? ` ${badgeIconsByGroup.get(group.id).join(" ")}` : ""}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: "class", name: "Whole class", members }];
     const activities = groupSets.map((set) => {
       const studentScores = set.members.map((member) => {
         const submitted = (data.scores || []).filter((score) => score.group_member_id === member.id);

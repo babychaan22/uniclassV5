@@ -10,6 +10,7 @@ import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Flame, Star, Trophy, Users, Megaphone, ArrowRight } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila } from "@/lib/week";
@@ -32,7 +33,7 @@ export default function StudentDashboard() {
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [classroom, members, rankResult, attendance, scores, activities, logs, announcements, missions] = await Promise.all([
+      const [classroom, members, rankResult, attendance, scores, activities, logs, announcements, missions, badges, badgeDefinitions] = await Promise.all([
         db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
@@ -42,6 +43,8 @@ export default function StudentDashboard() {
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
         db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
         supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
+        db.entities.Badge.filter({ classroom_id: classroomId }),
+        db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
       ]);
       if (rankResult.error) throw rankResult.error;
 
@@ -62,7 +65,7 @@ export default function StudentDashboard() {
 
       const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
 
-      setData({ account, group, classroom, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
       setLoading(false);
     }
     load();
@@ -70,7 +73,7 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
@@ -100,7 +103,7 @@ export default function StudentDashboard() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DashboardRangeTabs value={range} onChange={setRange} />
-        <ClayChip color="sky">Group {group.group_number}</ClayChip>
+        <ClayChip color="sky">Group {group.group_number} <GroupBadgeMarkers groupId={group.id} badges={badges} definitions={badgeDefinitions} /></ClayChip>
       </div>
 
       <section className="no-print">
@@ -228,7 +231,7 @@ export default function StudentDashboard() {
                 <span className="font-mono font-bold w-6">{i + 1}</span>
                 <div className="flex-1">
                   <div className="flex justify-between mb-1">
-                    <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {g.group.group_number} {isMe && "(You)"}</span>
+                    <span className={`inline-flex items-center gap-1 font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {g.group.group_number} <GroupBadgeMarkers groupId={g.group.id} badges={badges} definitions={badgeDefinitions} /> {isMe && "(You)"}</span>
                     <span className="font-mono text-sm">{Math.round(g.points)} pts</span>
                   </div>
                   <div className="h-6 rounded-full border-2 border-ink bg-cream overflow-hidden">

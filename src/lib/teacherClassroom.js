@@ -96,7 +96,7 @@ const DATASET_QUERIES = {
   submissions: (id) => base44.entities.MissionSubmission.filter({ classroom_id: id }, { columns: 'id,created_date,mission_id,group_id,group_member_id,classroom_id,score,xp_earned,graded_by,answers', orderBy: 'created_date', ascending: false }),
   rewards: (id) => base44.entities.Reward.filter({ classroom_id: id }, { columns: 'id,classroom_id,title,description,emoji,cost_points,is_active,created_by,applies_to_all_classes' }),
   redemptions: (id) => base44.entities.RewardRedemption.filter({ classroom_id: id }, { columns: 'id,created_date,reward_id,reward_title,group_id,classroom_id,points_spent,redeemed_by,approval_status,reviewed_by,reviewed_at', orderBy: 'created_date', ascending: false }),
-  badges: (id) => base44.entities.Badge.filter({ classroom_id: id }, { columns: 'id,created_date,group_id,classroom_id,badge_type,week_start_date,points_awarded,redeemed_by,badge_definition_id,member_id,approval_status,reviewed_by,reviewed_at' }),
+  badges: (id) => base44.entities.Badge.filter({ classroom_id: id }, { columns: 'id,created_date,group_id,classroom_id,badge_type,week_start_date,visible_week_start_date,points_awarded,redeemed_by,badge_definition_id,member_id,approval_status,reviewed_by,reviewed_at' }),
   qrcodes: (id) => base44.entities.QRCode.filter({ classroom_id: id }, { columns: 'id,created_date,hash,classroom_id,qr_type,base_points,is_used,used_by_member_id,used_at,created_by', orderBy: 'created_date', ascending: false }),
   announcements: (id) => base44.entities.Announcement.filter({ classroom_id: id }, { columns: 'id,created_date,classroom_id,title,body,is_pinned,created_by', orderBy: 'created_date', ascending: false }),
 };

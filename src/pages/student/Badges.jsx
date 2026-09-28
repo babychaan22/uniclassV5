@@ -10,9 +10,10 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { redeemBadge } from "@/lib/badgeService";
 import { claimBadgeDefinition } from "@/lib/secureActions";
-import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
+import { getBadgeDisplayWeekStartManila, getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { Check, Loader2 } from "lucide-react";
 import NovaMessage from "@/components/NovaMessage";
+import { notifyGroupBadgesUpdated } from "@/components/GroupBadgeContext";
 
 const BADGE_INFO = {
   weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, icon: "🎯" },
@@ -32,9 +33,16 @@ export default function StudentBadges() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [customBadges, setCustomBadges] = useState([]);
+  const [now, setNow] = useState(() => new Date());
 
-  const weekStart = getWeekStartManila();
-  const endOfWeek = isEndOfWeekManila();
+  const weekStart = getWeekStartManila(now);
+  const badgeWeekStart = getBadgeDisplayWeekStartManila(now);
+  const endOfWeek = isEndOfWeekManila(now);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -45,7 +53,7 @@ export default function StudentBadges() {
       const g = await db.entities.Group.get(a.group_id);
       setGroup(g);
 
-      const badges = await db.entities.Badge.filter({ group_id: a.group_id, week_start_date: weekStart });
+      const badges = await db.entities.Badge.filter({ group_id: a.group_id, visible_week_start_date: badgeWeekStart });
       const claimedMap = {}; const pendingMap = {};
       for (const b of badges) {
         if (b.approval_status === "approved") claimedMap[b.badge_type] = true;
@@ -99,7 +107,7 @@ export default function StudentBadges() {
       setEligibility(elig);
     }
     load();
-  }, [user]);
+  }, [user, weekStart, badgeWeekStart]);
 
   async function redeem(badgeType) {
     setRedeeming(badgeType);
@@ -107,6 +115,7 @@ export default function StudentBadges() {
     const res = await redeemBadge(group.id, badgeType, user.id);
     setRedeeming(null);
     if (res.error) { setError(res.error); return; }
+    notifyGroupBadgesUpdated();
     setPending({ ...pending, [badgeType]: true });
     setResult({ badgeType, title: BADGE_INFO[badgeType].label });
     setTimeout(() => setResult(null), 3000);
@@ -114,9 +123,13 @@ export default function StudentBadges() {
 
   async function claimCustom(definition) {
     setRedeeming(definition.id); setError("");
+    const key = definition.badge_scope === "personal"
+      ? `custom:${definition.id}:${account.group_member_id}`
+      : `custom:${definition.id}`;
     try {
       await claimBadgeDefinition(definition.id, group.id, definition.badge_scope === "personal" ? account.group_member_id : null);
-      setPending({ ...pending, [`custom:${definition.id}`]: true });
+      notifyGroupBadgesUpdated();
+      setPending((current) => ({ ...current, [key]: true }));
       setResult({ badgeType: "custom", title: definition.title });
     } catch (err) { setError(err.message || "Could not claim badge."); }
     setRedeeming(null);
@@ -172,7 +185,7 @@ export default function StudentBadges() {
       {customBadges.length > 0 && <>
         <h2 className="font-display font-bold text-lg">Teacher badges</h2>
         <div className="grid sm:grid-cols-2 gap-4">{customBadges.map((badge) => {
-          const key = `custom:${badge.id}`; const isClaimed = claimed[key]; const isPending = pending[key];
+          const key = badge.badge_scope === "personal" ? `custom:${badge.id}:${account.group_member_id}` : `custom:${badge.id}`; const isClaimed = claimed[key]; const isPending = pending[key];
           return <ClayCard key={badge.id} className="p-5"><div className="flex items-center gap-3 mb-3"><div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl">{badge.icon}</div><div><p className="font-display font-bold text-sm">{badge.title}</p><p className="text-xs text-ink/50">{badge.description || "Weekend badge"}</p></div></div><div className="flex flex-wrap gap-2"><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : "sun"}>{isClaimed ? "Approved" : isPending ? "Awaiting teacher approval" : badge.badge_scope}</ClayChip><ClayChip color="sun">+{badge.points} pts</ClayChip></div>{badge.badge_scope === "group" && <p className="text-[11px] text-ink/50 mt-2">Points are added to the group only after teacher approval.</p>}{endOfWeek && !isClaimed && !isPending && <ClayButton color="pink" size="sm" className="w-full mt-3" onClick={() => claimCustom(badge)} disabled={redeeming === badge.id}>{redeeming === badge.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Request approval"}</ClayButton>}</ClayCard>;
         })}</div>
       </>}

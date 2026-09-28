@@ -8,6 +8,7 @@ import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { reviewBadgeClaim } from '@/lib/secureActions';
+import { notifyGroupBadgesUpdated } from "@/components/GroupBadgeContext";
 
 export default function TeacherBadges() {
   const { user } = useAuth();
@@ -39,7 +40,7 @@ export default function TeacherBadges() {
   async function remove(id) { await db.entities.BadgeDefinition.update(id, { is_active: false }); load(); }
   async function reviewRequest(request, approve) {
     setReviewing(request.id);
-    try { await reviewBadgeClaim(request.id, approve); invalidateClassroomDataset(); await load(); }
+    try { await reviewBadgeClaim(request.id, approve); notifyGroupBadgesUpdated(); invalidateClassroomDataset(); await load(); }
     finally { setReviewing(null); }
   }
   if (!classroom) return <div className="py-20 text-center">Loading…</div>;

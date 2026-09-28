@@ -9,6 +9,7 @@ import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalid
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
@@ -472,7 +473,7 @@ export default function TeacherMissions() {
                   const answered = groupMembers.filter((member) => answeredIds.has(member.id));
                   const waiting = groupMembers.filter((member) => !answeredIds.has(member.id));
                   return <details key={g.id} className="rounded-xl border-2 border-ink/15 bg-cream px-3 py-2">
-                    <summary className="cursor-pointer list-none flex items-center gap-2"><span className="font-display font-bold text-sm flex-1">Group {g.group_number}</span><ClayChip color={answered.length === groupMembers.length && groupMembers.length ? 'lime' : 'sun'}>{answered.length}/{groupMembers.length} answered</ClayChip></summary>
+                    <summary className="cursor-pointer list-none flex items-center gap-2"><span className="inline-flex items-center gap-1 font-display font-bold text-sm flex-1">Group {g.group_number} <GroupBadgeMarkers groupId={g.id} /></span><ClayChip color={answered.length === groupMembers.length && groupMembers.length ? 'lime' : 'sun'}>{answered.length}/{groupMembers.length} answered</ClayChip></summary>
                     <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2"><div><p className="font-display font-bold text-clay-lime">Answered ({answered.length})</p><p className="text-ink/65">{answered.length ? answered.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None yet'}</p></div><div><p className="font-display font-bold text-clay-coral">Not answered ({waiting.length})</p><p className="text-ink/65">{waiting.length ? waiting.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'Everyone has responded'}</p></div></div>
                   </details>;
                 }
@@ -484,7 +485,7 @@ export default function TeacherMissions() {
                 if (isAi && sub?.answers) { try { subAnswers = JSON.parse(sub.answers); } catch {} }
                 return (
                   <div key={g.id} className="flex items-center gap-2">
-                    <span className="font-display font-bold text-sm w-24 shrink-0">Group {g.group_number}</span>
+                    <span className="inline-flex items-center gap-1 font-display font-bold text-sm w-24 shrink-0">Group {g.group_number} <GroupBadgeMarkers groupId={g.id} /></span>
                     {isAi ? (
                       <div className="flex flex-1 flex-wrap items-center gap-2"><ClayChip color={groupSubmissions.length === groupMembers.length && groupMembers.length ? "lime" : "sun"}>{groupSubmissions.length}/{groupMembers.length} submitted</ClayChip>{groupSubmissions.map((studentSubmission) => { const member = members.find((item) => item.id === studentSubmission.group_member_id); return <ClayChip key={studentSubmission.id} color="sky">{member ? `${member.first_name} ${member.last_name}` : "Student"}: {studentSubmission.score} → {studentSubmission.xp_earned} XP</ClayChip>; })}</div>
                     ) : isGradingThis ? (

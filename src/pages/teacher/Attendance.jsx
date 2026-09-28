@@ -8,6 +8,7 @@ import { getTodayManila } from "@/lib/week";
 import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { CalendarDays, Check, ClipboardCheck, RefreshCw, X } from "lucide-react";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
@@ -50,6 +51,7 @@ export default function TeacherAttendance() {
     if (!classroom?.uses_groups) return [{ id: "class", title: "Whole class", members }];
     return groups.slice().sort((a, b) => a.group_number - b.group_number).map((group) => ({
       id: group.id,
+      groupId: group.id,
       title: `Group ${group.group_number}`,
       members: members.filter((member) => member.group_id === group.id),
     }));
@@ -105,7 +107,7 @@ export default function TeacherAttendance() {
       <div className="space-y-4">
         {sections.map((section) => (
           <ClayCard key={section.id} className="p-4">
-            <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-display text-lg font-extrabold">{section.title}</h2><ClayChip color="purple">{section.members.length} students</ClayChip></div>
+            <div className="mb-3 flex items-center justify-between gap-2"><h2 className="inline-flex items-center gap-1 font-display text-lg font-extrabold">{section.title} <GroupBadgeMarkers groupId={section.groupId} /></h2><ClayChip color="purple">{section.members.length} students</ClayChip></div>
             {section.members.length === 0 ? <p className="py-3 text-sm text-ink/55">No students are in this group yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{section.members.map((member) => {
               const status = attendanceByMember[member.id]?.status;
               const busy = savingId === member.id;

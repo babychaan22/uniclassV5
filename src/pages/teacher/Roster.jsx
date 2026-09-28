@@ -11,6 +11,7 @@ import { supabase } from "@/api/supabaseClient";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
@@ -25,6 +26,8 @@ export default function Roster() {
   const [groups, setGroups] = useState([]);
   const [members, setMembers] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [badges, setBadges] = useState([]);
+  const [badgeDefinitions, setBadgeDefinitions] = useState([]);
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
   const [actionError, setActionError] = useState("");
@@ -36,14 +39,18 @@ export default function Roster() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const [g, m, acc] = await Promise.all([
+    const [g, m, acc, badgeRows, definitions] = await Promise.all([
       getClassroomGroups(c.id),
       getClassroomMembers(c.id),
       db.entities.GroupAccount.filter({ classroom_id: c.id }),
+      db.entities.Badge.filter({ classroom_id: c.id }),
+      db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
     ]);
     setGroups(g.sort((a, b) => a.group_number - b.group_number));
     setMembers(m);
     setAccounts(acc);
+    setBadges(badgeRows);
+    setBadgeDefinitions(definitions);
   }
 
   function startEdit(mem) { setEdit({ ...edit, [mem.id]: { last_name: mem.last_name, first_name: mem.first_name, group_id: mem.group_id } }); }
@@ -115,7 +122,7 @@ export default function Roster() {
           <ClayCard key={g.id} className="p-4 sm:p-5">
             <h2 className="mb-4 flex items-center gap-3 font-display text-lg font-extrabold text-[var(--uc-navy-950)]">
               <UIAsset name="students" className="h-10 w-10" />
-              <span>Group {g.group_number}{g.group_name ? ` — ${g.group_name}` : ""}</span> <ClayChip color="cream">{gm.length} members</ClayChip>
+              <span className="inline-flex items-center gap-1">Group {g.group_number}{g.group_name ? ` — ${g.group_name}` : ""} <GroupBadgeMarkers groupId={g.id} badges={badges} definitions={badgeDefinitions} /></span> <ClayChip color="cream">{gm.length} members</ClayChip>
             </h2>
             <div className="space-y-2">
               {gm.map((mem) => {

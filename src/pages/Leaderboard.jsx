@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Trophy, Target } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { getTeacherClassroom } from '@/lib/teacherClassroom';
@@ -17,6 +18,7 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [studentRows, setStudentRows] = useState([]);
+  const [badgeData, setBadgeData] = useState({ badges: [], badgeDefinitions: [] });
 
   useEffect(() => {
     load();
@@ -29,11 +31,13 @@ export default function Leaderboard() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const [groups, members, logs, submissions] = await Promise.all([
+    const [groups, members, logs, submissions, badges, badgeDefinitions] = await Promise.all([
       db.entities.Group.filter({ classroom_id: c.id }),
       db.entities.GroupMember.filter({ classroom_id: c.id }),
       db.entities.ParticipationLog.filter({ classroom_id: c.id }),
       db.entities.MissionSubmission.filter({ classroom_id: c.id }),
+      db.entities.Badge.filter({ classroom_id: c.id }),
+      db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
     ]);
     const rows = groups.map((g) => {
       const pts = logs
@@ -49,6 +53,7 @@ export default function Leaderboard() {
     }).sort((a, b) => b.points - a.points || b.missions - a.missions);
     setRows(rows);
     setStudentRows(students);
+    setBadgeData({ badges, badgeDefinitions });
     setLoading(false);
   }
 
@@ -73,7 +78,7 @@ export default function Leaderboard() {
                 <span className="font-mono font-extrabold text-lg w-8 text-center">{medal || i + 1}</span>
                 <div className="flex-1">
                   <div className="flex justify-between mb-1">
-                    <span className="font-display font-bold">Group {r.group.group_number}</span>
+                    <span className="inline-flex items-center gap-1 font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badgeData.badges} definitions={badgeData.badgeDefinitions} /></span>
                     <span className="font-mono text-sm">{r.points} pts</span>
                   </div>
                   <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">

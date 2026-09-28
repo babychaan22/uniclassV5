@@ -291,6 +291,11 @@ const entities = new Proxy(
 // -------------------------------------------------------------------
 export const db = { entities, auth };
 
+export function invalidateEntityCache(entityName) {
+  const tableName = ENTITY_TABLE_MAP[entityName];
+  if (tableName) clearReadCache(tableName);
+}
+
 // Make available globally so all pages using the pattern
 // `const db = globalThis.__B44_DB__` resolve correctly.
 globalThis.__B44_DB__ = db;

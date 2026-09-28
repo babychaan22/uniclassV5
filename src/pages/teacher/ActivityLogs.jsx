@@ -9,6 +9,7 @@ import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidat
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
+import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
 import { ScrollText, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
@@ -82,6 +83,7 @@ export default function ActivityLogs() {
       type: "redemption",
       points: null,
       groupLabel: gmap[r.group_id] ? `Group ${gmap[r.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+      group_id: r.group_id,
       memberLabel: null,
       note: `${r.reward_title} · ${r.approval_status === 'approved' ? 'approved' : r.approval_status === 'rejected' ? 'declined' : 'awaiting approval'} · no points deducted`,
       created_date: r.created_date,
@@ -92,6 +94,7 @@ export default function ActivityLogs() {
       type: "badge",
       points: null,
       groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+      group_id: b.group_id,
       memberLabel: null,
       note: b.title,
       created_date: b.created_date,
@@ -129,7 +132,7 @@ export default function ActivityLogs() {
 
   const groupedEntries = Object.values(entries.reduce((groups, entry) => {
     const key = entry.groupLabel || 'Whole class';
-    if (!groups[key]) groups[key] = { label: key, entries: [] };
+    if (!groups[key]) groups[key] = { label: key, groupId: entry.group_id, entries: [] };
     groups[key].entries.push(entry);
     return groups;
   }, {}));
@@ -150,7 +153,7 @@ export default function ActivityLogs() {
       )}
 
       {groupedEntries.map((section) => <ClayCard key={section.label} className="p-3">
-        <div className="mb-2 flex items-center justify-between"><p className="font-display font-bold text-sm">{section.label}</p><ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip></div>
+        <div className="mb-2 flex items-center justify-between"><p className="inline-flex items-center gap-1 font-display font-bold text-sm">{section.label} <GroupBadgeMarkers groupId={section.groupId} /></p><ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip></div>
         <div className="divide-y divide-ink/10">{section.entries.map((e) => {
           const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
           return <div key={e.id} className="py-2 first:pt-0 last:pb-0"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><ClayChip color={meta.color}>{meta.label}</ClayChip>{e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}</div>{e.note && <p className="mt-1 truncate text-xs text-ink/65">{e.note}</p>}<p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p></div>{e.points != null && <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>{e.points > 0 ? '+' : ''}{e.points}</p>}</div>{e.correctable && <div className="mt-2"><ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}><ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient</ClayButton>{correction?.sourceLogId === e.sourceLogId && <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />}</div>}</div>;
