@@ -10,7 +10,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { redeemBadge } from "@/lib/badgeService";
 import { claimBadgeDefinition } from "@/lib/secureActions";
-import { getBadgeDisplayWeekStartManila, getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
+import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { Check, Loader2 } from "lucide-react";
 import NovaMessage from "@/components/NovaMessage";
 import { notifyGroupBadgesUpdated } from "@/components/GroupBadgeContext";
@@ -36,7 +36,6 @@ export default function StudentBadges() {
   const [now, setNow] = useState(() => new Date());
 
   const weekStart = getWeekStartManila(now);
-  const badgeWeekStart = getBadgeDisplayWeekStartManila(now);
   const endOfWeek = isEndOfWeekManila(now);
 
   useEffect(() => {
@@ -53,7 +52,8 @@ export default function StudentBadges() {
       const g = await db.entities.Group.get(a.group_id);
       setGroup(g);
 
-      const badges = await db.entities.Badge.filter({ group_id: a.group_id, visible_week_start_date: badgeWeekStart });
+      const statusWeekStart = endOfWeek ? weekStart : addDays(weekStart, -7);
+      const badges = await db.entities.Badge.filter({ group_id: a.group_id, week_start_date: statusWeekStart });
       const claimedMap = {}; const pendingMap = {};
       for (const b of badges) {
         if (b.approval_status === "approved") claimedMap[b.badge_type] = true;
@@ -107,7 +107,7 @@ export default function StudentBadges() {
       setEligibility(elig);
     }
     load();
-  }, [user, weekStart, badgeWeekStart]);
+  }, [user, weekStart, endOfWeek]);
 
   async function redeem(badgeType) {
     setRedeeming(badgeType);

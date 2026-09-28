@@ -13,7 +13,7 @@ export function getGroupBadgeItems(badges = [], definitions = [], date = new Dat
   const weekStart = getWeekStartManila(date);
   const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
   return badges
-    .filter((badge) => badge.visible_week_start_date === weekStart && ["pending", "approved"].includes(badge.approval_status))
+    .filter((badge) => (badge.visible_week_start_date || getVisibleWeekStart(badge)) === weekStart && ["pending", "approved"].includes(badge.approval_status))
     .map((badge) => {
       const definition = definitionsById.get(badge.badge_definition_id);
       const systemBadge = SYSTEM_BADGES[badge.badge_type];
@@ -24,4 +24,11 @@ export function getGroupBadgeItems(badges = [], definitions = [], date = new Dat
         icon: definition?.icon || systemBadge?.icon || "🏅",
       };
     });
+}
+
+function getVisibleWeekStart(badge) {
+  if (!badge.week_start_date) return "";
+  const nextMonday = new Date(`${badge.week_start_date}T00:00:00Z`);
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+  return nextMonday.toISOString().slice(0, 10);
 }
