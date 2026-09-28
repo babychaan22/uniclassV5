@@ -174,7 +174,7 @@ export default function Layout() {
   };
 
   return (
-    <GroupBadgeProvider user={user} isTeacher={isTeacher} locationKey={location.pathname}>
+    <GroupBadgeProvider user={user} isTeacher={isTeacher}>
     <div className="min-h-screen bg-[var(--uc-bg)]">
       <OfflineStatus />
       <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">

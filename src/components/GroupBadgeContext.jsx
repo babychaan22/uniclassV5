@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { db, invalidateEntityCache } from "@/api/supabaseClient";
-import { getActiveStudentAccount } from "@/lib/studentContext";
+import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
 import { getTeacherClassroom } from "@/lib/teacherClassroom";
 
 const GroupBadgeContext = createContext({ badges: [], definitions: [], now: new Date() });
@@ -14,7 +14,7 @@ export function notifyGroupBadgesUpdated() {
   }
 }
 
-export function GroupBadgeProvider({ children, user, isTeacher, locationKey }) {
+export function GroupBadgeProvider({ children, user, isTeacher }) {
   const [badgeData, setBadgeData] = useState({ badges: [], definitions: [] });
   const [now, setNow] = useState(() => new Date());
 
@@ -49,15 +49,15 @@ export function GroupBadgeProvider({ children, user, isTeacher, locationKey }) {
     }
     load();
     window.addEventListener(GROUP_BADGES_UPDATED_EVENT, load);
-    window.addEventListener("uniclass-student-class-changed", load);
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, load);
     window.addEventListener("uniclass-teacher-class-changed", load);
     return () => {
       cancelled = true;
       window.removeEventListener(GROUP_BADGES_UPDATED_EVENT, load);
-      window.removeEventListener("uniclass-student-class-changed", load);
+      window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, load);
       window.removeEventListener("uniclass-teacher-class-changed", load);
     };
-  }, [user?.id, isTeacher, locationKey]);
+  }, [user?.id, isTeacher]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);

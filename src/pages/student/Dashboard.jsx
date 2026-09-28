@@ -27,13 +27,14 @@ export default function StudentDashboard() {
   const [range, setRange] = useState("week");
 
   useEffect(() => {
+    let active = true;
     async function load() {
       if (!user) return;
       const account = await getActiveStudentAccount(user.id);
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [classroom, members, rankResult, attendance, scores, activities, logs, announcements, missions, badges, badgeDefinitions] = await Promise.all([
+      const [classroom, members, rankResult, attendance, scores, activities, logs] = await Promise.all([
         db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
@@ -41,12 +42,9 @@ export default function StudentDashboard() {
         db.entities.ActivityScore.filter({ classroom_id: classroomId }),
         db.entities.Activity.filter({ classroom_id: classroomId }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
-        db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
-        supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
-        db.entities.Badge.filter({ classroom_id: classroomId }),
-        db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
       ]);
       if (rankResult.error) throw rankResult.error;
+      if (!active) return;
 
       const memberCards = members.map((m) => {
         const streak = computeAttendanceStreak(m.id, attendance, classroom?.class_days);
@@ -65,10 +63,30 @@ export default function StudentDashboard() {
 
       const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
 
-      setData({ account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: missions.data || [], announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")) });
+      setData({ account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: [], announcements: [] });
       setLoading(false);
+
+      Promise.all([
+        db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
+        supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
+        db.entities.Badge.filter({ classroom_id: classroomId }),
+        db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
+      ]).then(([announcements, missions, badges, badgeDefinitions]) => {
+        if (!active) return;
+        setData((current) => current && ({
+          ...current,
+          badges,
+          badgeDefinitions,
+          missions: missions.data || [],
+          announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")),
+        }));
+      }).catch((error) => console.warn("Dashboard extras could not be loaded", error));
     }
-    load();
+    load().catch((error) => {
+      console.error("Student dashboard could not be loaded", error);
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, [user, navigate]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;

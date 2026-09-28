@@ -36,12 +36,15 @@ export default function TeacherDashboard() {
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
+  const [attentionLoading, setAttentionLoading] = useState(true);
 
   const refresh = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
+    let active = true;
     async function load() {
       if (!user) return;
+      setAttentionLoading(true);
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
       const [ds, teacherClasses, badgeDefinitions] = await Promise.all([
@@ -107,7 +110,12 @@ export default function TeacherDashboard() {
         .slice(0, 6)
         .map((l) => ({ ...l, groupNumber: groups.find((g) => g.id === l.group_id)?.group_number }));
 
-      const attentionByClass = await Promise.all(teacherClasses.map(async (item) => {
+      if (!active) return;
+      setPending(pendingAccounts);
+      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass: [] });
+      setLoading(false);
+
+      Promise.all(teacherClasses.map(async (item) => {
         const source = item.id === classroom.id ? ds : await getClassroomDataset(item.id, ['members', 'attendance', 'groupAccounts']);
         const isClassToday = !hasClassDays(item.class_days) || isScheduledClassDay(new Date(`${getTodayManila()}T00:00:00Z`), item.class_days);
         const todayAttendance = source.attendance.filter((record) => record.attendance_date === getTodayManila());
@@ -118,12 +126,20 @@ export default function TeacherDashboard() {
           status: attendanceByMember[member.id]?.status === 'absent' ? 'Absent' : 'No record',
         }));
         return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance, isClassToday };
-      }));
-      setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass });
-      setLoading(false);
+      })).then((attentionByClass) => {
+        if (!active) return;
+        setData((current) => current && ({ ...current, attentionByClass }));
+        setAttentionLoading(false);
+      }).catch((error) => {
+        console.warn("Cross-class attendance summary could not be loaded", error);
+        if (active) setAttentionLoading(false);
+      });
     }
-    load();
+    load().catch((error) => {
+      console.error("Teacher dashboard could not be loaded", error);
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, [user, reloadKey, navigate]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
@@ -266,6 +282,7 @@ export default function TeacherDashboard() {
       <ClayCard className="p-4 no-print">
         <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
         <p className="mb-2 text-xs text-ink/60">Select a class to see which students need attendance follow-up.</p>
+        {attentionLoading && <p role="status" className="mb-2 text-xs text-ink/50">Checking attendance in your classes…</p>}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => {
           const expanded = expandedAttentionClass === item.classroom.id;
           return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.isClassToday ? `${item.missingToday} without a present record today` : 'No class scheduled today'} · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">{item.isClassToday ? 'All clear' : 'Attendance paused'}</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">{item.isClassToday ? 'Everyone is marked present today.' : 'This class does not meet today.'}</p>}</div>}</div>;
