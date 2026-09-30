@@ -36,7 +36,12 @@ export default function StudentRewards() {
       db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.RewardRedemption.filter({ group_id: group.id }),
     ]);
-    const gross = logs.reduce((sum, log) => sum + (log.points_awarded || 0), 0);
+    // Behavior penalties are stored positive and deducted everywhere else, so the
+// same sign flip has to apply here or the advertised balance is too high.
+const gross = logs.reduce(
+  (sum, log) => sum + (log.event_type === "behavior_penalty" ? -Math.abs(log.points_awarded || 0) : log.points_awarded || 0),
+  0,
+);
     const active = rewards
       .filter((r) => r.classroom_id === classroomId || r.applies_to_all_classes)
       .sort((a, b) => a.cost_points - b.cost_points);

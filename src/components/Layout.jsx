@@ -7,7 +7,7 @@ import { ROUTES } from "@/lib/routes";
 import {
   Home, Settings, FileText, QrCode, Award, ClipboardCheck,
   LogOut, Menu, X, Target, Gift, User,
-  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image,
+  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image, History,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
@@ -106,6 +106,7 @@ const STUDENT_NAV = [
   { label: "Badges",          path: ROUTES.STUDENT.BADGES,     icon: Award },
   { label: "Missions",        path: ROUTES.STUDENT.MISSIONS,   icon: Target },
   { label: "Rewards",         path: ROUTES.STUDENT.REWARDS,    icon: Gift },
+  { label: "History",         path: ROUTES.STUDENT.HISTORY,    icon: History },
   { label: "Leaderboard",     path: ROUTES.STUDENT.LEADERBOARD,icon: Trophy },
   { label: "Settings",        path: ROUTES.STUDENT.SETTINGS,   icon: Settings },
   { label: "Help",            path: ROUTES.STUDENT.HELP,       icon: HelpCircle },

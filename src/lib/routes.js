@@ -43,6 +43,7 @@ export const ROUTES = {
     BADGES:     '/student/badges',
     MISSIONS:   '/student/missions',
     REWARDS:    '/student/rewards',
+    HISTORY:    '/student/history',
     HELP:       '/student/help',
     LEADERBOARD:'/student/leaderboard',
     SETTINGS:   '/student/settings',

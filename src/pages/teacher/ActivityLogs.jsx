@@ -27,6 +27,13 @@ const LABELS = {
   point_correction: { label: "Point correction", color: "purple" },
 };
 
+const SYSTEM_BADGE_LABELS = {
+  weekly_90_activity: '90% Activity Squad',
+  weekly_full_attendance: 'Perfect Attendance',
+  weekly_top_group_points: 'Top Group Points',
+  weekly_top_individual_points: 'Top Point Earner',
+};
+
 const CORRECTABLE_TYPES = new Set(['scan', 'gacha_win', 'gacha_even', 'mission_redemption']);
 
 export default function ActivityLogs() {
@@ -40,6 +47,7 @@ export default function ActivityLogs() {
   const [members, setMembers] = useState([]);
   const [correction, setCorrection] = useState(null);
   const [notice, setNotice] = useState('');
+  const [definitions, setDefinitions] = useState([]);
 
   useEffect(() => { load(); }, [user]);
 
@@ -49,12 +57,14 @@ export default function ActivityLogs() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const offset = nextPage * 100;
-    const [logs, redemptions, badges, groups, members] = await Promise.all([
+    const [logs, redemptions, badges, groups, members, badgeDefinitions] = await Promise.all([
       db.entities.ParticipationLog.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.RewardRedemption.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.Badge.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       getClassroomGroups(c.id), getClassroomMembers(c.id),
+      db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
     ]);
+    setDefinitions(badgeDefinitions || []);
     setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
@@ -89,16 +99,28 @@ export default function ActivityLogs() {
       created_date: r.created_date,
     }));
 
-    const badgeEntries = badges.map((b) => ({
-      id: `badge-${b.id}`,
-      type: "badge",
-      points: Number(b.points_awarded || 0),
-      groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
-      group_id: b.group_id,
-      memberLabel: null,
-      note: `${b.title}${Number(b.points_awarded || 0) > 0 ? ` · +${Number(b.points_awarded || 0)} pts` : ''}${b.approval_status ? ` · ${b.approval_status}` : ''}`,
-      created_date: b.created_date,
-    }));
+    const badgeEntries = badges.map((b) => {
+      const definition = definitions.find((item) => item.id === b.badge_definition_id);
+      const label = definition?.title
+        || SYSTEM_BADGE_LABELS[b.badge_type]
+        || b.badge_type.replace(/^custom:[0-9a-f-]+(:[0-9a-f-]+)?$/, "Badge").replaceAll("_", " ");
+      const points = Number(b.points_awarded || 0);
+      // A pending request has not moved any points yet; showing "+10" on an
+      // unapproved badge reads as if the group was already credited.
+      const status = b.approval_status || "pending";
+      const approved = status === "approved";
+      return {
+        id: `badge-${b.id}`,
+        type: "badge",
+        points: approved ? points : null,
+        pendingPoints: approved ? null : points,
+        groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+        group_id: b.group_id,
+        memberLabel: b.member_id && mmap[b.member_id] ? mmap[b.member_id] : null,
+        note: `${label} · ${approved ? `approved · +${points} pts` : status === 'rejected' ? 'declined · no points added' : `awaiting approval · +${points} pts on approval`}`,
+        created_date: b.created_date,
+      };
+    });
 
     const merged = [...logEntries, ...redemptionEntries, ...badgeEntries].sort(
       (a, b) => (b.created_date || "").localeCompare(a.created_date || "")
@@ -185,6 +207,11 @@ export default function ActivityLogs() {
                         {e.points != null && (
                           <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>
                             {e.points > 0 ? '+' : ''}{e.points}
+                          </p>
+                        )}
+                        {e.pendingPoints != null && (
+                          <p className="shrink-0 font-mono font-extrabold text-ink/40" title="Added only after approval">
+                            +{e.pendingPoints}
                           </p>
                         )}
                       </div>
