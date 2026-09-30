@@ -92,11 +92,11 @@ export default function ActivityLogs() {
     const badgeEntries = badges.map((b) => ({
       id: `badge-${b.id}`,
       type: "badge",
-      points: null,
+      points: Number(b.points_awarded || 0),
       groupLabel: gmap[b.group_id] ? `Group ${gmap[b.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       group_id: b.group_id,
       memberLabel: null,
-      note: b.title,
+      note: `${b.title}${Number(b.points_awarded || 0) > 0 ? ` · +${Number(b.points_awarded || 0)} pts` : ''}${b.approval_status ? ` · ${b.approval_status}` : ''}`,
       created_date: b.created_date,
     }));
 
@@ -168,7 +168,7 @@ export default function ActivityLogs() {
                 </p>
                 <ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip>
               </div>
-              <div className="space-y-2">
+              <div className={`space-y-2 ${section.entries.length > 4 ? 'max-h-56 overflow-y-auto pr-1' : ''}`}>
                 {section.entries.map((e) => {
                   const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
                   return (
