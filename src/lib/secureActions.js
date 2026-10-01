@@ -60,10 +60,21 @@ export async function recordActivityEvidence(activityId, groupMemberId, storageP
   return data;
 }
 
-export async function requestActivityScoreEdit(activityScoreId, proposedScore) {
+// evidenceId is the row returned by recordActivityEvidence. The database
+// rejects an edit without fresh proof, so it is required in practice.
+export async function ensureDailyDrill(classroomId) {
+  const { data, error } = await supabase.rpc('ensure_daily_drill_for_student', {
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function requestActivityScoreEdit(activityScoreId, proposedScore, evidenceId) {
   const { data, error } = await supabase.rpc('request_activity_score_edit', {
     p_activity_score_id: activityScoreId,
     p_proposed_score: proposedScore,
+    p_evidence_id: evidenceId,
   });
   if (error) throw error;
   return data;

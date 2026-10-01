@@ -20,7 +20,7 @@ import MascotWidget from "@/components/MascotWidget";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { completeLearningReview, redeemMissionPoints } from '@/lib/secureActions';
+import { completeLearningReview, ensureDailyDrill, redeemMissionPoints } from '@/lib/secureActions';
 import { missionTargetsClass } from '@/lib/missionAudience';
 import { formatMissionDeadline, isMissionLocked } from '@/lib/missionProgress';
 
@@ -46,6 +46,15 @@ export default function StudentMissions() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
+    // Materialise today's automatic drill before reading the list, so a student
+    // who has never opened the app still has one waiting.
+    let daily = null;
+    try {
+      daily = await ensureDailyDrill(classroomId);
+    } catch {
+      // A missing drill must never block the teacher's missions from loading.
+      daily = null;
+    }
     const [missionResult, subs, members, logs, reviews, classData] = await Promise.all([
       supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
       db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_member_id: account.group_member_id }),
@@ -55,7 +64,9 @@ export default function StudentMissions() {
       getClassroomDataset(classroomId, ['members', 'settings', 'terms', 'attendance', 'scores', 'activities', 'assessments', 'logs']),
     ]);
     if (missionResult.error) throw missionResult.error;
-    const missions = missionResult.data || [];
+    const missions = [...(missionResult.data || [])];
+    // A drill created after the RPC snapshot still belongs in today's list.
+    if (daily && !missions.some((m) => m.id === daily.id)) missions.unshift(daily);
     const currentMember = classData.members.find((member) => member.id === account.group_member_id);
     const term = classData.terms.find((item) => item.is_active) || classData.terms[0];
     const pointTotals = classData.members.map((member) => computeParticipationPoints(member.id, classData.logs));

@@ -13,6 +13,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
 import TeacherClassSwitcher from "@/components/TeacherClassSwitcher";
 import OfflineStatus from "@/components/OfflineStatus";
+import NotificationBell from "@/components/NotificationBell";
 import BrandMark from "@/components/BrandMark";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
@@ -43,6 +44,7 @@ const NAV_ASSET_BY_LABEL = {
   Attendance: "attendance",
   "Activity Scores": "assessment",
   "Scan QR": "upload",
+  History: "analytics",
 };
 
 const TEACHER_NAV_SECTIONS = [
@@ -193,7 +195,7 @@ export default function Layout() {
           <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block xl:hidden">Teach. Learn. Grow. Together.</p>
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
-            {isTeacher && <Link to={ROUTES.TEACHER.ANNOUNCEMENTS} aria-label="Announcements" className="hidden rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10 sm:inline-flex"><UIAsset name="notifications" className="h-5 w-5" /></Link>}
+            <NotificationBell teacher={isTeacher} />
             <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={user?.avatar_key} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">

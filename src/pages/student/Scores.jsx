@@ -31,6 +31,8 @@ export default function StudentScores() {
   const [proofBusy, setProofBusy] = useState(false);
   const [proofMsg, setProofMsg] = useState("");
   const [evidenceByMember, setEvidenceByMember] = useState({});
+  // Proof uploaded during this session, used to justify a score edit.
+  const [editProofByMember, setEditProofByMember] = useState({});
   const [existingScores, setExistingScores] = useState({});
   const [editRequests, setEditRequests] = useState({});
   const [requestingEdits, setRequestingEdits] = useState(false);
@@ -76,10 +78,13 @@ export default function StudentScores() {
         setScores(Object.fromEntries(existing.map((item) => [item.group_member_id, item.score])));
         setEditRequests(Object.fromEntries((requests.data || []).map((item) => [item.activity_score_id, item])));
         setEvidenceByMember(Object.fromEntries(evidence.map((item) => [item.group_member_id, item])));
+        // Evidence on file from the original submission cannot justify a change.
+        setEditProofByMember({});
       } else {
         setActivity(null);
         setLocked(false);
         setEvidenceByMember({});
+        setEditProofByMember({});
         setExistingScores({});
         setEditRequests({});
       }
@@ -113,8 +118,11 @@ export default function StudentScores() {
       uploadedPath = path;
       const { error: uploadError } = await supabase.storage.from("activity-evidence").upload(path, compressed, { contentType: "image/webp", upsert: false });
       if (uploadError) throw uploadError;
-      await recordActivityEvidence(act.id, memberForProof, path, file.name, compressed.size);
-      setEvidenceByMember((current) => ({ ...current, [memberForProof]: { storage_path: path } }));
+      // Keep the returned evidence id: a score edit must be backed by proof
+      // uploaded after the last approval, not by an older photo on file.
+      const evidence = await recordActivityEvidence(act.id, memberForProof, path, file.name, compressed.size);
+      setEvidenceByMember((current) => ({ ...current, [memberForProof]: { id: evidence.id, storage_path: path } }));
+      setEditProofByMember((current) => ({ ...current, [memberForProof]: evidence.id }));
       setProofMsg(`Proof uploaded and compressed to ${Math.round(compressed.size / 1024)} KB.`);
     } catch (err) {
       if (uploadedPath) {
@@ -170,9 +178,22 @@ export default function StudentScores() {
   async function requestEdits() {
     const changed = Object.values(existingScores).filter((saved) => Number(scores[saved.group_member_id]) !== Number(saved.score));
     if (!changed.length) { setError("Change a saved score before requesting teacher approval."); return; }
+    // A fresh photo is required for every score being changed, so the teacher
+    // reviews new evidence instead of trusting the original submission.
+    const missingProof = changed.filter((saved) => !editProofByMember[saved.group_member_id]);
+    if (missingProof.length > 0) {
+      setError(
+        `Upload a new photo of the work for ${missingProof.length} student${missingProof.length === 1 ? "" : "s"} before requesting approval. A score change cannot be sent without fresh proof.`,
+      );
+      return;
+    }
     setRequestingEdits(true); setError("");
     try {
-      await Promise.all(changed.map((saved) => requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]))));
+      await Promise.all(
+        changed.map((saved) =>
+          requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]), editProofByMember[saved.group_member_id]),
+        ),
+      );
       setEditRequests((current) => ({ ...current, ...Object.fromEntries(changed.map((saved) => [saved.id, { pending: true }])) }));
       setProofMsg("Score edit request sent to your teacher for approval.");
     } catch (err) {
@@ -228,10 +249,37 @@ export default function StudentScores() {
           <div className="space-y-2">
             {members.filter((member) => existingScores[member.id]).map((member) => {
               const saved = existingScores[member.id]; const pendingRequest = editRequests[saved.id];
-              return <ClayCard key={member.id} className="p-3 flex items-center gap-3"><UserAvatar name={`${member.last_name}-${member.first_name}`} size="sm" /><p className="min-w-0 flex-1 truncate font-display font-bold text-sm">{member.last_name}, {member.first_name}</p><input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} /><span className="text-xs font-mono text-ink/50">/ {maxScore}</span>{pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Pending</span>}</ClayCard>;
+              const changed = Number(scores[saved.group_member_id]) !== Number(saved.score);
+              return (
+                <ClayCard key={member.id} className="p-3 flex flex-wrap items-center gap-3">
+                  <UserAvatar name={`${member.last_name}-${member.first_name}`} size="sm" />
+                  <p className="min-w-0 flex-1 truncate font-display font-bold text-sm">{member.last_name}, {member.first_name}</p>
+                  {changed && !pendingRequest && (
+                    <label className={`clay-btn bg-clay-sky text-ink px-2 py-1.5 text-[10px] cursor-pointer ${proofBusy ? "opacity-60 pointer-events-none" : ""}`}>
+                      {proofBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : "New proof"}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={proofBusy} onChange={(e) => { uploadProof(e.target.files?.[0], member.id); e.target.value = ""; }} />
+                    </label>
+                  )}
+                  {changed && !pendingRequest && (
+                    <span className={`text-[10px] font-display font-bold ${editProofByMember[member.id] ? "text-clay-lime" : "text-clay-coral"}`}>
+                      {editProofByMember[member.id] ? "New proof ready" : "New proof required"}
+                    </span>
+                  )}
+                  <input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} />
+                  <span className="text-xs font-mono text-ink/50">/ {maxScore}</span>
+                  {pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Pending</span>}
+                </ClayCard>
+              );
             })}
           </div>
-          {canEdit && <ClayButton color="purple" size="md" className="w-full" disabled={requestingEdits} onClick={requestEdits}>{requestingEdits ? "Sending request..." : "Request score edit"}</ClayButton>}
+          {canEdit && (
+            <>
+              {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.startsWith("Proof uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
+              {error && <p className="text-clay-coral font-display font-bold text-sm">{error}</p>}
+              <ClayButton color="purple" size="md" className="w-full" disabled={requestingEdits} onClick={requestEdits}>{requestingEdits ? "Sending request..." : "Request score edit"}</ClayButton>
+              <p className="text-xs text-ink/55">Changing a saved score needs a new photo of the work. Your teacher reviews that fresh proof before the change takes effect.</p>
+            </>
+          )}
         </>
       ) : !canEdit ? (
         <ClayCard className="p-6 text-center">

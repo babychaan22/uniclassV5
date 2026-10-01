@@ -46,8 +46,25 @@ export default function TeacherEvidence() {
       const evidence = evidenceResult.data || [];
       const groupMap = Object.fromEntries(groups.map((group) => [group.id, group.group_number]));
       const memberMap = Object.fromEntries(members.map((member) => [member.id, `${member.first_name || ''} ${member.last_name || ''}`.trim()]));
-      const activityMap = Object.fromEntries(activities.map((activity) => [activity.id, activity.title || `Activity ${activity.activity_number}`]));
-      setScoreEdits((editsResult.data || []).map((request) => ({ ...request, memberLabel: memberMap[request.group_member_id] || 'Unknown student', groupLabel: groupMap[request.group_id] ? `Group ${groupMap[request.group_id]}` : 'Individual', activityLabel: activityMap[request.activity_id] || 'Activity' })));
+const activityMap = Object.fromEntries(activities.map((activity) => [activity.id, activity.title || `Activity ${activity.activity_number}`]));
+      const evidenceById = Object.fromEntries(evidence.map((item) => [item.id, item]));
+      // A request is only approvable with the fresh photo it was sent with, so
+      // surface that proof inline instead of making the teacher go hunting.
+      const signedById = Object.fromEntries(await Promise.all(
+        (editsResult.data || [])
+          .filter((request) => request.evidence_id && evidenceById[request.evidence_id])
+          .map(async (request) => {
+            const { data } = await supabase.storage.from('activity-evidence').createSignedUrl(evidenceById[request.evidence_id].storage_path, 600);
+            return [request.id, data?.signedUrl || ''];
+          }),
+      ));
+      setScoreEdits((editsResult.data || []).map((request) => ({
+        ...request,
+        memberLabel: memberMap[request.group_member_id] || 'Unknown student',
+        groupLabel: groupMap[request.group_id] ? `Group ${groupMap[request.group_id]}` : 'Individual',
+        activityLabel: activityMap[request.activity_id] || 'Activity',
+        proofUrl: signedById[request.id] || '',
+      })));
       const signed = await Promise.all(evidence.map(async (item) => {
         const { data } = await supabase.storage.from('activity-evidence').createSignedUrl(item.storage_path, 300);
         return { ...item, signedUrl: data?.signedUrl || '' };
@@ -104,7 +121,18 @@ export default function TeacherEvidence() {
         <ClayButton onClick={load} color="white" className="shrink-0" aria-label="Refresh activity proof"><RefreshCw className="w-4 h-4" /></ClayButton>
       </div>
       {error && <ClayCard color="coral" className="p-4 text-sm">{error}</ClayCard>}
-      {scoreEdits.length > 0 && <ClayCard color="sun" className="p-4 sm:p-5"><div className="mb-3"><h2 className="font-display font-bold text-base">Score edit requests</h2><p className="text-xs text-ink/60">Approve to replace the saved score, or decline to keep the current one.</p></div><div className="space-y-2">{scoreEdits.map((request) => <div key={request.id} className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-display font-bold">{request.memberLabel} · {request.activityLabel}</p><p className="text-xs text-ink/60">{request.groupLabel} · {request.current_score} → {request.proposed_score}</p></div><ClayButton size="sm" color="lime" disabled={reviewingEdit === request.id} onClick={() => reviewScoreEdit(request, true)}>{reviewingEdit === request.id ? 'Saving...' : 'Approve'}</ClayButton><ClayButton size="sm" color="coral" disabled={reviewingEdit === request.id} onClick={() => reviewScoreEdit(request, false)}>Decline</ClayButton></div>)}</div></ClayCard>}
+      {scoreEdits.length > 0 && <ClayCard color="sun" className="p-4 sm:p-5"><div className="mb-3"><h2 className="font-display font-bold text-base">Score edit requests</h2><p className="text-xs text-ink/60">Approve to replace the saved score, or decline to keep the current one.</p></div><div className="space-y-2">{scoreEdits.map((request) => <div key={request.id} className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3">
+                  {request.proofUrl
+                    ? <a href={request.proofUrl} target="_blank" rel="noreferrer" className="shrink-0"><img src={request.proofUrl} alt={`Fresh proof for ${request.memberLabel}`} className="h-14 w-14 rounded-lg border-2 border-ink/10 object-cover" loading="lazy" /></a>
+                    : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-clay-coral/50 px-1 text-center text-[9px] font-bold text-clay-coral">No fresh proof</div>}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-display font-bold">{request.memberLabel} · {request.activityLabel}</p>
+                    <p className="text-xs text-ink/60">{request.groupLabel} · {request.current_score} → {request.proposed_score}</p>
+                    <p className="text-[10px] text-ink/50">{request.proofUrl ? 'Fresh proof attached with this request' : 'Sent without new proof — decline this request'}</p>
+                  </div>
+                  <ClayButton size="sm" color="lime" disabled={reviewingEdit === request.id || !request.proofUrl} onClick={() => reviewScoreEdit(request, true)}>{reviewingEdit === request.id ? 'Saving...' : 'Approve'}</ClayButton>
+                  <ClayButton size="sm" color="coral" disabled={reviewingEdit === request.id} onClick={() => reviewScoreEdit(request, false)}>Decline</ClayButton>
+                </div>)}</div></ClayCard>}
       {loading ? <div className="py-16 text-center text-ink/60">Loading activity proof…</div> : rows.length === 0 ? (
         <NovaEmptyState
           variant="teacher"

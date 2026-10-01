@@ -20,7 +20,7 @@ const KINDS = {
   mission_xp: { label: "Mission XP", color: "purple" },
   xp_redeemed: { label: "XP Redeemed", color: "purple" },
   badge_awarded: { label: "Badge Reward", color: "sun" },
-  badge_claim: { label: "Badge Claim", color: "sun" },
+  badge_claim: { label: "Badge", color: "sun" },
   reward_request: { label: "Reward", color: "pink" },
   attendance: { label: "Attendance", color: "sky" },
   correction: { label: "Correction", color: "purple" },
@@ -36,6 +36,16 @@ const FILTERS = [
 
 const PAGE_SIZE = 60;
 
+// Approved/pending/declined reads differently per kind, so the chip colour and
+// label come from the server-supplied status rather than being inferred.
+const STATUS_LABELS = {
+  pending: { label: "Awaiting approval", color: "sun" },
+  approved: { label: "Approved", color: "lime" },
+  rejected: { label: "Declined", color: "coral" },
+  awarded: { label: "XP awarded", color: "lime" },
+  "no xp": { label: "No XP this time", color: "cream" },
+};
+
 function matchesFilter(kind, filter) {
   if (filter === "all") return true;
   if (filter === "points") return ["qr_scan", "gacha_win", "gacha_loss", "gacha_even", "penalty", "correction", "xp_redeemed"].includes(kind);
@@ -48,6 +58,9 @@ function matchesFilter(kind, filter) {
 export default function StudentHistory() {
   const { user } = useAuth();
   const [entries, setEntries] = useState([]);
+  // Totals come from the database, not from summing the page, so they stay
+  // correct no matter how much history has been paged in.
+  const [totals, setTotals] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -66,14 +79,20 @@ export default function StudentHistory() {
           if (active) setError("No approved classroom account was found.");
           return;
         }
-        const { data, error: rpcError } = await supabase.rpc("get_student_account_history", {
-          p_classroom_id: account.classroom_id,
-          p_limit: PAGE_SIZE,
-        });
-        if (rpcError) throw rpcError;
+        const [history, totalsResult] = await Promise.all([
+          supabase.rpc("get_student_account_history", {
+            p_classroom_id: account.classroom_id,
+            p_limit: PAGE_SIZE,
+          }),
+          supabase.rpc("get_student_account_totals", { p_classroom_id: account.classroom_id }),
+        ]);
+        if (history.error) throw history.error;
+        if (totalsResult.error) throw totalsResult.error;
         if (!active) return;
-        const rows = data || [];
+        const rows = history.data || [];
+        const [total] = totalsResult.data || [];
         setEntries(rows);
+        if (total) setTotals(total);
         setHasMore(rows.length === PAGE_SIZE);
       } catch (err) {
         if (active) setError(err?.message || "Your history could not be loaded.");
@@ -115,20 +134,12 @@ export default function StudentHistory() {
     return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   }
 
-  // Balances come from the ledger itself so the page can never disagree with the
-  // rows the student is looking at.
-  const totals = entries.reduce((acc, row) => {
-    acc.points += Number(row.points || 0);
-    acc.xpEarned += Number(row.xp_earned || 0);
-    acc.xpSpent += Number(row.xp_spent || 0);
-    if (row.kind === "attendance") {
-      acc.attendance += 1;
-      if (row.title === "Marked present") acc.present += 1;
-    }
-    return acc;
-  }, { points: 0, xpEarned: 0, xpSpent: 0, present: 0, attendance: 0 });
-
-  const xpAvailable = Math.max(0, totals.xpEarned - totals.xpSpent);
+  // Personal points and whole-group points are reported separately: group
+  // awards belong to the group, so they must not look like the student's own.
+  const personalPoints = Number(totals?.personal_points || 0);
+  const groupPoints = Number(totals?.group_points || 0);
+  const xpAvailable = Number(totals?.xp_available || 0);
+  const attendanceRate = totals?.attendance_rate != null ? Math.round(Number(totals.attendance_rate)) : null;
   const visible = entries.filter((row) => matchesFilter(row.kind, filter));
 
   const groups = visible.reduce((acc, row) => {
@@ -159,24 +170,29 @@ export default function StudentHistory() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ClayCard className="p-3 text-center">
-          <p className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(totals.points)}</p>
-          <p className="text-[10px] font-display font-bold text-ink/60">POINTS IN THIS LIST</p>
+          <p className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(personalPoints)}</p>
+          <p className="text-[10px] font-display font-bold text-ink/60">MY OWN POINTS</p>
         </ClayCard>
         <ClayCard className="p-3 text-center">
-          <p className="font-mono text-2xl font-extrabold text-clay-lime">{xpAvailable}</p>
+          <p className="font-mono text-2xl font-extrabold text-clay-sky">{Math.round(groupPoints)}</p>
+          <p className="text-[10px] font-display font-bold text-ink/60">MY GROUP'S POINTS</p>
+        </ClayCard>
+        <ClayCard className="p-3 text-center">
+          <p className="font-mono text-2xl font-extrabold text-clay-lime">{Math.round(xpAvailable)}</p>
           <p className="text-[10px] font-display font-bold text-ink/60">XP AVAILABLE</p>
         </ClayCard>
         <ClayCard className="p-3 text-center">
-          <p className="font-mono text-2xl font-extrabold text-clay-sky">
-            {totals.attendance ? `${Math.round((totals.present / totals.attendance) * 100)}%` : "—"}
+          <p className="font-mono text-2xl font-extrabold text-clay-sun">
+            {attendanceRate != null ? `${attendanceRate}%` : "—"}
           </p>
           <p className="text-[10px] font-display font-bold text-ink/60">PRESENT RATE</p>
         </ClayCard>
-        <ClayCard className="p-3 text-center">
-          <p className="font-mono text-2xl font-extrabold text-clay-sun">{entries.length}</p>
-          <p className="text-[10px] font-display font-bold text-ink/60">ENTRIES</p>
-        </ClayCard>
       </div>
+
+      <p className="px-1 text-xs text-ink/55">
+        {"My own points"} are the points scored on your account. {"My group's points"} is the shared total for everyone in your group,
+        which includes points your whole group earned together.
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((option) => (
@@ -223,6 +239,9 @@ export default function StudentHistory() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <ClayChip color={meta.color}>{meta.label}</ClayChip>
+                          {row.status && STATUS_LABELS[row.status] && (
+                            <ClayChip color={STATUS_LABELS[row.status].color}>{STATUS_LABELS[row.status].label}</ClayChip>
+                          )}
                           <span className="flex items-center gap-1 text-[10px] font-display font-bold text-ink/45">
                             {isGroup ? <Users className="h-3 w-3" /> : <User className="h-3 w-3" />}
                             {isGroup ? "Whole group" : "Just you"}
