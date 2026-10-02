@@ -14,9 +14,15 @@ function displayAnswer(question, value, type) {
   return question?.options?.[Number(value)] ?? String(value);
 }
 
+// ai_content is a text column, but RPC payloads can hand back an already-parsed
+// object. Accept either instead of blanking the mission when the shape drifts.
+function parseAiContent(raw) {
+  if (raw && typeof raw === "object") return raw;
+  try { return JSON.parse(raw || "{}"); } catch { return {}; }
+}
+
 export default function MissionAssessment({ mission, group, existing, onDone }) {
-  let content;
-  try { content = JSON.parse(mission.ai_content || '{}'); } catch { content = {}; }
+  const content = parseAiContent(mission.ai_content);
   const originalQuestions = useMemo(() => Array.isArray(content.questions) ? content.questions : [], [mission.ai_content]);
   const [questions, setQuestions] = useState(originalQuestions);
   const [answers, setAnswers] = useState({});
