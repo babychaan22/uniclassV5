@@ -11,8 +11,9 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
+import { setMissionApproval, approvePowerUpForAllClasses, updateMission } from "@/lib/secureActions";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
@@ -87,6 +88,12 @@ export default function TeacherMissions() {
   const [targetAllClasses, setTargetAllClasses] = useState(true);
   const [targetClassIds, setTargetClassIds] = useState([]);
   const [targetStatuses, setTargetStatuses] = useState(["On Track", "Developing", "At Risk"]);
+  const [reviewingId, setReviewingId] = useState(null);
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     load();
@@ -211,6 +218,78 @@ export default function TeacherMissions() {
     load();
   }
 
+  // Approving publishes a mission to students; rejecting withholds it. The
+  // switch above is deliberately not a shortcut for this: is_active alone must
+  // not be able to skip the review.
+  async function reviewMission(m, status) {
+    setReviewingId(m.id);
+    setReviewMsg(null);
+    try {
+      await setMissionApproval(m.id, status);
+      await invalidateClassroomDataset();
+      await load();
+    } catch (err) {
+      setReviewMsg(`Could not ${status === 'approved' ? 'approve' : 'withhold'} that mission: ${err.message || 'error'}`);
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  // One Power-Up row is generated per classroom, so approving them one at a
+  // time would mean the same decision repeated for every class. This publishes
+  // today's Power-Up to all of the teacher's Mathematics classes at once.
+  async function approveAllPowerUps() {
+    setApprovingAll(true);
+    setReviewMsg(null);
+    try {
+      const res = await approvePowerUpForAllClasses();
+      setReviewMsg(res?.message || 'Power-Ups approved.');
+      await invalidateClassroomDataset();
+      await load();
+    } catch (err) {
+      setReviewMsg('Could not approve the Power-Ups: ' + (err.message || 'error'));
+    } finally {
+      setApprovingAll(false);
+    }
+  }
+
+  // A published mission is still the teacher's to correct. Editing it must not
+  // withdraw it from students, so the RPC leaves approval and visibility alone.
+  function startEdit(m) {
+    setEditingId(m.id);
+    setReviewMsg(null);
+    setEditForm({
+      title: m.title || '',
+      description: m.description || '',
+      xp_reward: String(m.xp_reward ?? ''),
+      max_score: String(m.max_score ?? ''),
+      deadline: m.deadline || '',
+    });
+  }
+
+  async function saveEdit(m) {
+    setSavingEdit(true);
+    setReviewMsg(null);
+    try {
+      const patch = {
+        title: editForm.title,
+        description: editForm.description,
+        xp_reward: Number(editForm.xp_reward),
+        max_score: Number(editForm.max_score),
+        deadline: editForm.deadline || null,
+      };
+      await updateMission(m.id, patch);
+      setEditingId(null);
+      setEditForm(null);
+      await invalidateClassroomDataset();
+      await load();
+    } catch (err) {
+      setReviewMsg('Could not save your changes: ' + (err.message || 'error'));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function removeMission(id) {
     await db.entities.Mission.delete(id);
     if (grading?.missionId === id) cancelGrade();
@@ -246,6 +325,10 @@ export default function TeacherMissions() {
   }
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+
+  // Anything the teacher has not reviewed yet. A Power-Up is generated every
+  // morning and lands here first; students see nothing until it is approved.
+  const pendingPowerUps = missions.filter((m) => (m.approval_status || 'pending') !== 'approved');
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
@@ -397,6 +480,29 @@ export default function TeacherMissions() {
         </form>
       </ClayCard>
 
+      {reviewMsg && (
+        <p className="text-center font-display font-bold text-sm text-ink/70">{reviewMsg}</p>
+      )}
+
+      {pendingPowerUps.length > 0 && (
+        <ClayCard color="sun" className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-display font-bold">
+                {pendingPowerUps.length} mission{pendingPowerUps.length === 1 ? '' : 's'} waiting for your review
+              </p>
+              <p className="text-xs text-ink/70 mt-0.5">Students cannot see these yet. Read them over, then approve to publish.</p>
+            </div>
+            {pendingPowerUps.some((m) => m.mission_source === 'daily_foundation') && (
+              <ClayButton onClick={approveAllPowerUps} disabled={approvingAll} color="lime" size="sm">
+                {approvingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Approve today's Power-Up for all my classes
+              </ClayButton>
+            )}
+          </div>
+        </ClayCard>
+      )}
+
       {missions.length === 0 && (
         <NovaEmptyState
           variant="idea"
@@ -415,6 +521,7 @@ export default function TeacherMissions() {
         }
         const stats = isAi ? questionStats(m, submissions) : [];
         const hardest = [...stats].sort((a, b) => a.pct - b.pct).slice(0, 2);
+        const approval = m.approval_status || 'pending';
         return (
           <ClayCard key={m.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
@@ -430,17 +537,72 @@ export default function TeacherMissions() {
                   <ClayChip color="sky">{progress.completed}/{progress.total} {progress.individual ? 'students' : 'groups'} done</ClayChip>
                   <ClayChip color="lime">{progress.completion}% complete</ClayChip>
                   <ClayChip color="pink">{progress.accuracy}% accurate</ClayChip>
-                  <ClayChip color={m.is_active ? "lime" : "cream"}>{m.is_active ? "Active" : "Hidden"}</ClayChip>
+                  <ClayChip color={approval === 'approved' ? (m.is_active ? "lime" : "cream") : (approval === 'rejected' ? "coral" : "sun")}>
+                    {approval === 'approved' ? (m.is_active ? "Active" : "Closed") : (approval === 'rejected' ? "Withheld" : "Awaiting approval")}
+                  </ClayChip>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-display font-bold">{m.is_active ? "On" : "Off"}</span>
-                  <Switch checked={m.is_active} onCheckedChange={() => toggleActive(m)} />
+                {approval === 'approved' ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-display font-bold">Live</span>
+                    <Switch checked={m.is_active} onCheckedChange={() => toggleActive(m)} />
+                  </div>
+                ) : (
+                  <ClayButton
+                    onClick={() => reviewMission(m, 'approved')}
+                    disabled={reviewingId === m.id}
+                    color="lime"
+                    size="sm"
+                  >
+                    {reviewingId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Approve
+                  </ClayButton>
+                )}
+                <div className="flex items-center gap-1">
+                  {editingId === m.id ? (
+                    <>
+                      <ClayButton onClick={() => saveEdit(m)} disabled={savingEdit} color="lime" size="sm">
+                        {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        Save
+                      </ClayButton>
+                      <button onClick={() => { setEditingId(null); setEditForm(null); }} className="clay-btn bg-cream px-2 py-2" title="Cancel edit"><X className="w-4 h-4" /></button>
+                    </>
+                  ) : (
+                    <button onClick={() => startEdit(m)} className="clay-btn bg-clay-sky px-2 py-2" title="Edit this mission"><Pencil className="w-4 h-4" /></button>
+                  )}
+                  {approval !== 'approved' && (
+                    <button onClick={() => reviewMission(m, approval === 'rejected' ? 'pending' : 'rejected')} disabled={reviewingId === m.id} className="clay-btn bg-clay-sun px-2 py-2" title={approval === 'rejected' ? 'Send back for review' : 'Withhold from students'}>
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button onClick={() => removeMission(m.id)} className="clay-btn bg-clay-coral text-white px-2 py-2"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <button onClick={() => removeMission(m.id)} className="clay-btn bg-clay-coral text-white px-2 py-2"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
+            {editingId === m.id && editForm && (
+              <div className="mt-3 rounded-xl border-2 border-ink/15 bg-cream p-3">
+                <p className="text-xs font-display font-bold">Edit mission</p>
+                <p className="text-[11px] text-ink/60 mt-0.5">Saving keeps this mission exactly as visible to students right now.</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <label className="text-xs font-semibold sm:col-span-2">Title
+                    <input className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.title} onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} />
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">Description
+                    <textarea className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" rows={2} value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} />
+                  </label>
+                  <label className="text-xs font-semibold">XP reward
+                    <input type="number" min="0" className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.xp_reward} onChange={(e) => setEditForm((f) => ({ ...f, xp_reward: e.target.value }))} />
+                  </label>
+                  <label className="text-xs font-semibold">Max score
+                    <input type="number" min="1" className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.max_score} onChange={(e) => setEditForm((f) => ({ ...f, max_score: e.target.value }))} />
+                  </label>
+                  <label className="text-xs font-semibold">Due date
+                    <input type="date" className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.deadline || ''} onChange={(e) => setEditForm((f) => ({ ...f, deadline: e.target.value }))} />
+                  </label>
+                </div>
+              </div>
+            )}
             {isAi && (
               <div className="mt-2">
                 <button type="button" onClick={() => setViewTemplateId(viewTemplateId === m.id ? null : m.id)} className="clay-btn bg-clay-sky text-ink px-3 py-1.5 text-xs">

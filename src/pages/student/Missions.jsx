@@ -67,8 +67,11 @@ export default function StudentMissions() {
     ]);
     if (missionResult.error) throw missionResult.error;
     const missions = [...(missionResult.data || [])];
-    // A Power-Up created after the RPC snapshot still belongs in today's list.
-    if (powerUp && !missions.some((m) => m.id === powerUp.id)) missions.unshift(powerUp);
+    // A Power-Up generated after the RPC snapshot still belongs in today's list,
+    // but only once a teacher has approved it. The engine creates it pending, so
+    // an unapproved row must never reach the student's screen.
+    if (powerUp && powerUp.approval_status === 'approved' && powerUp.is_active
+      && !missions.some((m) => m.id === powerUp.id)) missions.unshift(powerUp);
     const currentMember = classData.members.find((member) => member.id === account.group_member_id);
     const term = classData.terms.find((item) => item.is_active) || classData.terms[0];
     const pointTotals = classData.members.map((member) => computeParticipationPoints(member.id, classData.logs));
@@ -136,9 +139,11 @@ export default function StudentMissions() {
   const completedMissions = active.filter((m) => subs.find((s) => s.mission_id === m.id));
   const currentMissions = active.filter((m) => !subs.find((s) => s.mission_id === m.id));
   const gradedCount = completedMissions.length;
-  // Today's Power-Up only. Falling back to an older day would relabel a stale
-  // mission as today's, and only bank-sourced rows qualify in the first place.
+  // Today's Power-Up, and only a teacher's approved one. The engine generates
+  // it every morning but holds it back until it is reviewed, so until then
+  // there is genuinely no Power-Up to do today.
   const todayPowerUp = powerUps.find((m) => m.auto_daily_date === manilaDateKey()) || null;
+  const hasPowerUp = Boolean(todayPowerUp);
   const powerUpSubmission = todayPowerUp ? subs.find((s) => s.mission_id === todayPowerUp.id) : null;
   const powerUpLocked = todayPowerUp ? isMissionLocked(todayPowerUp) : false;
   let powerUpQuestions = 5;
@@ -213,31 +218,38 @@ export default function StudentMissions() {
         </ClayCard>
       )}
 
-      {todayPowerUp && (
-        <section>
+      <section>
           <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Zap className="w-5 h-5" /> Daily Math Power-Up</h2>
           <p className="text-xs text-ink/60 mb-2">A short daily practice your classroom unlocks automatically. A new one arrives each morning.</p>
           <div className="space-y-2">
-            <ClayCard color="sky" className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-display font-bold">Today's Power-Up</p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <ClayChip color="sun">{`+${todayPowerUp.xp_reward} XP`}</ClayChip>
-                    <ClayChip color="purple">{`${powerUpQuestions} questions`}</ClayChip>
-                    {powerUpSubmission
-                      ? <ClayChip color="lime">{`${powerUpSubmission.score}/${powerUpQuestions} done`}</ClayChip>
-                      : <ClayChip color="sun">{powerUpLocked ? 'Closed' : 'To do'}</ClayChip>}
+            {hasPowerUp ? (
+              <>
+                <ClayCard color="sky" className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-display font-bold">Today's Power-Up</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <ClayChip color="sun">{`+${todayPowerUp.xp_reward} XP`}</ClayChip>
+                        <ClayChip color="purple">{`${powerUpQuestions} questions`}</ClayChip>
+                        {powerUpSubmission
+                          ? <ClayChip color="lime">{`${powerUpSubmission.score}/${powerUpQuestions} done`}</ClayChip>
+                          : <ClayChip color="sun">{powerUpLocked ? 'Closed' : 'To do'}</ClayChip>}
+                      </div>
+                    </div>
+                    {powerUpSubmission && <MascotWidget state="excited" size="sm" />}
                   </div>
-                </div>
-                {powerUpSubmission && <MascotWidget state="excited" size="sm" />}
-              </div>
-            </ClayCard>
-            {powerUpLocked && !powerUpSubmission && <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">Today's Power-Up has closed.</p><p className="text-xs text-ink/60 mt-1">A fresh one arrives tomorrow morning. Keep practising in your mission history in the meantime.</p></ClayCard>}
-            {!powerUpLocked && <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />}
+                </ClayCard>
+                {powerUpLocked && !powerUpSubmission && <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">Today's Power-Up has closed.</p><p className="text-xs text-ink/60 mt-1">A fresh one arrives tomorrow morning. Keep practising in your mission history in the meantime.</p></ClayCard>}
+                {!powerUpLocked && <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />}
+              </>
+            ) : (
+              <ClayCard className="p-4">
+                <p className="font-display font-bold text-clay-coral">No Power-Up today</p>
+                <p className="text-xs text-ink/60 mt-1">Your teacher reviews the daily Power-Up before it opens, so there is nothing to do here yet. Check back after it is approved.</p>
+              </ClayCard>
+            )}
           </div>
-        </section>
-      )}
+      </section>
 
       <div>
         <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Rocket className="w-5 h-5" /> Active Missions</h2>

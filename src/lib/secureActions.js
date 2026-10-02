@@ -62,9 +62,47 @@ export async function recordActivityEvidence(activityId, groupMemberId, storageP
 
 // Materialises today's Daily Math Power-Up, built from the approved question
 // bank. Returns a sanitised mission: no answer key, no explanations.
+//
+// The mission is created *pending*. Generating it is not publishing it, so the
+// result is only a mission a student may do once approval_status is 'approved'
+// and is_active is true.
 export async function ensureDailyPowerUp(classroomId) {
   const { data, error } = await supabase.rpc('ensure_daily_power_up_for_student', {
     p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// A teacher reviews a mission. Approving is what publishes it to students;
+// rejecting or sending it back withholds it again.
+export async function setMissionApproval(missionId, status, classroomId = null) {
+  const { data, error } = await supabase.rpc('set_mission_approval', {
+    p_mission_id: missionId,
+    p_status: status,
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Publishes today's Power-Up to every Mathematics class the teacher owns in one
+// action, instead of once per class.
+export async function approvePowerUpForAllClasses(autoDailyDate = null) {
+  const { data, error } = await supabase.rpc('approve_power_up_for_all_classes', {
+    p_auto_daily_date: autoDailyDate,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Edits a mission, including one already approved and deployed. Only the
+// teacher-owned fields are writable, and editing never changes its approval
+// state or visibility.
+export async function updateMission(missionId, patch) {
+  const { data, error } = await supabase.rpc('update_mission', {
+    p_mission_id: missionId,
+    p_patch: patch,
   });
   if (error) throw error;
   return data;
