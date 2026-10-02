@@ -60,10 +60,10 @@ export async function recordActivityEvidence(activityId, groupMemberId, storageP
   return data;
 }
 
-// evidenceId is the row returned by recordActivityEvidence. The database
-// rejects an edit without fresh proof, so it is required in practice.
-export async function ensureDailyDrill(classroomId) {
-  const { data, error } = await supabase.rpc('ensure_daily_drill_for_student', {
+// Materialises today's Daily Math Power-Up, built from the approved question
+// bank. Returns a sanitised mission: no answer key, no explanations.
+export async function ensureDailyPowerUp(classroomId) {
+  const { data, error } = await supabase.rpc('ensure_daily_power_up_for_student', {
     p_classroom_id: classroomId,
   });
   if (error) throw error;
