@@ -51,9 +51,11 @@ export default function StudentMissions() {
     let powerUp = null;
     try {
       powerUp = await ensureDailyPowerUp(classroomId);
-    } catch {
-      // A missing Power-Up must never block the teacher's missions from loading.
+    } catch (err) {
+      // A missing Power-Up must never block the teacher's missions from
+      // loading, but the reason matters to the teacher who reports it.
       powerUp = null;
+      console.warn('[power-up] not generated for today:', err?.message || err);
     }
     const [missionResult, subs, members, logs, reviews, classData] = await Promise.all([
       supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
