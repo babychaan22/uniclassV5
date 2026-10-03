@@ -120,12 +120,17 @@ export default function TeacherMissions() {
     } catch (err) {
       console.warn('[power-up] could not prepare today\'s Power-Up:', err?.message || err);
     }
-    const [ds, catalog, classes] = await Promise.all([
+    const [ds, own, shared, classes] = await Promise.all([
       getClassroomDataset(c.id, ['groups','members','submissions']),
       db.entities.Mission.filter({ created_by: user.id }),
+      // The Daily Math Power-Up is one shared mission for the whole platform,
+      // not a row this teacher created, so it is listed separately.
+      db.entities.Mission.filter({ mission_source: 'daily_foundation' }),
       getTeacherClassrooms(user.id),
     ]);
-    setMissions([...catalog].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    const byId = new Map();
+    for (const m of [...own, ...shared]) byId.set(m.id, m);
+    setMissions([...byId.values()].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
     setGroups([...ds.groups].sort((a, b) => a.group_number - b.group_number));
     setMembers(ds.members);
     setSubmissions(ds.submissions);
@@ -334,8 +339,9 @@ export default function TeacherMissions() {
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  // Anything the teacher has not reviewed yet. A Power-Up is generated every
-  // morning and lands here first; students see nothing until it is approved.
+  // Anything the teacher has not reviewed yet. The Daily Math Power-Up is one
+  // shared mission that lands here first; students see nothing until a teacher
+  // approves it, at which point every Mathematics class receives that same one.
   const pendingPowerUps = missions.filter((m) => (m.approval_status || 'pending') !== 'approved');
 
   return (
@@ -504,7 +510,7 @@ export default function TeacherMissions() {
             {pendingPowerUps.some((m) => m.mission_source === 'daily_foundation') && (
               <ClayButton onClick={approveAllPowerUps} disabled={approvingAll} color="lime" size="sm">
                 {approvingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Approve today's Power-Up for all my classes
+                Approve today's Power-Up for every Mathematics class
               </ClayButton>
             )}
           </div>
