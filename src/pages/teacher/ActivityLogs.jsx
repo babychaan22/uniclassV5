@@ -17,17 +17,30 @@ import { ROUTES } from '@/lib/routes';
 import { correctParticipationRecipient, voidParticipationEntry, awardParticipationPoints } from '@/lib/secureActions';
 import { signedPoints } from '@/lib/stats';
 
-const LABELS = {
+// Keys here are participation_logs.event_type values, nothing else. 'redemption'
+// is NOT one of them: reward redemptions are not logged rows at all, so they are
+// given their own type below and labelled separately. Keeping a name in this map
+// that the database forbids invites code that trusts it as the event domain.
+const LOG_LABELS = {
   scan: { label: "QR Scan", color: "sky" },
   gacha_win: { label: "Gacha Win", color: "lime" },
   gacha_loss: { label: "Gacha Loss", color: "coral" },
   gacha_even: { label: "Gacha Even", color: "sun" },
   behavior_penalty: { label: "Penalty", color: "coral" },
   mission_redemption: { label: "Mission XP", color: "purple" },
-  redemption: { label: "Reward Redeemed", color: "pink" },
   badge: { label: "Badge Reward", color: "sun" },
   point_correction: { label: "Point correction", color: "purple" },
+  manual_award: { label: "Points Awarded", color: "lime" },
 };
+
+// Entry types this page synthesises for display, for rows that are not
+// participation_logs at all.
+const SYNTHETIC_LABELS = {
+  redemption: { label: "Reward Redeemed", color: "pink" },
+};
+
+const labelFor = (type) =>
+  LOG_LABELS[type] || SYNTHETIC_LABELS[type] || { label: type, color: "cream" };
 
 const SYSTEM_BADGE_LABELS = {
   weekly_90_activity: '90% Activity Squad',

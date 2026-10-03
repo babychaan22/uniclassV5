@@ -30,6 +30,7 @@ export default function StudentBadges() {
   const [eligibility, setEligibility] = useState({});
   const [claimed, setClaimed] = useState({});
   const [pending, setPending] = useState({});
+  const [declined, setDeclined] = useState({});
   const [redeeming, setRedeeming] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -55,13 +56,18 @@ export default function StudentBadges() {
 
       const statusWeekStart = endOfWeek ? weekStart : addDays(weekStart, -7);
       const badges = await db.entities.Badge.filter({ group_id: a.group_id, week_start_date: statusWeekStart });
-      const claimedMap = {}; const pendingMap = {};
+      const claimedMap = {}; const pendingMap = {}; const declinedMap = {};
       for (const b of badges) {
         if (b.approval_status === "approved") claimedMap[b.badge_type] = true;
         if (b.approval_status === "pending") pendingMap[b.badge_type] = true;
+        // A declined request is not the same as never qualifying. Leaving it
+        // unrecorded made this page tell the student they were "not eligible"
+        // after their teacher had already declined them.
+        if (b.approval_status === "rejected") declinedMap[b.badge_type] = true;
       }
       setClaimed(claimedMap);
       setPending(pendingMap);
+      setDeclined(declinedMap);
 
       const classroomId = g.classroom_id;
       const definitions = await db.entities.BadgeDefinition.filter({ is_active: true });
@@ -134,6 +140,7 @@ export default function StudentBadges() {
           const isEligible = status?.eligible === true;
           const isClaimed = claimed[type];
           const isPending = pending[type];
+          const isDeclined = declined[type];
           const metric = status?.metric || {};
           return (
             <ClayCard key={type} className="p-5">
@@ -145,7 +152,7 @@ export default function StudentBadges() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2"><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : isEligible ? "sun" : "cream"}>
-                {isClaimed ? <><Check className="w-3 h-3" /> Approved</> : isPending ? "Awaiting teacher approval" : isEligible ? "Eligible" : "Not eligible"}
+                {isClaimed ? <><Check className="w-3 h-3" /> Approved</> : isPending ? "Awaiting teacher approval" : isDeclined ? "Declined by teacher" : isEligible ? "Eligible" : "Not eligible"}
               </ClayChip><ClayChip color="sun">+{info.points} pts</ClayChip></div>
               {metricLine(type, metric) && (
                 <p className="mt-2 text-[11px] font-mono text-ink/55">{metricLine(type, metric)}</p>
@@ -159,9 +166,15 @@ export default function StudentBadges() {
                     {redeeming === type ? <Loader2 className="w-4 h-4 animate-spin" /> : "Request approval"}
                   </ClayButton>
                 )}
-                {!isEligible && !isClaimed && !isPending && (
+                {!isEligible && !isClaimed && !isPending && !isDeclined && (
                   <p className="rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-[11px] font-bold text-ink/50">
                     You cannot request this badge until you qualify. Your teacher sees the same numbers.
+                  </p>
+                )}
+                {isDeclined && (
+                  <p className="rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-[11px] font-bold text-ink/50">
+                    Your teacher declined this request, so no points were added. You can request it again
+                    next week if you qualify.
                   </p>
                 )}
               </div>

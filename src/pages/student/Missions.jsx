@@ -153,10 +153,20 @@ export default function StudentMissions() {
   const powerUpSubmission = todayPowerUp ? subs.find((s) => s.mission_id === todayPowerUp.id) : null;
   const powerUpLocked = todayPowerUp ? isMissionLocked(todayPowerUp) : false;
   let powerUpQuestions = 5;
-  try { powerUpQuestions = JSON.parse(todayPowerUp?.ai_content || '{}').questions?.length || 5; } catch {}
+  let powerUpParseFailed = false;
+  // Not swallowed. A payload that does not parse is exactly the 20261120
+  // incident, where every mission rendered with zero questions and nothing said
+  // why. Say so on screen instead of quietly showing a wrong count.
+  try { powerUpQuestions = JSON.parse(todayPowerUp?.ai_content || '{}').questions?.length || 5; }
+  catch { powerUpParseFailed = Boolean(todayPowerUp); }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      {powerUpParseFailed && (
+        <p className="rounded-xl border-2 border-clay-coral/40 bg-clay-coral/10 p-3 text-sm font-bold text-clay-coral">
+          Today&apos;s Power-Up could not be read, so it cannot be shown. Please tell your teacher.
+        </p>
+      )}
       <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center">
         <div>
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning quests</p>
