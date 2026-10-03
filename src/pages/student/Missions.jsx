@@ -20,7 +20,7 @@ import MascotWidget from "@/components/MascotWidget";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { completeLearningReview, ensureDailyPowerUp, redeemMissionPoints } from '@/lib/secureActions';
+import { completeLearningReview, ensureDailyPowerUp, powerUpAppliesToClassroom, redeemMissionPoints } from '@/lib/secureActions';
 import { missionTargetsClass } from '@/lib/missionAudience';
 import { formatMissionDeadline, isDailyFoundationMission, isMissionLocked, manilaDateKey } from '@/lib/missionProgress';
 
@@ -46,16 +46,22 @@ export default function StudentMissions() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
+    // The Power-Up is a Mathematics activity. A student in another subject has
+    // no Power-Up coming, so the whole section stays hidden rather than telling
+    // them to wait for a teacher's review that will never happen.
+    const powerUpApplies = await powerUpAppliesToClassroom(classroomId).catch(() => false);
     // Materialise today's Daily Math Power-Up before reading the list, so a
     // student who has never opened the app still has one waiting.
     let powerUp = null;
-    try {
-      powerUp = await ensureDailyPowerUp(classroomId);
-    } catch (err) {
-      // A missing Power-Up must never block the teacher's missions from
-      // loading, but the reason matters to the teacher who reports it.
-      powerUp = null;
-      console.warn('[power-up] not generated for today:', err?.message || err);
+    if (powerUpApplies) {
+      try {
+        powerUp = await ensureDailyPowerUp(classroomId);
+      } catch (err) {
+        // A missing Power-Up must never block the teacher's missions from
+        // loading, but the reason matters to the teacher who reports it.
+        powerUp = null;
+        console.warn('[power-up] not generated for today:', err?.message || err);
+      }
     }
     const [missionResult, subs, members, logs, reviews, classData] = await Promise.all([
       supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
@@ -104,7 +110,7 @@ export default function StudentMissions() {
     const redeemed = logs.filter((l) => l.event_type === "mission_redemption").reduce((s, l) => s + (l.xp_spent || 0), 0);
     const available = Math.max(0, earned - redeemed);
     const dueReviews = reviews.filter((review) => new Date(review.next_review_at) <= new Date());
-    setData({ account, group, missions, active, powerUps, subs, members, earned, redeemed, available, dueReviews, classification });
+    setData({ account, group, missions, active, powerUps, powerUpApplies, subs, members, earned, redeemed, available, dueReviews, classification });
   }
 
   async function redeem(e) {
@@ -135,7 +141,7 @@ export default function StudentMissions() {
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, active, powerUps, subs, earned, redeemed, available, dueReviews, classification } = data;
+  const { group, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification } = data;
   const completedMissions = active.filter((m) => subs.find((s) => s.mission_id === m.id));
   const currentMissions = active.filter((m) => !subs.find((s) => s.mission_id === m.id));
   const gradedCount = completedMissions.length;
@@ -218,6 +224,7 @@ export default function StudentMissions() {
         </ClayCard>
       )}
 
+      {powerUpApplies && (
       <section>
           <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Zap className="w-5 h-5" /> Daily Math Power-Up</h2>
           <p className="text-xs text-ink/60 mb-2">A short daily practice your classroom unlocks automatically. A new one arrives each morning.</p>
@@ -250,6 +257,7 @@ export default function StudentMissions() {
             )}
           </div>
       </section>
+      )}
 
       <div>
         <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><Rocket className="w-5 h-5" /> Active Missions</h2>

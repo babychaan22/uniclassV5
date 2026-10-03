@@ -74,6 +74,26 @@ export async function ensureDailyPowerUp(classroomId) {
   return data;
 }
 
+// Does the Daily Math Power-Up apply to this classroom at all? It is a
+// Mathematics activity, so a student in an English classroom must not be shown
+// a Power-Up section waiting on a review that will never come.
+export async function powerUpAppliesToClassroom(classroomId) {
+  const { data, error } = await supabase.rpc('power_up_applies_to_classroom', {
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+// A teacher opening their missions page calls this once so today's Power-Up is
+// waiting as pending in their review queue, instead of appearing only after a
+// student happens to open theirs first. It prepares; it never publishes.
+export async function generatePendingPowerUps() {
+  const { data, error } = await supabase.rpc('generate_pending_power_ups');
+  if (error) throw error;
+  return data;
+}
+
 // A teacher reviews a mission. Approving is what publishes it to students;
 // rejecting or sending it back withholds it again.
 export async function setMissionApproval(missionId, status, classroomId = null) {

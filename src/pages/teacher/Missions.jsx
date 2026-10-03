@@ -13,7 +13,7 @@ import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
-import { setMissionApproval, approvePowerUpForAllClasses, updateMission } from "@/lib/secureActions";
+import { setMissionApproval, approvePowerUpForAllClasses, updateMission, generatePendingPowerUps } from "@/lib/secureActions";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
@@ -112,6 +112,14 @@ export default function TeacherMissions() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
+    // Today's Power-Up is generated lazily, so without this a teacher opening
+    // the page before any student does would find an empty review queue. It only
+    // prepares pending missions; nothing is published until it is approved.
+    try {
+      await generatePendingPowerUps();
+    } catch (err) {
+      console.warn('[power-up] could not prepare today\'s Power-Up:', err?.message || err);
+    }
     const [ds, catalog, classes] = await Promise.all([
       getClassroomDataset(c.id, ['groups','members','submissions']),
       db.entities.Mission.filter({ created_by: user.id }),
