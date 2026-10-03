@@ -5,17 +5,23 @@
 // service is involved.
 //
 // Deploy:
-//   supabase functions deploy send-push
+//   supabase functions deploy send-push --no-verify-jwt
 //
 // Required secrets (generate with `npx web-push generate-vapid-keys`):
 //   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
 //
-// Triggered by a Supabase Database Webhook on INSERT into public.app_notifications,
-// or called directly to retry a batch:
-//   POST /functions/v1/send-push  { "notificationId": "<uuid>" }
+// Called by the database: an AFTER INSERT trigger on public.app_notifications
+// posts { "notificationId": "<uuid>" } here. Calling it with an empty body
+// retries everything not yet delivered.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { webPushEncrypt } from 'https://deno.land/x/webpush@0.5.3/mod.ts';
+import webpush from 'npm:web-push@3.6.7';
+
+// The previous implementation imported its crypto from deno.land/x/webpush,
+// which has since been removed from that registry: the module 404s, so this
+// function could not be bundled or deployed at all. web-push is the reference
+// implementation of the same protocol and is what npx web-push generate-vapid-keys
+// comes from, so the key format is identical.
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -33,106 +39,43 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-// ── VAPID ────────────────────────────────────────────────────────────────
-// The Authorization header must carry an ES256-signed JWT over
-// "aud", "exp" and "sub". Signed here with WebCrypto rather than pulling in a
-// dependency.
+// ── Delivery ──────────────────────────────────────────────────────────────
 
-const base64url = (bytes: Uint8Array | ArrayBuffer): string => {
-  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  let binary = '';
-  for (const byte of view) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-
-async function vapidAuthHeader(audience: string) {
-  const header = base64url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-  const payload = base64url(
-    new TextEncoder().encode(
-      JSON.stringify({
-        aud: audience,
-        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
-        sub: VAPID_SUBJECT,
-      })
-    )
-  );
-
-  const signingInput = new TextEncoder().encode(`${header}.${payload}`);
-
-  // VAPID private keys are raw base64url scalars; the public key is the
-  // uncompressed P-256 point 0x04 || X || Y.
-  const publicKeyBytes = Uint8Array.from(
-    atob(VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/')),
-    (char) => char.charCodeAt(0)
-  );
-  const privateScalar = Uint8Array.from(
-    atob(VAPID_PRIVATE_KEY.replace(/-/g, '+').replace(/_/g, '/')),
-    (char) => char.charCodeAt(0)
-  );
-
-  const key = await crypto.subtle.importKey(
-    'jwk',
-    {
-      kty: 'EC',
-      crv: 'P-256',
-      x: base64url(publicKeyBytes.slice(1, 33)),
-      y: base64url(publicKeyBytes.slice(33, 65)),
-      d: base64url(privateScalar),
-    },
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-
-  const signature = new Uint8Array(
-    await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, signingInput)
-  );
-
-  // WebCrypto signs r||s; VAPID wants the raw 64-byte form, which is what this is.
-  return `vapid t=${VAPID_PUBLIC_KEY}, s=${base64url(signature)}`;
-}
+type Outcome = { delivered: boolean; gone: boolean; reason: string };
 
 async function sendToSubscription(
   subscription: { endpoint: string; p256dh: string; auth_key: string },
   payload: Record<string, unknown>,
-) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    return { status: 0, gone: false, reason: 'vapid keys are not configured' };
+): Promise<Outcome> {
+  try {
+    const result = await webpush.sendNotification(
+      {
+        endpoint: subscription.endpoint,
+        keys: { p256dh: subscription.p256dh, auth: subscription.auth_key },
+      },
+      JSON.stringify(payload),
+      {
+        vapidDetails: {
+          subject: VAPID_SUBJECT,
+          publicKey: VAPID_PUBLIC_KEY,
+          privateKey: VAPID_PRIVATE_KEY,
+        },
+        TTL: 86400,
+        urgency: 'normal',
+      },
+    );
+
+    return { delivered: result.statusCode >= 200 && result.statusCode < 300, gone: false, reason: '' };
+  } catch (error) {
+    const statusCode = (error as { statusCode?: number }).statusCode ?? 0;
+    return {
+      delivered: false,
+      // 404 and 410 are the two a push service uses to say this subscription is
+      // finished with and should be forgotten.
+      gone: statusCode === 404 || statusCode === 410,
+      reason: String((error as { message?: string }).message ?? error).slice(0, 200),
+    };
   }
-
-  const encrypted = await webPushEncrypt(
-    JSON.stringify(payload),
-    subscription.p256dh,
-    subscription.auth_key,
-    16,
-  );
-
-  const audience = new URL(subscription.endpoint).origin;
-
-  const response = await fetch(subscription.endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Encoding': 'aes128gcm',
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': String(encrypted.byteLength),
-      TTL: '86400',
-      Urgency: 'normal',
-      'Topic': 'uniclass-notifications',
-      Authorization: await vapidAuthHeader(audience),
-    },
-    body: encrypted,
-  });
-
-  if (response.ok) return { status: response.status, gone: false, reason: '' };
-  if (response.status === 404 || response.status === 410) {
-    return { status: response.status, gone: true, reason: 'subscription expired' };
-  }
-
-  return {
-    status: response.status,
-    gone: false,
-    reason: (await response.text()).slice(0, 200),
-  };
 }
 
 Deno.serve(async (request) => {
@@ -144,7 +87,19 @@ Deno.serve(async (request) => {
     const body = await request.json();
     notificationId = body?.notificationId ?? null;
   } catch {
-    // An empty body means "send everything unread".
+    // An empty body means "send everything not yet delivered".
+  }
+
+  // If the VAPID keys are missing there is no way to deliver anything, so say so
+  // loudly and leave every event undelivered. Marking them sent would drop them
+  // on the floor permanently, and they would never be retried.
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    return json({
+      sent: 0,
+      devices: 0,
+      error: 'vapid keys are not configured',
+      note: 'notifications were left undelivered; set the secrets and run again to deliver them',
+    }, 503);
   }
 
   // The table is app_notifications: an unrelated public.notifications table
@@ -156,13 +111,14 @@ Deno.serve(async (request) => {
     .limit(50);
 
   if (notificationId) query = query.eq('id', notificationId);
-  else query = query.eq('pushed_at', null);
+  // is(), not eq(): eq with null asks PostgREST for the literal string "null"
+  // and comes back as "invalid input syntax for type timestamp with time zone".
+  else query = query.is('pushed_at', null);
 
   const { data: notifications, error } = await query;
   if (error) return json({ error: error.message }, 500);
-  if (!notifications?.length) return json({ sent: 0, skipped: 0, note: 'nothing to send' });
+  if (!notifications?.length) return json({ sent: 0, devices: 0, note: 'nothing to send' });
 
-  const notification = notifications[0];
   const links: Record<string, string> = {
     announcement: '/student/dashboard',
     mission: '/student/missions',
@@ -175,39 +131,60 @@ Deno.serve(async (request) => {
     points: '/student/history',
   };
 
-  const payload = {
-    title: notification.title,
-    body: notification.body,
-    kind: notification.kind,
-    tag: `uniclass-${notification.kind}`,
-    url: notification.link || links[notification.kind] || '/student/dashboard',
-  };
-
-  const { data: subscriptions } = await db
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth_key')
-    .eq('user_id', notification.recipient_user_id);
-
-  if (!subscriptions?.length) {
-    await db.from('app_notifications').update({ pushed_at: new Date().toISOString() }).eq('id', notification.id);
-    return json({ sent: 0, devices: 0, note: 'recipient has no registered device' });
-  }
-
   let sent = 0;
+  let devices = 0;
+  let withoutDevice = 0;
+  let failed = 0;
   const dead: string[] = [];
 
-  for (const subscription of subscriptions) {
-    try {
+  for (const notification of notifications) {
+    const payload = {
+      title: notification.title,
+      body: notification.body,
+      kind: notification.kind,
+      tag: `uniclass-${notification.kind}`,
+      url: notification.link || links[notification.kind] || '/student/dashboard',
+    };
+
+    const { data: subscriptions } = await db
+      .from('push_subscriptions')
+      .select('id, endpoint, p256dh, auth_key')
+      .eq('user_id', notification.recipient_user_id);
+
+    // Nobody is listening on a device. The event stays in the bell, which is
+    // where the student reads it next time they open the app, and it is left
+    // undelivered rather than being recorded as sent to a device that does not
+    // exist.
+    if (!subscriptions?.length) {
+      withoutDevice += 1;
+      continue;
+    }
+
+    let delivered = false;
+    for (const subscription of subscriptions) {
+      devices += 1;
       const result = await sendToSubscription(subscription, payload);
-      if (result.status >= 200 && result.status < 300) sent += 1;
+
+      if (result.delivered) {
+        sent += 1;
+        delivered = true;
+      } else {
+        failed += 1;
+        if (result.reason) console.error('push failed', subscription.endpoint, result.reason);
+      }
       if (result.gone) dead.push(subscription.endpoint);
-    } catch (error) {
-      console.error('push failed', subscription.endpoint, error);
+    }
+
+    // Only a device that actually accepted the payload counts as delivered, and
+    // that verdict is per notification rather than for the whole batch.
+    if (delivered) {
+      await db.from('app_notifications')
+        .update({ pushed_at: new Date().toISOString() })
+        .eq('id', notification.id);
     }
   }
 
   if (dead.length) await db.from('push_subscriptions').delete().in('endpoint', dead);
-  await db.from('app_notifications').update({ pushed_at: new Date().toISOString() }).eq('id', notification.id);
 
-  return json({ sent, devices: subscriptions.length, removed: dead.length });
+  return json({ sent, devices, withoutDevice, failed, removed: dead.length });
 });
