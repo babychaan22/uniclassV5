@@ -215,6 +215,18 @@ export async function correctParticipationRecipient(sourceLogId, targetMemberId)
   return data;
 }
 
+// Moving a duplicate account's record onto the right one. Everything keyed on
+// the roster row follows, and the empty duplicate is removed.
+export async function transferStudentRecord(sourceMemberId, targetMemberId, note = null) {
+  const { data, error } = await supabase.rpc('transfer_student_record', {
+    p_source_member_id: sourceMemberId,
+    p_target_member_id: targetMemberId,
+    p_note: note,
+  });
+  if (error) throw error;
+  return data;
+}
+
 // Filing a mission away is not deleting it: the row, its submissions and its
 // feedback all stay, and unarchiving brings the mission straight back.
 export async function archiveMission(missionId, archived = true) {

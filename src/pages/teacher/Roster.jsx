@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomContext } from "@/lib/teacherClassroom";
-import { removeRosterMember, setGroupRepresentative } from "@/lib/secureActions";
+import { removeRosterMember, setGroupRepresentative, transferStudentRecord } from "@/lib/secureActions";
 import { supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
@@ -15,7 +15,7 @@ import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Save, Loader2, UserCog, Trash2, Crown } from "lucide-react";
+import { Save, Loader2, UserCog, Trash2, Crown, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import RepresentativeRosterRequests from '@/components/teacher/RepresentativeRosterRequests';
 
@@ -31,6 +31,11 @@ export default function Roster() {
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
   const [actionError, setActionError] = useState("");
+  const [transfer, setTransfer] = useState(null);
+  const [transferTo, setTransferTo] = useState("");
+  const [transferNote, setTransferNote] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferSummary, setTransferSummary] = useState("");
 
   useEffect(() => { load(); }, [user]);
 
@@ -94,6 +99,45 @@ export default function Roster() {
     } finally { setSaving(null); }
   }
 
+  // A student who forgot to pick their name during onboarding ends up with an
+  // empty second account while their points, attendance and badges sit on the
+  // old one. This puts the record where it belongs and removes the duplicate.
+  async function runTransfer() {
+    if (!transferTo) return;
+    const from = members.find((m) => m.id === transfer.id);
+    const to = members.find((m) => m.id === transferTo);
+    if (!from || !to) return;
+    const ok = window.confirm(
+      `Move the record of ${from.last_name}, ${from.first_name} onto ${to.last_name}, ${to.first_name}?\n\n`
+      + `Points, attendance, activity scores, badges, missions and rewards move across. `
+      + `${from.last_name}, ${from.first_name} is then removed from the roster. This cannot be undone.`,
+    );
+    if (!ok) return;
+
+    setTransferring(true);
+    setActionError("");
+    try {
+      const result = await transferStudentRecord(transfer.id, transferTo, transferNote.trim() || null);
+      invalidateClassroomContext();
+      setTransfer(null);
+      setTransferTo("");
+      setTransferNote("");
+      setActionError("");
+      setTransferSummary(
+        `Moved ${result.moved_logs} points entr${result.moved_logs === 1 ? 'y' : 'ies'}, `
+        + `${result.moved_attendance} attendance mark${result.moved_attendance === 1 ? '' : 's'}, `
+        + `${result.moved_badges} badge${result.moved_badges === 1 ? '' : 's'} and `
+        + `${result.moved_submissions} mission submission${result.moved_submissions === 1 ? '' : 's'} `
+        + `onto ${to.last_name}, ${to.first_name}.`,
+      );
+      await load();
+    } catch (err) {
+      setActionError(err.message || "That record could not be moved.");
+    } finally {
+      setTransferring(false);
+    }
+  }
+
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
@@ -109,6 +153,7 @@ export default function Roster() {
       <div>
         {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
+      {transferSummary && <p className="rounded-xl border-2 border-ink bg-clay-lime/20 p-3 text-sm font-display font-bold text-ink">{transferSummary}</p>}
 
       <RepresentativeRosterRequests classroomId={classroom.id} members={members} onReviewed={async () => {
         invalidateClassroomContext();
@@ -150,6 +195,14 @@ export default function Roster() {
                         {memberAccount?.is_representative && <ClayChip color="purple">Rep</ClayChip>}
                         {mem.is_account_holder && <ClayChip color="sky">Account</ClayChip>}
                         <ClayButton size="sm" color="sky" onClick={() => startEdit(mem)}><UserCog className="w-4 h-4" /> Edit</ClayButton>
+                        <ClayButton
+                          size="sm"
+                          color="purple"
+                          onClick={() => { setTransfer(transfer?.id === mem.id ? null : mem); setTransferTo(""); setTransferNote(""); }}
+                          title="This is a duplicate account: move its points, attendance and badges onto the right student"
+                        >
+                          <ArrowRightLeft className="w-4 h-4" /> Move record
+                        </ClayButton>
                         {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => makeRepresentative(memberAccount)} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
                         <ClayButton size="sm" color="coral" onClick={() => removeMember(mem)} disabled={saving === mem.id}>{saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Remove</ClayButton>
                       </>
@@ -161,6 +214,52 @@ export default function Roster() {
           </ClayCard>
         );
       })}
+
+      {transfer && (
+        <ClayCard color="purple" className="p-4">
+          <h3 className="font-display font-bold text-sm mb-1">
+            Move the record of {transfer.last_name}, {transfer.first_name} onto…
+          </h3>
+          <p className="text-[11px] text-ink/60 mb-3">
+            Use this when a student signed up again instead of picking their existing name.
+            Their points, attendance, activity scores, badges, missions and rewards all move across,
+            and {transfer.last_name}, {transfer.first_name} is removed from the roster.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-[2fr_2fr_auto] items-end">
+            <div>
+              <label className="font-display font-bold text-xs mb-1 block">Move it onto</label>
+              <select className="clay-input text-sm" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                <option value="">Select the correct account</option>
+                {members
+                  .filter((m) => m.id !== transfer.id)
+                  .map((m) => {
+                    const g = groups.find((gg) => gg.id === m.group_id);
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {g ? `Group ${g.group_number}` : 'Unassigned'} · {m.last_name}, {m.first_name}
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+            <div>
+              <label className="font-display font-bold text-xs mb-1 block">Note</label>
+              <input
+                className="clay-input text-sm"
+                value={transferNote}
+                onChange={(e) => setTransferNote(e.target.value)}
+                placeholder="Forgot to select own name"
+              />
+            </div>
+            <ClayButton size="sm" color="purple" onClick={runTransfer} disabled={!transferTo || transferring}>
+              {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />} Move record
+            </ClayButton>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <ClayButton size="sm" color="cream" onClick={() => setTransfer(null)}>Cancel</ClayButton>
+          </div>
+        </ClayCard>
+      )}
     </div>
   );
 }

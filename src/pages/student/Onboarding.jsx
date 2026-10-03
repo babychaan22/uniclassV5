@@ -176,6 +176,11 @@ export default function StudentOnboarding() {
 
   const existingRep = repForGroup(selectedGroup.id);
 
+  // Every student on this group's roster, including any who have already
+  // enrolled. A returning student needs to see their own row here, marked as
+  // taken, so they know to ask their teacher rather than create a twin.
+  const groupMembers = members.filter((m) => m.group_id === selectedGroup?.id);
+
   return (
     <div className="max-w-lg mx-auto space-y-5">
       <div>
@@ -186,22 +191,46 @@ export default function StudentOnboarding() {
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-3">Your name</p>
-        {classroom.uses_groups !== false && members.filter((m) => m.group_id === selectedGroup?.id).length > 0 && (
+        {classroom.uses_groups !== false && groupMembers.length > 0 && (
           <div className="mb-4 rounded-xl border-2 border-ink bg-clay-sky/30 p-3">
-            <p className="text-sm font-display font-bold mb-1">Were you already added by your representative?</p>
-            <p className="text-xs text-ink/60 mb-2">Select your name to connect this account to the existing member record and prevent a duplicate.</p>
+            <p className="text-sm font-display font-bold mb-1">Is your name already on this class roster?</p>
+            <p className="text-xs text-ink/60 mb-2">
+              Select your name and this account connects to that student record, so your points,
+              attendance and badges follow you instead of starting again.
+            </p>
             <div className="space-y-2">
-              {members.filter((m) => m.group_id === selectedGroup?.id).map((member) => (
-                <button key={member.id} type="button" onClick={() => pickExistingMember(member)}
-                  className={`clay-btn w-full text-left px-3 py-2 ${selectedMemberId === member.id ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>
-                  {member.last_name}, {member.first_name}
+              {groupMembers.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => pickExistingMember(member)}
+                  disabled={member.claimed}
+                  className={`clay-btn w-full text-left px-3 py-2 flex items-center justify-between gap-2 ${
+                    selectedMemberId === member.id
+                      ? "bg-clay-purple text-white"
+                      : member.claimed
+                        ? "bg-cream/50 text-ink/40 cursor-not-allowed"
+                        : "bg-cream text-ink"
+                  }`}
+                >
+                  <span>{member.last_name}, {member.first_name}</span>
+                  {member.claimed && (
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide">
+                      Already enrolled
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
             {selectedMemberId && <div className="mt-2 flex items-center justify-between gap-2"><p className="text-xs font-display font-bold text-clay-purple">Existing member selected. Your account will be linked after teacher approval.</p><button type="button" className="text-xs underline shrink-0" onClick={() => { setSelectedMemberId(null); setLastName(""); setFirstName(""); }}>Use a new name</button></div>}
           </div>
         )}
-        {classroom.uses_groups !== false && members.filter((m) => m.group_id === selectedGroup?.id).length > 0 && !selectedMemberId && <p className="text-xs text-ink/50 mb-2">Not listed? Leave the selection empty and enter a new name below. The teacher will review it.</p>}
+        {classroom.uses_groups !== false && groupMembers.length > 0 && !selectedMemberId && (
+          <p className="text-xs text-ink/50 mb-2">
+            Not listed? Enter your name below and your teacher will review it. If you have joined
+            this class before under a different account, ask your teacher to move that record for you.
+          </p>
+        )}
         <div className="flex gap-2">
           <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">Last name</label><input className="clay-input w-full" placeholder="e.g. Santos" value={lastName} onChange={(e) => { setSelectedMemberId(null); setLastName(e.target.value.toUpperCase()); }} required /></div>
           <div className="flex-1"><label className="font-display font-bold text-xs mb-1 block">First name</label><input className="clay-input w-full" placeholder="e.g. Ana" value={firstName} onChange={(e) => { setSelectedMemberId(null); setFirstName(e.target.value.toUpperCase()); }} required /></div>
@@ -212,7 +241,7 @@ export default function StudentOnboarding() {
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-1">Your Email</p>
-        <p className="text-xs text-ink/50 mb-2">Confirms your enrollment. If your representative already added your name, use the same spelling so your new account connects to that existing student record.</p>
+        <p className="text-xs text-ink/50 mb-2">Confirms your enrollment. Use the same email address every time so your account stays connected to one student record.</p>
         <input type="email" className="clay-input" placeholder="you@school.edu" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </ClayCard>
 
