@@ -226,6 +226,28 @@ export async function archiveMission(missionId, archived = true) {
   return data;
 }
 
+// Awarding points by hand, and taking an entry back. Both are teacher-only and
+// both keep the original row, so the ledger never loses a figure.
+export async function awardParticipationPoints(groupId, points, memberId = null, note = null) {
+  const { data, error } = await supabase.rpc('award_participation_points', {
+    p_group_id: groupId,
+    p_points: points,
+    p_member_id: memberId,
+    p_note: note,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function voidParticipationEntry(logId, reason = null) {
+  const { data, error } = await supabase.rpc('void_participation_entry', {
+    p_log_id: logId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function reviewBadgeClaim(badgeId, approve) {
   const { data, error } = await supabase.rpc('review_badge_claim', { p_badge_id: badgeId, p_approve: approve });
   if (error) throw error;

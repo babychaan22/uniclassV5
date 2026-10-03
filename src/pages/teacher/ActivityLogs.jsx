@@ -11,9 +11,10 @@ import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
-import { ScrollText, ArrowRightLeft } from "lucide-react";
+import PointsAward from "@/components/teacher/PointsAward";
+import { ScrollText, ArrowRightLeft, Undo2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
-import { correctParticipationRecipient } from '@/lib/secureActions';
+import { correctParticipationRecipient, voidParticipationEntry, awardParticipationPoints } from '@/lib/secureActions';
 import { signedPoints } from '@/lib/stats';
 
 const LABELS = {
@@ -46,7 +47,11 @@ export default function ActivityLogs() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [members, setMembers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [correction, setCorrection] = useState(null);
+  const [voidTarget, setVoidTarget] = useState(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(null);
   const [notice, setNotice] = useState('');
   const [definitions, setDefinitions] = useState([]);
 
@@ -66,6 +71,7 @@ export default function ActivityLogs() {
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
     ]);
     setDefinitions(badgeDefinitions || []);
+    setGroups(groups || []);
     setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
@@ -73,23 +79,34 @@ export default function ActivityLogs() {
 
 const logEntries = logs.map((l) => {
       const movedOriginal = Number(l.points_awarded || 0) === 0 && (l.note?.startsWith('Recipient correction:') || l.note?.startsWith('Superseded duplicate:'));
+      // A removed entry keeps its row and its history: the award is zeroed and
+      // the amount it used to carry is shown struck through.
+      const removed = Boolean(l.reversed_at);
       return {
         id: `log-${l.id}`,
         type: l.event_type || "scan",
         // A penalty is stored positive and reads as a deduction everywhere else,
         // so the log has to show it the same way or a teacher sees "+5".
-        points: movedOriginal ? null : signedPoints(l),
-      groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
-      memberLabel: movedOriginal ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
-      note: movedOriginal ? l.note : (l.event_type === 'mission_redemption'
-        ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
-        : l.note),
-      created_date: l.created_date,
-      sourceLogId: l.id,
-      group_id: l.group_id,
-      group_member_id: l.group_member_id,
-      correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
-    }; });
+        points: movedOriginal || removed ? null : signedPoints(l),
+        removedPoints: removed ? Number(l.reversed_points || 0) : null,
+        removed,
+        removalReason: l.reversal_reason || null,
+        groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+        memberLabel: (movedOriginal || removed) ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
+        note: movedOriginal ? l.note : (removed
+          ? [l.note, l.reversed_points ? `${formatAmount(l.reversed_points)} pts returned` : 'nothing had been awarded', l.reversal_reason].filter(Boolean).join(' · ')
+          : (l.event_type === 'mission_redemption'
+            ? `${formatAmount(l.xp_spent)} XP redeemed for ${formatAmount(l.points_awarded)} participation point${Number(l.points_awarded) === 1 ? '' : 's'}`
+            : l.note)),
+        created_date: l.created_date,
+        sourceLogId: l.id,
+        group_id: l.group_id,
+        group_member_id: l.group_member_id,
+        correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
+        voidable: !removed && !movedOriginal
+          && ['scan', 'gacha_win', 'gacha_even', 'manual_award', 'behavior_penalty', 'mission_redemption'].includes(l.event_type)
+          && (Number(l.points_awarded || 0) > 0 || Number(l.xp_spent || 0) > 0),
+      }; });
 
     const redemptionEntries = redemptions.map((r) => ({
       id: `redemption-${r.id}`,
@@ -147,6 +164,24 @@ const logEntries = logs.map((l) => {
     window.setTimeout(() => setNotice(''), 4500);
   }
 
+  async function saveVoid(entry) {
+    setVoiding(entry.sourceLogId);
+    try {
+      await voidParticipationEntry(entry.sourceLogId, voidReason.trim() || null);
+      setVoidTarget(null);
+      setVoidReason('');
+      invalidateClassroomDataset();
+      setNotice('Entry removed. It stays in the log marked as removed, and the student can see it was taken back.');
+      await load();
+      window.setTimeout(() => setNotice(''), 4500);
+    } catch (err) {
+      setNotice(err.message || 'Could not remove that entry.');
+      window.setTimeout(() => setNotice(''), 4500);
+    } finally {
+      setVoiding(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -179,6 +214,18 @@ const logEntries = logs.map((l) => {
       </div>
       {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
 
+      <PointsAward
+        groups={groups}
+        members={members}
+        onAward={async (groupId, points, memberId, note) => {
+          await awardParticipationPoints(groupId, points, memberId, note);
+          invalidateClassroomDataset();
+          setNotice('Points awarded. They are in the log and in the student\'s account history.');
+          await load();
+          window.setTimeout(() => setNotice(''), 4500);
+        }}
+      />
+
       {entries.length === 0 && (
         <p className="text-ink/50 text-sm text-center">No activity yet.</p>
       )}
@@ -200,34 +247,70 @@ const logEntries = logs.map((l) => {
                 {section.entries.map((e) => {
                   const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
                   return (
-                    <div key={e.id} className="rounded-lg border border-ink/10 bg-white/80 px-2.5 py-1.5">
+                    <div key={e.id} className={`rounded-lg border border-ink/10 bg-white/80 px-2.5 py-1.5 ${e.removed ? 'opacity-70' : ''}`}>
                       <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <ClayChip color={meta.color} className="px-2 py-0.5 text-[11px]">{meta.label}</ClayChip>
+                            {e.removed && <ClayChip color="coral" className="px-2 py-0.5 text-[11px]">Removed</ClayChip>}
                             {e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}
                             <span className="text-[10px] font-mono text-ink/40 ml-auto">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</span>
                           </div>
                           {e.note && <p className="mt-0.5 text-xs text-ink/65 break-words">{e.note}</p>}
                         </div>
-                        {e.points != null && (
+                        {e.removed ? (
+                          <p className="shrink-0 font-mono font-extrabold text-ink/40 line-through">
+                            {e.removedPoints ? `+${e.removedPoints}` : ''}
+                          </p>
+                        ) : e.points != null ? (
                           <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>
                             {e.points > 0 ? '+' : ''}{e.points}
                           </p>
-                        )}
+                        ) : null}
                         {e.pendingPoints != null && (
                           <p className="shrink-0 font-mono font-extrabold text-ink/40" title="Added only after approval">
                             +{e.pendingPoints}
                           </p>
                         )}
                       </div>
-                      {e.correctable && (
-                        <div className="mt-1.5">
-                          <ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}>
-                            <ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient
-                          </ClayButton>
+                      {(e.correctable || e.voidable) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          {e.correctable && (
+                            <ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}>
+                              <ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient
+                            </ClayButton>
+                          )}
+                          {e.voidable && (
+                            <ClayButton
+                              size="sm"
+                              color="coral"
+                              onClick={() => setVoidTarget(voidTarget?.sourceLogId === e.sourceLogId ? null : e)}
+                              title="Take these points back. The entry stays visible, marked as removed."
+                            >
+                              <Undo2 className="h-3.5 w-3.5" /> Remove entry
+                            </ClayButton>
+                          )}
                           {correction?.sourceLogId === e.sourceLogId && (
                             <PointRecipientCorrection entry={e} members={members} onCancel={() => setCorrection(null)} onSave={saveCorrection} />
+                          )}
+                          {voidTarget?.sourceLogId === e.sourceLogId && (
+                            <div className="w-full rounded-lg border-2 border-clay-coral/40 bg-clay-coral/10 p-2">
+                              <p className="text-xs font-bold text-ink">
+                                Take back {e.points ? `${formatAmount(e.points)} points` : `${formatAmount(e.points_awarded)} points`}? The entry stays in the log marked as removed, and the student can see it happened.
+                              </p>
+                              <input
+                                className="clay-input mt-2 text-xs"
+                                placeholder="Reason (optional, e.g. duplicate scan)"
+                                value={voidReason}
+                                onChange={(ev) => setVoidReason(ev.target.value)}
+                              />
+                              <div className="mt-2 flex items-center gap-2">
+                                <ClayButton size="sm" color="coral" disabled={voiding === e.sourceLogId} onClick={() => saveVoid(e)}>
+                                  {voiding === e.sourceLogId ? 'Removing…' : 'Yes, remove it'}
+                                </ClayButton>
+                                <ClayButton size="sm" color="cream" onClick={() => setVoidTarget(null)}>Cancel</ClayButton>
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}

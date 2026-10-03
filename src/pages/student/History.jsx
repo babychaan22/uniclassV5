@@ -24,6 +24,8 @@ const KINDS = {
   reward_request: { label: "Reward", color: "pink" },
   attendance: { label: "Attendance", color: "sky" },
   correction: { label: "Correction", color: "purple" },
+  manual_award: { label: "Points Awarded", color: "lime" },
+  score_edit: { label: "Score Review", color: "purple" },
 };
 
 const FILTERS = [
@@ -31,6 +33,7 @@ const FILTERS = [
   { key: "points", label: "Points" },
   { key: "xp", label: "XP" },
   { key: "attendance", label: "Attendance" },
+  { key: "scores", label: "Scores" },
   { key: "awards", label: "Badges & rewards" },
 ];
 
@@ -44,13 +47,15 @@ const STATUS_LABELS = {
   rejected: { label: "Declined", color: "coral" },
   awarded: { label: "XP awarded", color: "lime" },
   "no xp": { label: "No XP this time", color: "cream" },
+  reversed: { label: "Removed by teacher", color: "coral" },
 };
 
 function matchesFilter(kind, filter) {
   if (filter === "all") return true;
-  if (filter === "points") return ["qr_scan", "gacha_win", "gacha_loss", "gacha_even", "penalty", "correction", "xp_redeemed"].includes(kind);
+  if (filter === "points") return ["qr_scan", "gacha_win", "gacha_loss", "gacha_even", "penalty", "correction", "xp_redeemed", "manual_award"].includes(kind);
   if (filter === "xp") return kind === "mission_xp" || kind === "xp_redeemed";
   if (filter === "attendance") return kind === "attendance";
+  if (filter === "scores") return kind === "score_edit";
   if (filter === "awards") return ["badge_awarded", "badge_claim", "reward_request"].includes(kind);
   return true;
 }
@@ -234,8 +239,11 @@ export default function StudentHistory() {
                   const xpEarned = Number(row.xp_earned || 0);
                   const xpSpent = Number(row.xp_spent || 0);
                   const isGroup = row.scope === "group";
+                  // A removed entry keeps its place in the ledger so the student
+                  // can see that points were taken back, and why.
+                  const removed = row.status === "reversed";
                   return (
-                    <ClayCard key={row.entry_id} className="flex items-start gap-3 p-3">
+                    <ClayCard key={row.entry_id} className={`flex items-start gap-3 p-3 ${removed ? "opacity-70" : ""}`}>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <ClayChip color={meta.color}>{meta.label}</ClayChip>
@@ -247,12 +255,17 @@ export default function StudentHistory() {
                             {isGroup ? "Whole group" : "Just you"}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm font-display font-bold">{row.title}</p>
+                        <p className={`mt-1 text-sm font-display font-bold ${removed ? "line-through" : ""}`}>{row.title}</p>
                         {row.detail && (
                           <p className="mt-0.5 break-words text-xs text-ink/60">
                             {row.kind === "attendance"
                               ? new Date(`${String(row.detail).slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
                               : row.detail}
+                          </p>
+                        )}
+                        {removed && (
+                          <p className="mt-0.5 text-xs font-bold text-clay-coral">
+                            Your teacher removed this entry.
                           </p>
                         )}
                         <p className="mt-1 text-[10px] font-mono text-ink/40">
