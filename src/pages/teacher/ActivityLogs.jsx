@@ -14,6 +14,7 @@ import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrect
 import { ScrollText, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { correctParticipationRecipient } from '@/lib/secureActions';
+import { signedPoints } from '@/lib/stats';
 
 const LABELS = {
   scan: { label: "QR Scan", color: "sky" },
@@ -70,12 +71,14 @@ export default function ActivityLogs() {
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
     setMembers(members);
 
-    const logEntries = logs.map((l) => {
+const logEntries = logs.map((l) => {
       const movedOriginal = Number(l.points_awarded || 0) === 0 && (l.note?.startsWith('Recipient correction:') || l.note?.startsWith('Superseded duplicate:'));
       return {
-      id: `log-${l.id}`,
-      type: l.event_type || "scan",
-      points: movedOriginal ? null : Number(l.points_awarded || 0),
+        id: `log-${l.id}`,
+        type: l.event_type || "scan",
+        // A penalty is stored positive and reads as a deduction everywhere else,
+        // so the log has to show it the same way or a teacher sees "+5".
+        points: movedOriginal ? null : signedPoints(l),
       groupLabel: gmap[l.group_id] ? `Group ${gmap[l.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
       memberLabel: movedOriginal ? null : (l.recipient_type === 'group' || !l.group_member_id ? 'WHOLE GROUP' : mmap[l.group_member_id] || null),
       note: movedOriginal ? l.note : (l.event_type === 'mission_redemption'
@@ -167,7 +170,7 @@ export default function ActivityLogs() {
   });
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="w-full max-w-[1400px] mx-auto space-y-4">
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2">
           <ScrollText className="w-6 h-6" /> Activity Logs
@@ -181,28 +184,31 @@ export default function ActivityLogs() {
       )}
 
       {orderedGroups.length > 0 && (
-        <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
+        /* One card per group across the full width. Each card scrolls its own
+           history, so the panel stays a fixed height no matter how much older
+           activity has been loaded. */
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-start">
           {orderedGroups.map((section) => (
-            <ClayCard key={section.label} className="p-3 border-2 border-ink/10 bg-cream/40 shadow-sm">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="inline-flex items-center gap-1 font-display font-bold text-sm text-ink/90">
+            <ClayCard key={section.label} className="p-3 border-2 border-ink/10 bg-cream/40 shadow-sm flex flex-col min-h-0">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-1 font-display font-bold text-sm text-ink/90 truncate">
                   {section.label} <GroupBadgeMarkers groupId={section.groupId} />
                 </p>
-                <ClayChip color="sky">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip>
+                <ClayChip color="sky" className="px-2 py-0.5 text-xs shrink-0">{section.entries.length} item{section.entries.length === 1 ? '' : 's'}</ClayChip>
               </div>
-              <div className={`space-y-2 ${section.entries.length > 4 ? 'max-h-56 overflow-y-auto pr-1' : ''}`}>
+              <div className="space-y-1.5 max-h-64 overflow-y-auto overscroll-contain pr-1">
                 {section.entries.map((e) => {
                   const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
                   return (
-                    <div key={e.id} className="rounded-xl border border-ink/10 bg-white/80 px-3 py-2">
+                    <div key={e.id} className="rounded-lg border border-ink/10 bg-white/80 px-2.5 py-1.5">
                       <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <ClayChip color={meta.color}>{meta.label}</ClayChip>
+                            <ClayChip color={meta.color} className="px-2 py-0.5 text-[11px]">{meta.label}</ClayChip>
                             {e.memberLabel && <span className="text-xs font-display font-bold">{e.memberLabel}</span>}
+                            <span className="text-[10px] font-mono text-ink/40 ml-auto">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</span>
                           </div>
-                          {e.note && <p className="mt-1 text-xs text-ink/65 break-words">{e.note}</p>}
-                          <p className="mt-1 text-[10px] font-mono text-ink/40">{e.created_date ? new Date(e.created_date).toLocaleString() : ''}</p>
+                          {e.note && <p className="mt-0.5 text-xs text-ink/65 break-words">{e.note}</p>}
                         </div>
                         {e.points != null && (
                           <p className={`shrink-0 font-mono font-extrabold ${e.points < 0 ? 'text-clay-coral' : 'text-clay-lime'}`}>
@@ -216,7 +222,7 @@ export default function ActivityLogs() {
                         )}
                       </div>
                       {e.correctable && (
-                        <div className="mt-2">
+                        <div className="mt-1.5">
                           <ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}>
                             <ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient
                           </ClayButton>

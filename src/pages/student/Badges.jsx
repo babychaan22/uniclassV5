@@ -10,6 +10,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { redeemBadge } from "@/lib/badgeService";
 import { claimBadgeDefinition } from "@/lib/secureActions";
+import { supabase } from "@/api/supabaseClient";
 import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { Check, Loader2 } from "lucide-react";
 import NovaMessage from "@/components/NovaMessage";
@@ -65,45 +66,19 @@ export default function StudentBadges() {
       const classroomId = g.classroom_id;
       const definitions = await db.entities.BadgeDefinition.filter({ is_active: true });
       setCustomBadges(definitions.filter((definition) => definition.classroom_id === classroomId || definition.applies_to_all_classes));
-      const [members, allGroups, allMembers, attendance, scores, activities, logs] = await Promise.all([
-        db.entities.GroupMember.filter({ group_id: g.id }),
-        db.entities.Group.filter({ classroom_id: classroomId }),
-        db.entities.GroupMember.filter({ classroom_id: classroomId }),
-        db.entities.Attendance.filter({ classroom_id: classroomId }),
-        db.entities.ActivityScore.filter({ classroom_id: classroomId }),
-        db.entities.Activity.filter({ classroom_id: classroomId }),
-        db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
-      ]);
 
-      const weekEnd = addDays(weekStart, 6);
-      const inWeek = (d) => (d || "").slice(0, 10) >= weekStart && (d || "").slice(0, 10) <= weekEnd;
-
+      // The server decides eligibility, with the reason and the numbers behind
+      // it. Recomputing it here used to drift from the rule the database
+      // enforces, so a badge could look requestable and then be refused.
+      const eligibilityResult = await supabase.rpc("get_badge_eligibility", { p_group_id: g.id });
       const elig = {};
-      elig.weekly_90_activity = members.length > 0 && members.every((m) => {
-        const ms = scores.filter((s) => s.group_member_id === m.id && inWeek(s.created_date));
-        if (ms.length === 0) return false;
-        let ts = 0, tm = 0;
-        for (const s of ms) { const act = activities.find((a) => a.id === s.activity_id); if (act) { ts += s.score; tm += act.max_score; } }
-        return tm > 0 && ts / tm >= 0.9;
-      });
-
-      const weekAtt = attendance.filter((a) => inWeek(a.attendance_date));
-      elig.weekly_full_attendance = members.length > 0 && members.every((m) => {
-        const recs = weekAtt.filter((a) => a.group_member_id === m.id);
-        return recs.length > 0 && recs.every((r) => r.status === "present");
-      });
-
-      const groupTotals = {};
-      for (const gr of allGroups) groupTotals[gr.id] = logs.filter((l) => l.group_id === gr.id && inWeek(l.created_date)).reduce((s, l) => s + (l.points_awarded || 0), 0);
-      const maxGroup = Math.max(...Object.values(groupTotals));
-      elig.weekly_top_group_points = maxGroup > 0 && groupTotals[g.id] === maxGroup;
-
-      const memTotals = {};
-      for (const m of allMembers) memTotals[m.id] = logs.filter((l) => l.group_member_id === m.id && inWeek(l.created_date)).reduce((s, l) => s + (l.points_awarded || 0), 0);
-      const maxMem = Math.max(...Object.values(memTotals));
-      const topMem = Object.keys(memTotals).find((id) => memTotals[id] === maxMem);
-      elig.weekly_top_individual_points = maxMem > 0 && members.some((m) => m.id === topMem);
-
+      if (!eligibilityResult.error) {
+        for (const row of eligibilityResult.data || []) {
+          elig[row.badgeType] = { eligible: row.eligible, reason: row.reason, metric: row.metric };
+        }
+      } else {
+        setError("Could not check which badges you qualify for right now.");
+      }
       setEligibility(elig);
     }
     load();
@@ -155,9 +130,11 @@ export default function StudentBadges() {
       <div className="!grid sm:grid-cols-2 gap-4">
         {Object.keys(BADGE_INFO).map((type) => {
           const info = BADGE_INFO[type];
-          const isEligible = eligibility[type];
+          const status = eligibility[type];
+          const isEligible = status?.eligible === true;
           const isClaimed = claimed[type];
           const isPending = pending[type];
+          const metric = status?.metric || {};
           return (
             <ClayCard key={type} className="p-5">
               <div className="flex items-center gap-3 mb-3">
@@ -170,11 +147,22 @@ export default function StudentBadges() {
               <div className="flex flex-wrap gap-2"><ClayChip color={isClaimed ? "lime" : isPending ? "sky" : isEligible ? "sun" : "cream"}>
                 {isClaimed ? <><Check className="w-3 h-3" /> Approved</> : isPending ? "Awaiting teacher approval" : isEligible ? "Eligible" : "Not eligible"}
               </ClayChip><ClayChip color="sun">+{info.points} pts</ClayChip></div>
+              {metricLine(type, metric) && (
+                <p className="mt-2 text-[11px] font-mono text-ink/55">{metricLine(type, metric)}</p>
+              )}
+              {status?.reason && (
+                <p className="mt-1 text-[11px] text-ink/50">{status.reason}</p>
+              )}
               <div className="mt-3">
                 {isEligible && !isClaimed && !isPending && endOfWeek && (
                   <ClayButton color="pink" size="sm" className="w-full" onClick={() => redeem(type)} disabled={redeeming === type}>
                     {redeeming === type ? <Loader2 className="w-4 h-4 animate-spin" /> : "Request approval"}
                   </ClayButton>
+                )}
+                {!isEligible && !isClaimed && !isPending && (
+                  <p className="rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-[11px] font-bold text-ink/50">
+                    You cannot request this badge until you qualify. Your teacher sees the same numbers.
+                  </p>
                 )}
               </div>
               <p className="text-[11px] text-ink/50 mt-2">One request per group. Points are added only after teacher approval.</p>
@@ -197,4 +185,25 @@ function addDays(dateStr, days) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+// The numbers the server used to decide, so a student can see how far off they
+// are rather than just being told no.
+function metricLine(type, metric) {
+  if (!metric || typeof metric !== "object") return "";
+  const parts = [];
+  if (type === "weekly_90_activity") {
+    if (metric.weakest_member_pct != null) parts.push(`lowest member ${metric.weakest_member_pct}%`);
+    if (metric.members_below_90 != null) parts.push(`${metric.members_below_90} of ${metric.members} below 90%`);
+  } else if (type === "weekly_full_attendance") {
+    if (metric.marked != null) parts.push(`${metric.present}/${metric.marked} present`);
+    if (metric.members_without_mark) parts.push(`${metric.members_without_mark} unmarked`);
+  } else if (type === "weekly_top_group_points") {
+    if (metric.group_points != null) parts.push(`group ${metric.group_points} pts`);
+    if (metric.top_group_points != null) parts.push(`leader ${metric.top_group_points} pts`);
+  } else if (type === "weekly_top_individual_points") {
+    if (metric.your_points != null) parts.push(`you ${metric.your_points} pts`);
+    if (metric.top_points != null) parts.push(`leader ${metric.top_points} pts`);
+  }
+  return parts.join(" · ");
 }

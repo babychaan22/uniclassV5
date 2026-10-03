@@ -15,6 +15,7 @@ import Nova from "@/components/mascot/Nova";
 import { peekQrCode, scanAndResolve } from "@/lib/scanService";
 import { GACHA_OUTCOMES, MOOD_COLOR } from "@/lib/gacha";
 import { getWeekStartManila } from "@/lib/week";
+import { signedPoints } from "@/lib/stats";
 import { QrCode as QrIcon, Camera, Keyboard, VolumeX, Volume2, Loader2, History, Star, Trophy } from "lucide-react";
 
 export default function StudentScan() {
@@ -93,10 +94,10 @@ export default function StudentScan() {
       for (const m of allMembers) {
         totals[m.id] = allLogs
           .filter((l) => l.group_member_id === m.id && inWeek(l.created_date))
-          .reduce((s, l) => s + (l.points_awarded || 0), 0);
+          .reduce((s, l) => s + signedPoints(l), 0);
       }
       if (recipientType === "group") {
-        const groupTotal = allLogs.filter((log) => log.group_id === account.group_id && inWeek(log.created_date)).reduce((sum, log) => sum + (log.points_awarded || 0), 0);
+        const groupTotal = allLogs.filter((log) => log.group_id === account.group_id && inWeek(log.created_date)).reduce((sum, log) => sum + signedPoints(log), 0);
         setSummary({ pointsThisScan, weekTotal: groupTotal, rank: "Group" });
       } else {
         const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);

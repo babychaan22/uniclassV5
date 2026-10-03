@@ -58,9 +58,17 @@ export function computeActivityPct(memberId, activityScores, activities) {
   return { pct: totalMax > 0 ? (totalScore / totalMax) * 100 : 0, count: memberScores.length };
 }
 
+// Behavior penalties are stored as a positive number and must always be read as
+// a deduction. Every total in the app goes through here so a penalty can never
+// be counted as a reward.
+export function signedPoints(log) {
+  const points = Number(log?.points_awarded || 0);
+  return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
+}
+
 export function computeParticipationPoints(memberId, logs) {
   const memberLogs = logs.filter((l) => l.group_member_id === memberId);
-  return memberLogs.reduce((sum, l) => sum + (l.points_awarded || 0), 0);
+  return memberLogs.reduce((sum, l) => sum + signedPoints(l), 0);
 }
 
 export function computeCategoryPct(memberId, assessments, category, term) {

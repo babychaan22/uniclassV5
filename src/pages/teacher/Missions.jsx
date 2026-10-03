@@ -11,9 +11,9 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
-import { setMissionApproval, approvePowerUpForAllClasses, updateMission, generatePendingPowerUps } from "@/lib/secureActions";
+import { setMissionApproval, approvePowerUpForAllClasses, updateMission, generatePendingPowerUps, archiveMission as archiveMissionRpc } from "@/lib/secureActions";
 import MissionPreview from "@/components/teacher/MissionPreview";
 import MissionAnswerReview from "@/components/teacher/MissionAnswerReview";
 import { ROUTES } from '@/lib/routes';
@@ -90,6 +90,8 @@ export default function TeacherMissions() {
   const [targetStatuses, setTargetStatuses] = useState(["On Track", "Developing", "At Risk"]);
   const [reviewingId, setReviewingId] = useState(null);
   const [approvingAll, setApprovingAll] = useState(false);
+  const [archivingId, setArchivingId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [reviewMsg, setReviewMsg] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -310,6 +312,23 @@ export default function TeacherMissions() {
     load();
   }
 
+  // Archiving keeps the mission and everything attached to it. It only takes
+  // the row out of the working list, so a term's worth of missions does not
+  // bury the page.
+  async function archiveMission(m) {
+    setArchivingId(m.id);
+    setReviewMsg(null);
+    try {
+      await archiveMissionRpc(m.id, !m.archived_at);
+      await invalidateClassroomDataset();
+      await load();
+    } catch (err) {
+      setReviewMsg('Could not archive that mission: ' + (err.message || 'error'));
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
   function startGrade(missionId, groupId, currentScore) {
     setGrading({ missionId, groupId });
     setGradeVal(currentScore != null ? String(currentScore) : "");
@@ -342,7 +361,10 @@ export default function TeacherMissions() {
   // Anything the teacher has not reviewed yet. The Daily Math Power-Up is one
   // shared mission that lands here first; students see nothing until a teacher
   // approves it, at which point every Mathematics class receives that same one.
-  const pendingPowerUps = missions.filter((m) => (m.approval_status || 'pending') !== 'approved');
+  // Archived missions are out of the working list entirely.
+  const workingMissions = missions.filter((m) => !m.archived_at);
+  const archivedMissions = missions.filter((m) => m.archived_at);
+  const pendingPowerUps = workingMissions.filter((m) => (m.approval_status || 'pending') !== 'approved');
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
@@ -517,7 +539,7 @@ export default function TeacherMissions() {
         </ClayCard>
       )}
 
-      {missions.length === 0 && (
+      {workingMissions.length === 0 && (
         <NovaEmptyState
           variant="idea"
           title="No missions yet"
@@ -525,7 +547,42 @@ export default function TeacherMissions() {
         />
       )}
 
-      {missions.map((m) => {
+      {archivedMissions.length > 0 && (
+        <ClayCard className="p-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 text-left"
+            onClick={() => setShowArchived((open) => !open)}
+            aria-expanded={showArchived}
+          >
+            <span className="font-display font-bold text-sm">
+              Archived missions ({archivedMissions.length})
+            </span>
+            <span className="text-xs text-ink/60">
+              {showArchived ? 'Hide' : 'Show'} · filed away, nothing deleted
+            </span>
+          </button>
+          {showArchived && (
+            <div className="mt-3 space-y-2">
+              {archivedMissions.map((m) => (
+                <div key={m.id} className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display font-bold text-sm">{m.title}</p>
+                    <p className="text-[11px] text-ink/50">
+                      Archived {m.archived_at ? new Date(m.archived_at).toLocaleDateString() : ''} · +{m.xp_reward} XP · /{m.max_score} max
+                    </p>
+                  </div>
+                  <ClayButton size="sm" color="cream" onClick={() => setArchivingId(m.id)} disabled={archivingId === m.id}>
+                    <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                  </ClayButton>
+                </div>
+              ))}
+            </div>
+          )}
+        </ClayCard>
+      )}
+
+      {workingMissions.map((m) => {
         const isAi = m.formative_type && m.formative_type !== "manual";
         const progress = getMissionProgress(m, submissions, groups, members);
         let aiParsed = null, akParsed = {};
@@ -590,7 +647,17 @@ export default function TeacherMissions() {
                       <RotateCcw className="w-4 h-4" />
                     </button>
                   )}
-                  <button onClick={() => removeMission(m.id)} className="clay-btn bg-clay-coral text-white px-2 py-2"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeMission(m.id)} className="clay-btn bg-clay-coral text-white px-2 py-2" title="Delete permanently"><Trash2 className="w-4 h-4" /></button>
+                  {m.mission_source !== 'daily_foundation' && (
+                    <button
+                      onClick={() => archiveMission(m)}
+                      className="clay-btn bg-cream px-2 py-2"
+                      title="Archive: remove from this list and from students, without deleting"
+                      disabled={archivingId === m.id}
+                    >
+                      {archivingId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

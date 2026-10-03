@@ -215,6 +215,17 @@ export async function correctParticipationRecipient(sourceLogId, targetMemberId)
   return data;
 }
 
+// Filing a mission away is not deleting it: the row, its submissions and its
+// feedback all stay, and unarchiving brings the mission straight back.
+export async function archiveMission(missionId, archived = true) {
+  const { data, error } = await supabase.rpc('archive_mission', {
+    p_mission_id: missionId,
+    p_archived: archived,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function reviewBadgeClaim(badgeId, approve) {
   const { data, error } = await supabase.rpc('review_badge_claim', { p_badge_id: badgeId, p_approve: approve });
   if (error) throw error;
