@@ -258,7 +258,7 @@ const logEntries = logs.map((l) => {
               </div>
               <div className="space-y-1.5 max-h-64 overflow-y-auto overscroll-contain pr-1">
                 {section.entries.map((e) => {
-                  const meta = LABELS[e.type] || { label: e.type, color: 'purple' };
+                  const meta = labelFor(e.type);
                   return (
                     <div key={e.id} className={`rounded-lg border border-ink/10 bg-white/80 px-2.5 py-1.5 ${e.removed ? 'opacity-70' : ''}`}>
                       <div className="flex items-start gap-2">
