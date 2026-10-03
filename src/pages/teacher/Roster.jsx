@@ -140,6 +140,18 @@ export default function Roster() {
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
+  // Everyone the record could move onto. A student who is already signed in
+  // cannot be a target: the database refuses that merge, so they are listed but
+  // disabled rather than failing after the teacher has committed to it.
+  const candidates = transfer
+    ? members
+        .filter((m) => m.id !== transfer.id)
+        .map((m) => ({ ...m, account: accounts.find((a) => a.group_member_id === m.id) }))
+    : [];
+
+  const chosen = candidates.find((m) => m.id === transferTo);
+  const selectedName = chosen ? `${chosen.last_name}, ${chosen.first_name}` : "";
+
   return (
     <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
       <section className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,.75fr)] lg:items-center">
@@ -216,49 +228,89 @@ export default function Roster() {
       })}
 
       {transfer && (
-        <ClayCard color="purple" className="p-4">
-          <h3 className="font-display font-bold text-sm mb-1">
-            Move the record of {transfer.last_name}, {transfer.first_name} onto…
-          </h3>
-          <p className="text-[11px] text-ink/60 mb-3">
-            Use this when a student signed up again instead of picking their existing name.
-            Their points, attendance, activity scores, badges, missions and rewards all move across,
-            and {transfer.last_name}, {transfer.first_name} is removed from the roster.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-[2fr_2fr_auto] items-end">
-            <div>
-              <label className="font-display font-bold text-xs mb-1 block">Move it onto</label>
-              <select className="clay-input text-sm" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
-                <option value="">Select the correct account</option>
-                {members
-                  .filter((m) => m.id !== transfer.id)
-                  .map((m) => {
-                    const g = groups.find((gg) => gg.id === m.group_id);
+        /* A dialog, not a panel at the foot of the page: the button sits on a
+           student row near the top, and a panel below every group card looked
+           like nothing had happened. */
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 cursor-default bg-ink/40"
+            onClick={() => setTransfer(null)}
+          />
+          <ClayCard className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto p-5">
+            <h3 className="font-display font-bold text-sm mb-1">
+              Move {transfer.last_name}, {transfer.first_name}&rsquo;s record onto&hellip;
+            </h3>
+            <p className="text-[11px] text-ink/60 mb-3">
+              Their points, attendance, activity scores, badges, missions and rewards move across,
+              and {transfer.last_name}, {transfer.first_name} is then removed from the roster.
+            </p>
+
+            {candidates.length === 0 ? (
+              <p className="rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-xs font-bold text-ink/55">
+                There is no other student in this class to move the record onto.
+              </p>
+            ) : (
+              <>
+                <p className="font-display font-bold text-xs mb-1" id="transfer-target-label">
+                  Choose the correct student
+                </p>
+                <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border-2 border-ink/10 p-2">
+                  {candidates.map((option) => {
+                    const g = groups.find((gg) => gg.id === option.group_id);
+                    const taken = Boolean(option.account);
+                    const chosen = transferTo === option.id;
                     return (
-                      <option key={m.id} value={m.id}>
-                        {g ? `Group ${g.group_number}` : 'Unassigned'} · {m.last_name}, {m.first_name}
-                      </option>
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={taken}
+                        onClick={() => setTransferTo(option.id)}
+                        className={`flex w-full items-center justify-between gap-2 rounded-lg border-2 px-3 py-2 text-left text-sm ${
+                          chosen
+                            ? "border-clay-purple bg-clay-purple/10"
+                            : taken
+                              ? "cursor-not-allowed border-ink/5 bg-cream/40 text-ink/40"
+                              : "border-ink/10 bg-white hover:border-clay-purple/50"
+                        }`}
+                      >
+                        <span className="font-display font-bold">
+                          {option.last_name}, {option.first_name}
+                        </span>
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide">
+                          {g ? `Group ${g.group_number}` : "Unassigned"}
+                          {taken ? " · already signed in" : ""}
+                        </span>
+                      </button>
                     );
                   })}
-              </select>
-            </div>
-            <div>
-              <label className="font-display font-bold text-xs mb-1 block">Note</label>
+                </div>
+              </>
+            )}
+
+            <div className="mt-3">
+              <label htmlFor="transfer-note" className="font-display font-bold text-xs mb-1 block">
+                Note
+              </label>
               <input
-                className="clay-input text-sm"
+                id="transfer-note"
+                className="clay-input text-sm w-full"
                 value={transferNote}
                 onChange={(e) => setTransferNote(e.target.value)}
                 placeholder="Forgot to select own name"
               />
             </div>
-            <ClayButton size="sm" color="purple" onClick={runTransfer} disabled={!transferTo || transferring}>
-              {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />} Move record
-            </ClayButton>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ClayButton size="sm" color="cream" onClick={() => setTransfer(null)}>Cancel</ClayButton>
-          </div>
-        </ClayCard>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <ClayButton size="sm" color="purple" onClick={runTransfer} disabled={!transferTo || transferring}>
+                {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                {transferTo ? `Move to ${selectedName}` : "Move record"}
+              </ClayButton>
+              <ClayButton size="sm" color="cream" onClick={() => setTransfer(null)}>Cancel</ClayButton>
+            </div>
+          </ClayCard>
+        </div>
       )}
     </div>
   );
