@@ -349,14 +349,18 @@ export default function StudentScan() {
           <div className="space-y-1.5 max-h-60 overflow-y-auto">
             {history.map((log) => {
               const m = members.find((x) => x.id === log.group_member_id);
-              const color = log.event_type === "gacha_win" ? "lime" : log.event_type === "gacha_loss" ? "coral" : log.event_type === "gacha_even" ? "sun" : "sky";
-              const points = `+${log.points_awarded}${log.multiplier && log.multiplier !== 1 ? ` (${log.multiplier}×)` : ""} pts`;
+              const color = log.event_type === "gacha_win" ? "lime" : log.event_type === "gacha_loss" ? "coral" : log.event_type === "gacha_even" ? "sun" : log.event_type === "behavior_penalty" ? "coral" : "sky";
+              // A penalty is stored positive and reads as a deduction everywhere
+              // else. Without this the chip said "+5 pts" next to a penalty.
+              const shown = signedPoints(log);
+              const points = `${shown > 0 ? "+" : ""}${shown}${log.multiplier && log.multiplier !== 1 ? ` (${log.multiplier}×)` : ""} pts`;
+              const label = log.event_type === "behavior_penalty" ? "Penalty" : null;
               const recipient = log.recipient_type === "group" || !log.group_member_id
                 ? "Whole Group"
                 : m ? `${m.last_name}, ${m.first_name[0]}.` : "Student";
               return (
                 <div key={log.id} className="flex items-center justify-between text-sm border-b border-ink/10 pb-1.5">
-                  <span className="font-body truncate">{recipient}</span>
+                  <span className="font-body truncate">{label ? `${label}: ${recipient}` : recipient}</span>
                   <ClayChip color={color}>{points}</ClayChip>
                 </div>
               );

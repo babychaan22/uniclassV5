@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import ClayCard from "@/components/ClayCard";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { signedPoints } from "@/lib/stats";
 
 const db = globalThis.__B44_DB__;
 
@@ -108,7 +109,7 @@ export default function TrendCharts({ classroomId, members, currentMemberId, att
       week: weekEnd.slice(5),
       points: logs
         .filter((log) => log.group_member_id === member.id && (log.created_date || "").slice(0, 10) >= weekStart && (log.created_date || "").slice(0, 10) <= weekEnd)
-        .reduce((sum, log) => sum + (log.points_awarded || 0), 0),
+        .reduce((sum, log) => sum + signedPoints(log), 0),
     };
   });
 
