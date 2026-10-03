@@ -27,7 +27,10 @@ export function notificationsEnabled() {
     && "serviceWorker" in navigator
     && "PushManager" in window
     && "Notification" in window
-    && process.env.VITE_VAPID_PUBLIC_KEY;
+    // import.meta.env, not process.env. Vite only rewrites import.meta.env;
+    // process is undefined in the browser bundle, so naming it here threw a
+    // ReferenceError from the header on every page.
+    && import.meta.env.VITE_VAPID_PUBLIC_KEY;
 }
 
 // Turns the browser subscription into a durable device row. Safe to call on
@@ -43,7 +46,7 @@ export async function syncPushSubscription() {
     existing ||
     (await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.VITE_VAPID_PUBLIC_KEY),
+      applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
     }));
 
   const json = subscription.toJSON();
