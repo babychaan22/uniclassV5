@@ -39,8 +39,11 @@ export default function StudentLeaderboard() {
     const classroomId = group.classroom_id;
     const [rankResult, members, logs, badges, badgeDefinitions] = await Promise.all([
       supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
-      db.entities.GroupMember.filter({ group_id: group.id }),
-      db.entities.ParticipationLog.filter({ group_id: group.id }),
+      // The individual tab is a class leaderboard, not a view of only the
+      // student's own group. Keep the group-specific data above for finding
+      // "you", but rank every roster member in this classroom here.
+      db.entities.GroupMember.filter({ classroom_id: classroomId }),
+      db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
       db.entities.Badge.filter({ classroom_id: classroomId }),
       db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
     ]);
@@ -139,7 +142,7 @@ export default function StudentLeaderboard() {
 
       {tab === "individuals" && (
         <ClayCard className="p-4">
-          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4" /> Top Points Earners</h2>
+          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4" /> Top Students in This Class</h2>
           <div className="space-y-2">
             {indRows.map((r, i) => {
               const isMe = r.member.id === myMemberId;
