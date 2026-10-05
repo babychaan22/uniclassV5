@@ -296,7 +296,7 @@
 }
 
 @media print {
-  @page { size: 8.5in 13in; margin: 0.5in; }
+  @page { size: A4 portrait; margin: 0.3in; }
   .no-print { display: none !important; }
   body { background: white; }
   .clay-card, .clay-btn, .clay-chip, .clay-tile, .clay-medallion {
@@ -318,7 +318,10 @@
   .qr-code-grid {
     display: grid !important;
     grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(10, 29mm) !important;
+    /* A4's printable height after 0.3in margins is 281.46mm. Ten equal
+       rows keep all 100 codes on one portrait sheet without clipping. */
+    grid-template-rows: repeat(10, minmax(0, 1fr)) !important;
+    height: 281.46mm !important;
     gap: .4mm !important;
     align-content: start !important;
   }

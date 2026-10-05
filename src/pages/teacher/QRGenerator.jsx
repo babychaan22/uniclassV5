@@ -204,7 +204,7 @@ export default function TeacherQRGenerator() {
           <div className="flex gap-3 no-print">
             <ClayButton color="sky" onClick={() => window.print()}><Printer className="w-4 h-4" /> Print Sheet</ClayButton>
             <ClayButton color="lime" onClick={downloadCSV}><Download className="w-4 h-4" /> Download CSV</ClayButton>
-            <ClayChip color="purple">Folio 8.5in × 13in · 0.5in margin · 10 × 10 · 100 per page</ClayChip>
+            <ClayChip color="purple">A4 · 0.3in margin · 10 × 10 · 100 per page</ClayChip>
           </div>
           <div className="qr-print-sheet clay-card bg-white p-4">
             <div className="qr-code-grid grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">

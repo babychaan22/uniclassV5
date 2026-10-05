@@ -333,8 +333,12 @@ export default function StudentScan() {
                   <p className="font-mono text-lg mb-2">{result.gacha.multiplier}× multiplier</p>
                 </>
               )}
+              {!result.gacha && (
+                <p className="font-display font-extrabold text-xl mb-1">Great scan! You did it! ✨🙌</p>
+              )}
               <p className="font-display font-extrabold text-4xl text-ink mt-2">+{result.points}</p>
               <p className="font-display font-bold text-sm opacity-80">POINTS</p>
+              <p className="mt-2 text-sm font-display font-bold opacity-80">Keep the good work going! 🌟</p>
             </ClayCard>
           </CapsulePop>
           <ClayButton color="purple" size="lg" className="mt-5" onClick={reset}>Scan Another</ClayButton>
