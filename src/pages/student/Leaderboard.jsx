@@ -13,7 +13,6 @@ import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
-import { computeParticipationPoints } from "@/lib/stats";
 import { supabase } from '@/api/supabaseClient';
 import { ROUTES } from '@/lib/routes';
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from '@/lib/studentContext';
@@ -37,27 +36,25 @@ export default function StudentLeaderboard() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [rankResult, members, logs, badges, badgeDefinitions] = await Promise.all([
+    const [rankResult, individualResult, badges, badgeDefinitions] = await Promise.all([
       supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
-      // The individual tab is a class leaderboard, not a view of only the
-      // student's own group. Keep the group-specific data above for finding
-      // "you", but rank every roster member in this classroom here.
-      db.entities.GroupMember.filter({ classroom_id: classroomId }),
-      db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
+      // The RLS policies deliberately keep other groups' raw logs private.
+      // This RPC returns only the small class ranking needed by this page.
+      supabase.rpc('get_classroom_individual_leaderboard', { p_classroom_id: classroomId, p_limit: 12 }),
       db.entities.Badge.filter({ classroom_id: classroomId }),
       db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
     ]);
     if (rankResult.error) throw rankResult.error;
+    if (individualResult.error) throw individualResult.error;
     const groupRows = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, pts: Math.round(row.points || 0), missionsDone: row.missions_done || 0 }))
       .sort((a, b) => b.pts - a.pts || b.missionsDone - a.missionsDone);
 
-    const indRows = members
-      .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs) }))
-      .sort((a, b) => b.points - a.points)
-      .slice(0, 12);
+    const indRows = (individualResult.data || []).map((row) => ({
+      member: { id: row.member_id, last_name: row.last_name, first_name: row.first_name },
+      points: Number(row.points || 0),
+    }));
 
-    const myMember = members.find((m) => m.id === account.group_member_id) || members.find((m) => m.is_account_holder);
-    setData({ group, groupRows, indRows, myMemberId: myMember?.id, badges, badgeDefinitions });
+    setData({ group, groupRows, indRows, myMemberId: account.group_member_id, badges, badgeDefinitions });
   }
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
