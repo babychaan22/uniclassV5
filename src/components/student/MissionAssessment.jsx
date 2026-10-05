@@ -32,8 +32,10 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   const [submitError, setSubmitError] = useState("");
   const [review, setReview] = useState(null);
   const [result, setResult] = useState(() => existing ? { ...existing } : null);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [showReview, setShowReview] = useState(false);
 
-  useEffect(() => { setQuestions(originalQuestions); }, [originalQuestions]);
+  useEffect(() => { setQuestions(originalQuestions); setQuestionIndex(0); setShowReview(false); }, [originalQuestions]);
   useEffect(() => {
     if (!result) return;
     let live = true;
@@ -65,7 +67,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     setRetrying(true); setSubmitError("");
     try {
       const retry = await startMissionRetry(mission.id, group.id);
-      setQuestions(retry.questions || []); setRetryAttemptId(retry.attemptId); setAnswers({}); setReview(null); setResult(null);
+      setQuestions(retry.questions || []); setRetryAttemptId(retry.attemptId); setAnswers({}); setReview(null); setResult(null); setQuestionIndex(0); setShowReview(false);
     } catch (err) { setSubmitError(err?.message || "A fresh retry could not be started."); }
     finally { setRetrying(false); }
   }
@@ -95,15 +97,20 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
 
   if (mission.formative_type === "drag_drop") return <div className="space-y-3">{formativeBrief}<DragDropMatch left={content.left || []} right={content.right || []} answers={{}} onSubmit={(res) => submit(res.placements || {})} submitting={submitting} error={submitError} /></div>;
 
+  const question = questions[questionIndex];
+  const answeredCount = Object.keys(answers).length;
+  const isLastQuestion = questionIndex === questions.length - 1;
+
   return <ClayCard className="p-4 space-y-4">
     {formativeBrief}
-    <p className="font-display font-bold text-sm">{retryAttemptId ? 'Fresh retry: answer this new version.' : 'Answer the questions below:'}</p>
-    {questions.map((question, i) => <div key={i} className="space-y-2">
-      <p className="font-body text-sm">{i + 1}. {question.prompt}</p>
-      {question.image_url && <img src={question.image_url} alt={`Visual for question ${i + 1}`} className="max-h-72 w-full rounded-xl border-2 border-ink bg-white object-contain" loading="lazy" />}
-      {mission.formative_type === "true_false" ? <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} type="button" onClick={() => setAnswers({ ...answers, [i]: value })} className={`clay-btn px-4 py-2 text-sm ${answers[i] === value ? (value ? "bg-clay-lime text-ink" : "bg-clay-coral text-white") : "bg-cream text-ink/60"}`}>{value ? 'True' : 'False'}</button>)}</div> : <div className="grid grid-cols-2 gap-2">{question.options?.map((option, optionIndex) => <button key={optionIndex} type="button" onClick={() => setAnswers({ ...answers, [i]: optionIndex })} className={`clay-btn min-h-12 w-full justify-start px-3 py-2 text-left text-sm ${answers[i] === optionIndex ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>{option}</button>)}</div>}
-    </div>)}
+    <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm">{retryAttemptId ? 'Practice retry' : 'Score attempt'}</p><span className="text-xs font-mono text-ink/60">{answeredCount}/{questions.length} answered</span></div>
+    <div className="h-2 overflow-hidden rounded-full bg-ink/10"><div className="h-full rounded-full bg-clay-purple transition-all" style={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }} /></div>
+    {!showReview ? <>
+      <div className="space-y-2"><p className="font-body text-sm">{questionIndex + 1}. {question.prompt}</p>
+        {question.image_url && <img src={question.image_url} alt={`Visual for question ${questionIndex + 1}`} className="max-h-72 w-full rounded-xl border-2 border-ink bg-white object-contain" loading="lazy" />}
+        {mission.formative_type === "true_false" ? <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: value })} className={`clay-btn px-4 py-2 text-sm ${answers[questionIndex] === value ? (value ? "bg-clay-lime text-ink" : "bg-clay-coral text-white") : "bg-cream text-ink/60"}`}>{value ? 'True' : 'False'}</button>)}</div> : <div className="grid grid-cols-2 gap-2">{question.options?.map((option, optionIndex) => <button key={optionIndex} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: optionIndex })} className={`clay-btn min-h-12 w-full justify-start px-3 py-2 text-left text-sm ${answers[questionIndex] === optionIndex ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>{option}</button>)}</div>}</div>
+      <div className="flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setQuestionIndex((index) => Math.max(0, index - 1))} disabled={questionIndex === 0}>Back</ClayButton><ClayButton color="purple" size="sm" className="ml-auto" onClick={() => isLastQuestion ? setShowReview(true) : setQuestionIndex((index) => index + 1)} disabled={answers[questionIndex] === undefined}>{isLastQuestion ? 'Review answers' : 'Next question'}</ClayButton></div>
+    </> : <div className="rounded-xl border-2 border-clay-purple/30 bg-clay-purple/10 p-3"><p className="font-display font-bold">Ready to submit?</p><p className="mt-1 text-xs text-ink/65">You answered all {questions.length} questions. Your score attempt is submitted once; feedback practice does not change XP.</p><div className="mt-3 flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setShowReview(false)}>Check answers</ClayButton><ClayButton color="lime" size="sm" className="ml-auto" onClick={() => submit(answers)} disabled={submitting}>{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit for secure grading'}</ClayButton></div></div>}
     {submitError && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{submitError}</p>}
-    <ClayButton color="lime" size="md" className="w-full" onClick={() => submit(answers)} disabled={submitting || Object.keys(answers).length < questions.length}>{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit for secure grading"}</ClayButton>
   </ClayCard>;
 }
