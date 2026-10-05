@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uniclass-shell-v3';
+const CACHE_NAME = 'uniclass-shell-v4';
 const SHELL = ['/', '/index.html', '/manifest.json', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -26,16 +26,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(caches.match(request).then((cached) => {
-    const network = fetch(request).then((response) => {
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-      }
-      return response;
-    });
-    return cached || network;
-  }));
+  // Stale-while-revalidate: the cached copy is returned immediately so repeat
+  // loads stay instant, but the network response always replaces it.
+  //
+  // This used to be cache-first, which returned the cached copy and only wrote
+  // the new response on a later visit. A deploy that changed the app therefore
+  // served the previous version to anyone who had the old asset cached, and a
+  // second reload was needed before the change appeared. Vite's dev module URLs
+  // are not fingerprinted, so this was the reason a rebuilt page kept rendering
+  // as the old one during development.
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.match(request).then((cached) => {
+        const network = fetch(request)
+          .then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => cached);
+        return cached || network;
+      })
+    )
+  );
 });
 
 // ── device notifications ─────────────────────────────────────────────────
