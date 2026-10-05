@@ -12,6 +12,12 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { ThemeProvider } from "next-themes";
 
 if ('serviceWorker' in navigator) {
+  let reloadingForServiceWorker = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadingForServiceWorker) return;
+    reloadingForServiceWorker = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
