@@ -9,6 +9,7 @@ import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalid
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import { Switch } from "@/components/ui/switch";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Plus, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
