@@ -51,14 +51,16 @@ export default function Roster() {
       db.entities.GroupAccount.filter({ classroom_id: c.id }),
       db.entities.Badge.filter({ classroom_id: c.id }),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
-      db.entities.StudentRecordTransfer.filter({ classroom_id: c.id }, { orderBy: 'created_at', ascending: false, limit: 12 }),
+      supabase.from('student_record_transfers').select('*').eq('classroom_id', c.id).order('created_at', { ascending: false }).limit(12),
     ]);
     setGroups(g.sort((a, b) => a.group_number - b.group_number));
     setMembers(m);
     setAccounts(acc);
     setBadges(badgeRows);
     setBadgeDefinitions(definitions);
-    setTransferHistory(transfers || []);
+    // Transfer history is auxiliary. A missing audit-table permission must not
+    // hide the roster rows or the edit/transfer controls themselves.
+    setTransferHistory(transfers?.data || []);
   }
 
   function startEdit(mem) { setEdit({ ...edit, [mem.id]: { last_name: mem.last_name, first_name: mem.first_name, group_id: mem.group_id } }); }
