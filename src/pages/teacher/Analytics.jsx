@@ -55,6 +55,34 @@ export default function TeacherAnalytics() {
     const members = data.members || [];
     const groups = data.groups || [];
     const memberNames = Object.fromEntries(members.map((member) => [member.id, fullName(member)]));
+    const membersByGroup = new Map();
+    for (const member of members) {
+      membersByGroup.set(member.group_id, [...(membersByGroup.get(member.group_id) || []), member]);
+    }
+
+    // Build the lookups once. The old implementation repeatedly filtered every
+    // score and point log for every group/member shown on the charts, which
+    // became noticeably slow as a class accumulated a term of entries.
+    const activityMaxById = new Map((data.activities || []).map((activity) => [activity.id, Number(activity.max_score) || 0]));
+    const scoreTotalsByMember = new Map();
+    for (const score of data.scores || []) {
+      const max = activityMaxById.get(score.activity_id);
+      if (!max) continue;
+      const current = scoreTotalsByMember.get(score.group_member_id) || { earned: 0, max: 0 };
+      current.earned += Number(score.score) || 0;
+      current.max += max;
+      scoreTotalsByMember.set(score.group_member_id, current);
+    }
+    const pointTotalsByGroup = new Map();
+    for (const log of data.logs || []) {
+      const groupId = log.group_id || "class";
+      const current = pointTotalsByGroup.get(groupId) || { points: 0, wholeGroup: 0, members: new Map() };
+      const points = logPoints(log);
+      current.points += points;
+      if (log.group_member_id) current.members.set(log.group_member_id, (current.members.get(log.group_member_id) || 0) + points);
+      else current.wholeGroup += points;
+      pointTotalsByGroup.set(groupId, current);
+    }
 
     const attendanceByWeek = {};
     for (const record of data.attendance || []) {
@@ -71,12 +99,11 @@ export default function TeacherAnalytics() {
     for (const badge of getGroupBadgeItems(data.badges || [])) {
       badgeIconsByGroup.set(badge.group_id, [...(badgeIconsByGroup.get(badge.group_id) || []), badge.icon]);
     }
-    const groupSets = classroom.uses_groups ? groups.slice().sort((a, b) => a.group_number - b.group_number).map((group) => ({ id: group.id, name: `Group ${group.group_number}${badgeIconsByGroup.has(group.id) ? ` ${badgeIconsByGroup.get(group.id).join(" ")}` : ""}`, members: members.filter((member) => member.group_id === group.id) })) : [{ id: "class", name: "Whole class", members }];
+    const groupSets = classroom.uses_groups ? groups.slice().sort((a, b) => a.group_number - b.group_number).map((group) => ({ id: group.id, name: `Group ${group.group_number}${badgeIconsByGroup.has(group.id) ? ` ${badgeIconsByGroup.get(group.id).join(" ")}` : ""}`, members: membersByGroup.get(group.id) || [] })) : [{ id: "class", name: "Whole class", members }];
     const activities = groupSets.map((set) => {
       const studentScores = set.members.map((member) => {
-        const submitted = (data.scores || []).filter((score) => score.group_member_id === member.id);
-        const max = submitted.reduce((sum, score) => sum + (Number((data.activities || []).find((activity) => activity.id === score.activity_id)?.max_score) || 0), 0);
-        const earned = submitted.reduce((sum, score) => sum + (Number(score.score) || 0), 0);
+        const totals = scoreTotalsByMember.get(member.id) || { earned: 0, max: 0 };
+        const { earned, max } = totals;
         return { name: memberNames[member.id] || "Student", rate: max ? Math.round((earned / max) * 100) : null, earned, max };
       });
       const scored = studentScores.filter((item) => item.rate !== null);
@@ -84,10 +111,16 @@ export default function TeacherAnalytics() {
     });
 
     const points = groupSets.map((set) => {
-      const relevant = classroom.uses_groups ? (data.logs || []).filter((log) => log.group_id === set.id) : (data.logs || []);
-      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: relevant.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + logPoints(log), 0) })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-      const wholeGroup = relevant.filter((log) => !log.group_member_id).reduce((sum, log) => sum + logPoints(log), 0);
-      return { name: set.name, label: set.name, points: relevant.reduce((sum, log) => sum + logPoints(log), 0), students, wholeGroup };
+      const totals = classroom.uses_groups
+        ? pointTotalsByGroup.get(set.id) || { points: 0, wholeGroup: 0, members: new Map() }
+        : Array.from(pointTotalsByGroup.values()).reduce((all, current) => {
+          all.points += current.points;
+          all.wholeGroup += current.wholeGroup;
+          for (const [memberId, points] of current.members) all.members.set(memberId, (all.members.get(memberId) || 0) + points);
+          return all;
+        }, { points: 0, wholeGroup: 0, members: new Map() });
+      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: totals.members.get(member.id) || 0 })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+      return { name: set.name, label: set.name, points: totals.points, students, wholeGroup: totals.wholeGroup };
     });
 
     const missions = (data.missions || []).map((mission) => {
