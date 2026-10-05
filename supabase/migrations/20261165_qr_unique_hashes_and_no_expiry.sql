@@ -144,7 +144,7 @@ declare
   v_used_hash text := 'verify-used-' || substr(md5(random()::text), 1, 12);
   v_scan jsonb;
   v_problems text[] := '{}';
-  v_claimed integer;
+  v_again integer := 0;
 begin
   select c.id, c.teacher_id, ga.user_id, ga.group_id, ga.group_member_id
     into v_case
@@ -176,7 +176,6 @@ begin
   values (v_hash, null, 'standard', 1, v_case.teacher_id, now() - interval '1 year');
 
   -- 3. A code cannot be issued twice.
-  declare v_again integer := 0;
   begin
     insert into public.qr_codes(hash, classroom_id, qr_type, base_points, created_by)
     values (v_hash, null, 'standard', 1, v_case.teacher_id);
