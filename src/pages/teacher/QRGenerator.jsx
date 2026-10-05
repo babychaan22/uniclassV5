@@ -1,8 +1,9 @@
 
 const db = globalThis.__B44_DB__;
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { createGeneralQrBatch } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -10,30 +11,6 @@ import ClayChip from "@/components/ClayChip";
 import NovaMessage from "@/components/NovaMessage";
 import { QrCode as QrIcon, Printer, Download, Loader2 } from "lucide-react";
 import QRCode from "qrcode";
-
-// 12 characters from a 36-symbol alphabet is about 62 bits. Drawn from the
-// platform CSPRNG rather than Math.random, because these are the codes that
-// hand out points.
-//
-// 256 is not a multiple of 36, so taking a raw byte modulo the alphabet size
-// would make the first four symbols slightly more likely than the rest. Bytes
-// at or above 252 (36 * 7) are discarded and redrawn, so every symbol is
-// equally likely.
-function genHash() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const ceiling = 252;
-  const out = [];
-  while (out.length < 12) {
-    const bytes = new Uint8Array(12);
-    crypto.getRandomValues(bytes);
-    for (const byte of bytes) {
-      if (byte >= ceiling) continue;
-      out.push(chars[byte % chars.length]);
-      if (out.length === 12) break;
-    }
-  }
-  return out.join("");
-}
 
 export default function TeacherQRGenerator() {
   const { user } = useAuth();
@@ -44,102 +21,43 @@ export default function TeacherQRGenerator() {
   const [images, setImages] = useState({});
   const [problem, setProblem] = useState("");
 
-  // Every general code ever issued, so a new batch cannot repeat one. The
-  // database has a unique index on hash as well; this is what makes that
-  // guarantee visible before a write is attempted rather than as an error.
-  const issued = useRef(new Set());
-
   async function loadStored() {
     if (!user) return;
-    // Two reads with different shapes. The visible list only needs the newest
-    // rows, but the duplicate guard needs every hash there is — reading one page
-    // of full rows and treating that as the whole history is what let a fresh
-    // batch collide with an older code once the list outgrew its limit.
-    const [recent, hashPage] = await Promise.all([
-      db.entities.QRCode.filter(
-        { classroom_id: null },
-        { columns: "id,hash,qr_type,base_points,created_date", orderBy: "created_date", ascending: false, limit: 500 },
-      ),
-      db.entities.QRCode.filter({ classroom_id: null }, { columns: "hash", limit: 1000 }),
-    ]);
+    // The database's unique hash index and protected batch RPC enforce
+    // uniqueness, so this page only reads the rows it can actually display.
+    const recent = await db.entities.QRCode.filter(
+      { classroom_id: null },
+      { columns: "id,hash,qr_type,base_points,created_date", orderBy: "created_date", ascending: false, limit: 500 },
+    );
     setStored(recent || []);
-    issued.current = new Set((hashPage || []).map((row) => row.hash));
   }
 
   useEffect(() => {
     loadStored();
   }, [user]);
 
-  // A code that is not already on record, however many tries it takes.
-  function freshHash() {
-    for (let attempt = 0; attempt < 25; attempt += 1) {
-      const hash = genHash();
-      if (!issued.current.has(hash)) return hash;
-    }
-    return null;
-  }
-
-  // The set above is a courtesy that saves a round trip; it is only ever as
-  // complete as the rows the API returned. The database is what actually makes
-  // a duplicate impossible, so a hash it rejects is redrawn rather than
-  // surfaced as a failure — and any other error is passed straight up instead of
-  // being mistaken for a collision.
-  async function createUniqueCode() {
-    for (let attempt = 0; attempt < 25; attempt += 1) {
-      const hash = freshHash();
-      if (!hash) return null;
-      // Reserved before the write, so two codes in one batch cannot collide
-      // with each other either.
-      issued.current.add(hash);
-      try {
-        // expires_at is deliberately absent. These codes get printed and left on
-        // a wall, so none of them may carry a date that can pass.
-        return await db.entities.QRCode.create({
-          hash,
-          classroom_id: null,
-          qr_type: form.qr_type,
-          base_points: Number(form.base_points),
-          created_by: user.id,
-        });
-      } catch (err) {
-        issued.current.delete(hash);
-        if (err?.code === "23505" || /duplicate key|already exists/i.test(err?.message || "")) continue;
-        throw err;
-      }
-    }
-    return null;
-  }
-
   async function generate(e) {
     e.preventDefault();
     setGenerating(true);
     setProblem("");
-    const newCodes = [];
     const imgs = {};
     const batchSize = Math.max(1, Math.min(100, Math.floor(Number(form.batch_size) || 1)));
     setForm((current) => ({ ...current, batch_size: batchSize }));
 
     try {
-      for (let i = 0; i < batchSize; i++) {
-        const created = await createUniqueCode();
-        if (!created) {
-          setProblem("Could not find an unused code after 25 tries. Try again.");
-          break;
-        }
-        newCodes.push(created);
+      const newCodes = await createGeneralQrBatch(form.qr_type, Number(form.base_points), batchSize);
+      await Promise.all(newCodes.map(async (created) => {
         // The quiet zone of 2 modules is what lets a phone read the code off
         // paper, so it is not padding to reclaim. The image is rendered wider to
         // make the code bigger; the margin stays as it is.
         imgs[created.id] = await QRCode.toDataURL(created.hash, { width: 480, margin: 2, color: { dark: "#000000", light: "#ffffff" } });
-      }
+      }));
+      setCodes(newCodes);
+      setImages(imgs);
+      setStored((current) => [...newCodes, ...current].slice(0, 500));
+    } catch (err) {
+      setProblem(err?.message || "Could not generate the QR batch. Try again.");
     } finally {
-      // Whatever was issued stays visible and printable even if a later code in
-      // the batch failed, and the button always comes back.
-      if (newCodes.length) {
-        setCodes(newCodes);
-        setImages(imgs);
-        setStored((current) => [...newCodes, ...current]);
-      }
       setGenerating(false);
     }
   }

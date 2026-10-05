@@ -47,6 +47,16 @@ export async function ensureGroupActivity(classroomId, groupId, activityNumber, 
   return data;
 }
 
+export async function createGeneralQrBatch(qrType, basePoints, batchSize) {
+  const { data, error } = await supabase.rpc('create_general_qr_batch', {
+    p_qr_type: qrType,
+    p_base_points: basePoints,
+    p_batch_size: batchSize,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function recordActivityEvidence(activityId, groupMemberId, storagePath, originalName, fileSize, mimeType = 'image/webp') {
   const { data, error } = await supabase.rpc('record_activity_evidence', {
     p_activity_id: activityId,
