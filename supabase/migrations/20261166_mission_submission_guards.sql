@@ -159,6 +159,22 @@ create trigger enforce_mission_retry_limits
   before insert on public.mission_retry_attempts
   for each row execute function public.enforce_mission_retry_limits();
 
+-- Older versions allowed a student to start the same practice retry more than
+-- once. Keep the most recent unfinished draft; the older ones have no submitted
+-- work and cannot be resumed safely once the one-open-at-a-time rule exists.
+delete from public.mission_retry_attempts r
+using (
+  select id from (
+    select id, row_number() over (
+      partition by mission_id, created_by
+      order by created_at desc, id desc
+    ) as row_number
+    from public.mission_retry_attempts
+    where completed_at is null
+  ) ranked where row_number > 1
+) stale
+where r.id = stale.id;
+
 create unique index if not exists idx_one_open_mission_retry_per_student
   on public.mission_retry_attempts(mission_id, created_by) where completed_at is null;
 create index if not exists idx_mission_retry_attempts_student_history
