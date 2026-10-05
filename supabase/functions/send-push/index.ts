@@ -4,11 +4,11 @@
 // Push encryption (RFC 8291/8292) with the app's VAPID keys. No third-party
 // service is involved.
 //
-// Deploy:
-//   supabase functions deploy send-push --no-verify-jwt
+// Deploy with JWT verification disabled only after configuring
+// PUSH_DISPATCH_SECRET. The database webhook authenticates using that secret.
 //
 // Required secrets (generate with `npx web-push generate-vapid-keys`):
-//   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
+//   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com PUSH_DISPATCH_SECRET=...
 //
 // Called by the database: an AFTER INSERT trigger on public.app_notifications
 // posts { "notificationId": "<uuid>" } here. Calling it with an empty body
@@ -28,6 +28,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com';
+const PUSH_DISPATCH_SECRET = Deno.env.get('PUSH_DISPATCH_SECRET') ?? '';
 
 const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -38,6 +39,17 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+
+function constantTimeEqual(value: string, secret: string) {
+  const left = new TextEncoder().encode(value);
+  const right = new TextEncoder().encode(secret);
+  let mismatch = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+  return mismatch === 0;
+}
 
 // ── Delivery ──────────────────────────────────────────────────────────────
 
@@ -79,8 +91,10 @@ async function sendToSubscription(
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
   if (request.method !== 'POST') return json({ error: 'POST only' }, 405);
+  const suppliedSecret = request.headers.get('x-uniclass-push-secret') ?? '';
+  if (!PUSH_DISPATCH_SECRET) return json({ error: 'push dispatch is not configured' }, 503);
+  if (!constantTimeEqual(suppliedSecret, PUSH_DISPATCH_SECRET)) return json({ error: 'unauthorized' }, 401);
 
   let notificationId: string | null = null;
   try {
@@ -102,20 +116,12 @@ Deno.serve(async (request) => {
     }, 503);
   }
 
-  // The table is app_notifications: an unrelated public.notifications table
-  // already exists in this project and is not part of this feature.
-  let query = db
-    .from('app_notifications')
-    .select('id, classroom_id, recipient_user_id, kind, title, body, link')
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (notificationId) query = query.eq('id', notificationId);
-  // is(), not eq(): eq with null asks PostgREST for the literal string "null"
-  // and comes back as "invalid input syntax for type timestamp with time zone".
-  else query = query.is('pushed_at', null);
-
-  const { data: notifications, error } = await query;
+  // Atomically claim rows through the service-role-only RPC. That prevents
+  // parallel webhooks from delivering the same notification twice.
+  const { data: notifications, error } = await db.rpc('claim_push_notifications', {
+    p_notification_id: notificationId,
+    p_limit: 50,
+  });
   if (error) return json({ error: error.message }, 500);
   if (!notifications?.length) return json({ sent: 0, devices: 0, note: 'nothing to send' });
 
@@ -157,6 +163,10 @@ Deno.serve(async (request) => {
     // exist.
     if (!subscriptions?.length) {
       withoutDevice += 1;
+      await db.from('app_notifications')
+        .update({ push_claimed_at: null, push_claim_token: null })
+        .eq('id', notification.notification_id)
+        .eq('push_claim_token', notification.claim_token);
       continue;
     }
 
@@ -170,7 +180,7 @@ Deno.serve(async (request) => {
         delivered = true;
       } else {
         failed += 1;
-        if (result.reason) console.error('push failed', subscription.endpoint, result.reason);
+        if (result.reason) console.error('push failed', notification.notification_id, result.reason);
       }
       if (result.gone) dead.push(subscription.endpoint);
     }
@@ -179,8 +189,16 @@ Deno.serve(async (request) => {
     // that verdict is per notification rather than for the whole batch.
     if (delivered) {
       await db.from('app_notifications')
-        .update({ pushed_at: new Date().toISOString() })
-        .eq('id', notification.id);
+        .update({ pushed_at: new Date().toISOString(), push_claimed_at: null, push_claim_token: null })
+        .eq('id', notification.notification_id)
+        .eq('push_claim_token', notification.claim_token);
+    } else {
+      // Leave the in-app notification alone and make device delivery eligible
+      // for a controlled retry without holding the queue lock indefinitely.
+      await db.from('app_notifications')
+        .update({ push_claimed_at: null, push_claim_token: null })
+        .eq('id', notification.notification_id)
+        .eq('push_claim_token', notification.claim_token);
     }
   }
 

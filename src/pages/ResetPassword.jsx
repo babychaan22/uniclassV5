@@ -13,22 +13,41 @@ export default function ResetPassword() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
     // Supabase automatically parses the recovery token from the URL hash and
     // establishes a temporary session. We listen for the PASSWORD_RECOVERY event.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    let active = true;
+    // A recovery event can arrive just after getSession resolves. Keep the
+    // link in its checking state briefly instead of showing a false invalid
+    // link screen during that hand-off.
+    const timeout = window.setTimeout(() => {
+      if (active) setCheckingSession(false);
+    }, 1500);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) {
         setSessionReady(true);
+        setCheckingSession(false);
       }
     });
 
     // Also check if a session already exists (e.g. on page refresh).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true);
+      if (!active) return;
+      if (session) {
+        setSessionReady(true);
+        setCheckingSession(false);
+      }
+    }).catch(() => {
+      if (active) setCheckingSession(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -49,6 +68,14 @@ export default function ResetPassword() {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <AuthLayout icon={Lock} title="Checking reset link" subtitle="Please wait a moment">
+        <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      </AuthLayout>
+    );
+  }
 
   if (!sessionReady) {
     return (

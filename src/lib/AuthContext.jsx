@@ -14,16 +14,35 @@ export const AuthProvider = ({ children }) => {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    // Hydrate from the existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = normalizeUser(session.user);
-        setUser(u);
-        setIsAuthenticated(true);
+    let active = true;
+
+    // Hydrate from the existing session on mount. A network or storage error
+    // must not leave the whole application behind its loading screen.
+    const hydrate = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (!active) return;
+        if (session?.user) {
+          setUser(normalizeUser(session.user));
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.warn('Unable to restore the saved session:', error);
+        if (!active) return;
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        if (active) {
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+        }
       }
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-    });
+    };
+    void hydrate();
 
     // Subscribe to auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -42,7 +61,10 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   /** Re-check the current session (called by App.jsx's checkUserAuth). */

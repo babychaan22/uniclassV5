@@ -10,8 +10,7 @@ import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
-import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
 import { setMissionApproval, approvePowerUpForAllClasses, updateMission, generatePendingPowerUps, archiveMission as archiveMissionRpc } from "@/lib/secureActions";
 import MissionPreview from "@/components/teacher/MissionPreview";
@@ -227,15 +226,8 @@ export default function TeacherMissions() {
     setGenerating(false);
   }
 
-  async function toggleActive(m) {
-    await db.entities.Mission.update(m.id, { is_active: !m.is_active });
-    invalidateClassroomDataset();
-    load();
-  }
-
-  // Approving publishes a mission to students; rejecting withholds it. The
-  // switch above is deliberately not a shortcut for this: is_active alone must
-  // not be able to skip the review.
+  // Approving publishes a mission to students; withholding it withdraws the
+  // mission through the protected review function rather than direct CRUD.
   async function reviewMission(m, status) {
     setReviewingId(m.id);
     setReviewMsg(null);
@@ -303,13 +295,6 @@ export default function TeacherMissions() {
     } finally {
       setSavingEdit(false);
     }
-  }
-
-  async function removeMission(id) {
-    await db.entities.Mission.delete(id);
-    if (grading?.missionId === id) cancelGrade();
-    invalidateClassroomDataset();
-    load();
   }
 
   // Archiving keeps the mission and everything attached to it. It only takes
@@ -615,10 +600,15 @@ export default function TeacherMissions() {
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 {approval === 'approved' ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-display font-bold">Live</span>
-                    <Switch checked={m.is_active} onCheckedChange={() => toggleActive(m)} />
-                  </div>
+                  <ClayButton
+                    onClick={() => reviewMission(m, 'pending')}
+                    disabled={reviewingId === m.id}
+                    color="sun"
+                    size="sm"
+                  >
+                    {reviewingId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                    Withhold
+                  </ClayButton>
                 ) : (
                   <ClayButton
                     onClick={() => reviewMission(m, 'approved')}
@@ -647,7 +637,6 @@ export default function TeacherMissions() {
                       <RotateCcw className="w-4 h-4" />
                     </button>
                   )}
-                  <button onClick={() => removeMission(m.id)} className="clay-btn bg-clay-coral text-white px-2 py-2" title="Delete permanently"><Trash2 className="w-4 h-4" /></button>
                   {m.mission_source !== 'daily_foundation' && (
                     <button
                       onClick={() => archiveMission(m)}
