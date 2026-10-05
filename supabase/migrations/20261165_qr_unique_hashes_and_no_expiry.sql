@@ -68,6 +68,7 @@ declare
   v_multiplier numeric := 1;
   v_points numeric;
   v_classroom_id uuid;
+  v_label text;
 begin
   if v_user is null then raise exception 'Authentication required'; end if;
 
@@ -99,29 +100,34 @@ begin
 
   if p_recipient_type = 'group' then
     select * into v_group from public.groups where id = v_account.group_id;
-  else
+  elsif p_recipient_type = 'member' then
     select * into v_member from public.group_members
       where id = p_group_member_id and group_id = v_account.group_id;
     if not found then raise exception 'Choose a member from your group'; end if;
+  else
+    raise exception 'Choose either a group or a member recipient';
   end if;
 
   if p_risk and v_qr.qr_type <> 'gacha' then v_multiplier := 2; end if;
   v_points := round(coalesce(v_qr.base_points, 0) * v_multiplier);
+  v_label := case when v_qr.qr_type = 'gacha' then 'Gacha capsule scan' else 'QR scan' end;
 
   insert into public.participation_logs(group_id, classroom_id, group_member_id, points_awarded, event_type, multiplier, recipient_type, qr_code_id, note)
     values (v_account.group_id, v_classroom_id,
       case when p_recipient_type = 'group' then null else v_member.id end,
       v_points,
       case when v_qr.qr_type = 'gacha' then 'gacha_even' else 'scan' end,
-      v_multiplier, p_recipient_type, v_qr.id, v_qr.label);
+      v_multiplier, p_recipient_type, v_qr.id, v_label);
 
   update public.qr_codes
-    set is_used = true, used_by_member_id = v_member.id, used_at = now()
+    set is_used = true,
+        used_by_member_id = case when p_recipient_type = 'member' then v_member.id else null end,
+        used_at = now()
   where id = v_qr.id;
 
   return jsonb_build_object(
     'event', v_qr.qr_type,
-    'label', v_qr.label,
+    'label', v_label,
     'points', v_points,
     'multiplier', v_multiplier,
     'groupId', v_account.group_id
