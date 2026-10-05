@@ -82,9 +82,10 @@ export default function TeacherDashboard() {
 
       const groupRows = groups.map((g) => {
         const gm = memberRows.filter((r) => r.group?.id === g.id);
-        const avgTotal = gm.length > 0 ? gm.reduce((s, r) => s + r.cls.total, 0) / gm.length : 0;
-        const tag = avgTotal >= 80 ? "On Track" : avgTotal >= 60 ? "Developing" : "At Risk";
-        const color = avgTotal >= 80 ? "lime" : avgTotal >= 60 ? "sun" : "coral";
+        const graded = gm.filter((r) => r.cls.total !== null);
+        const avgTotal = graded.length > 0 ? graded.reduce((s, r) => s + r.cls.total, 0) / graded.length : null;
+        const tag = avgTotal === null ? "Not enough data" : avgTotal >= 80 ? "On Track" : avgTotal >= 60 ? "Developing" : "At Risk";
+        const color = avgTotal === null ? "sky" : avgTotal >= 80 ? "lime" : avgTotal >= 60 ? "sun" : "coral";
         return { group: g, avgTotal, tag, color, memberCount: gm.length };
       });
 
@@ -307,7 +308,7 @@ export default function TeacherDashboard() {
           {groupRows.map((r) => (
             <div key={r.group.id} className="clay-tile p-3 text-center">
               <p className="inline-flex items-center justify-center gap-1 font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
-              <p className="font-mono text-2xl font-bold">{Math.round(r.avgTotal)}%</p>
+              <p className="font-mono text-2xl font-bold">{r.avgTotal === null ? "—" : `${Math.round(r.avgTotal)}%`}</p>
               <ClayChip color={r.color}>{r.tag}</ClayChip>
               <ClayButton size="sm" color="purple" className="mt-2 w-full"
                 onClick={() => downloadGroupPdf({ classroom, term, todayStr, group: r.group, groupRow: r, memberRows: memberRows.filter((mr) => mr.group?.id === r.group.id), attendance, scores, activities })}>
@@ -322,7 +323,7 @@ export default function TeacherDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="font-display font-bold text-lg">Student Classification Report</h2>
           <div className="flex flex-wrap gap-2">
-            {["all", "At Risk", "Developing", "On Track"].map((f) => (
+            {["all", "Not enough data", "At Risk", "Developing", "On Track"].map((f) => (
               <button key={f} onClick={() => setFilter(f)}
                 className={`clay-chip px-3 py-1 text-sm ${filter === f ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>
                 {f === "all" ? "All" : f}
@@ -357,7 +358,7 @@ export default function TeacherDashboard() {
                   <td className="py-2 px-2 font-mono">{r.exam.count ? Math.round(r.exam.pct) : "—"}</td>
                   <td className="py-2 px-2 font-mono">{r.perf.count ? Math.round(r.perf.pct) : "—"}</td>
                   <td className="py-2 px-2 font-mono">{r.pts}</td>
-                  <td className="py-2 px-2 font-mono font-bold">{r.cls.total}</td>
+                  <td className="py-2 px-2 font-mono font-bold">{r.cls.total ?? "—"}</td>
                   <td className="py-2 pl-2"><ClayChip color={r.cls.color}>{r.cls.tag}</ClayChip></td>
                 </tr>
               ))}
