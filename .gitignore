@@ -40,3 +40,18 @@ dist-ssr
 
 .vercel
 .env*
+
+# Local agent runtime state
+.kilo/
+.agents/
+
+# Abandoned working copies of the app, kept on disk but not in history.
+project-qr-print-compact/
+project-ui-refactor/
+
+# Nested git repo left over from an earlier layout
+.git_disabled/
+
+# Supabase CLI local metadata, at any depth
+supabase/.temp/
+**/supabase/.temp/

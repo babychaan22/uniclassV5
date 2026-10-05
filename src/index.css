@@ -296,7 +296,7 @@
 }
 
 @media print {
-  @page { size: A4 portrait; margin: 5mm; }
+  @page { size: 8.5in 13in; margin: 0.5in; }
   .no-print { display: none !important; }
   body { background: white; }
   .clay-card, .clay-btn, .clay-chip, .clay-tile, .clay-medallion {
@@ -308,47 +308,52 @@
   }
   .qr-print-sheet {
     width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    background: #fff !important;
   }
-  .qr-print-header {
-    margin-bottom: 2mm !important;
-    border-bottom: .25mm solid #111 !important;
-    padding-bottom: 1mm !important;
-  }
-  .qr-print-header h2 { font-size: 10pt !important; }
-  .qr-print-header span { font-size: 6pt !important; }
   .qr-code-grid {
     display: grid !important;
-    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(10, 26mm) !important;
-    gap: 1.1mm !important;
+    grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(10, 29mm) !important;
+    gap: .4mm !important;
     align-content: start !important;
   }
   .qr-code-card {
-    min-height: 26mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .2mm !important;
+    padding: .1mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     break-inside: avoid !important;
-    border: .25mm solid #111 !important;
-    border-radius: 1mm !important;
-    padding: .8mm !important;
     page-break-inside: avoid !important;
+    overflow: hidden !important;
   }
   .qr-code-card img {
-    width: 16mm !important;
-    height: 16mm !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
     image-rendering: auto !important;
   }
-  .qr-code-card p:first-of-type {
-    margin-top: .4mm !important;
-    font-size: 4.5pt !important;
-    line-height: 1.1 !important;
+  .qr-code-hash {
+    margin: 0 !important;
+    font-size: 5pt !important;
+    line-height: 1.05 !important;
+    letter-spacing: 0 !important;
+    word-break: break-all !important;
   }
-  .qr-code-card p:last-of-type {
-    margin-top: .3mm !important;
-    font-size: 4.8pt !important;
+  .qr-code-value {
+    margin: 0 !important;
+    font-size: 5.5pt !important;
     line-height: 1 !important;
+    font-weight: 700 !important;
   }
 }
 

@@ -14,16 +14,30 @@ import QRCode from "qrcode";
 // 12 characters from a 36-symbol alphabet is about 62 bits. Drawn from the
 // platform CSPRNG rather than Math.random, because these are the codes that
 // hand out points.
+//
+// 256 is not a multiple of 36, so taking a raw byte modulo the alphabet size
+// would make the first four symbols slightly more likely than the rest. Bytes
+// at or above 252 (36 * 7) are discarded and redrawn, so every symbol is
+// equally likely.
 function genHash() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
+  const ceiling = 252;
+  const out = [];
+  while (out.length < 12) {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= ceiling) continue;
+      out.push(chars[byte % chars.length]);
+      if (out.length === 12) break;
+    }
+  }
+  return out.join("");
 }
 
 export default function TeacherQRGenerator() {
   const { user } = useAuth();
-  const [form, setForm] = useState({ qr_type: "standard", base_points: 10, batch_size: 8 });
+  const [form, setForm] = useState({ qr_type: "standard", base_points: 10, batch_size: 100 });
   const [generating, setGenerating] = useState(false);
   const [codes, setCodes] = useState([]);
   const [stored, setStored] = useState([]);
@@ -37,15 +51,19 @@ export default function TeacherQRGenerator() {
 
   async function loadStored() {
     if (!user) return;
-    // Every generation is kept, so this is the full history rather than the
-    // latest batch.
-    const existing = await db.entities.QRCode.filter(
-      { classroom_id: null },
-      { columns: "id,hash,qr_type,base_points,created_date", orderBy: "created_date", ascending: false, limit: 500 },
-    );
-    const rows = existing || [];
-    setStored(rows);
-    issued.current = new Set(rows.map((row) => row.hash));
+    // Two reads with different shapes. The visible list only needs the newest
+    // rows, but the duplicate guard needs every hash there is — reading one page
+    // of full rows and treating that as the whole history is what let a fresh
+    // batch collide with an older code once the list outgrew its limit.
+    const [recent, hashPage] = await Promise.all([
+      db.entities.QRCode.filter(
+        { classroom_id: null },
+        { columns: "id,hash,qr_type,base_points,created_date", orderBy: "created_date", ascending: false, limit: 500 },
+      ),
+      db.entities.QRCode.filter({ classroom_id: null }, { columns: "hash", limit: 1000 }),
+    ]);
+    setStored(recent || []);
+    issued.current = new Set((hashPage || []).map((row) => row.hash));
   }
 
   useEffect(() => {
@@ -61,41 +79,69 @@ export default function TeacherQRGenerator() {
     return null;
   }
 
+  // The set above is a courtesy that saves a round trip; it is only ever as
+  // complete as the rows the API returned. The database is what actually makes
+  // a duplicate impossible, so a hash it rejects is redrawn rather than
+  // surfaced as a failure — and any other error is passed straight up instead of
+  // being mistaken for a collision.
+  async function createUniqueCode() {
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const hash = freshHash();
+      if (!hash) return null;
+      // Reserved before the write, so two codes in one batch cannot collide
+      // with each other either.
+      issued.current.add(hash);
+      try {
+        // expires_at is deliberately absent. These codes get printed and left on
+        // a wall, so none of them may carry a date that can pass.
+        return await db.entities.QRCode.create({
+          hash,
+          classroom_id: null,
+          qr_type: form.qr_type,
+          base_points: Number(form.base_points),
+          created_by: user.id,
+        });
+      } catch (err) {
+        issued.current.delete(hash);
+        if (err?.code === "23505" || /duplicate key|already exists/i.test(err?.message || "")) continue;
+        throw err;
+      }
+    }
+    return null;
+  }
+
   async function generate(e) {
     e.preventDefault();
     setGenerating(true);
     setProblem("");
     const newCodes = [];
+    const imgs = {};
     const batchSize = Math.max(1, Math.min(100, Math.floor(Number(form.batch_size) || 1)));
     setForm((current) => ({ ...current, batch_size: batchSize }));
 
-    for (let i = 0; i < batchSize; i++) {
-      const hash = freshHash();
-      if (!hash) {
-        setProblem("Could not find an unused code after 25 tries. Try again.");
-        break;
+    try {
+      for (let i = 0; i < batchSize; i++) {
+        const created = await createUniqueCode();
+        if (!created) {
+          setProblem("Could not find an unused code after 25 tries. Try again.");
+          break;
+        }
+        newCodes.push(created);
+        // The quiet zone of 2 modules is what lets a phone read the code off
+        // paper, so it is not padding to reclaim. The image is rendered wider to
+        // make the code bigger; the margin stays as it is.
+        imgs[created.id] = await QRCode.toDataURL(created.hash, { width: 480, margin: 2, color: { dark: "#000000", light: "#ffffff" } });
       }
-      // Reserved before the write, so two codes in one batch cannot collide
-      // with each other either.
-      issued.current.add(hash);
-      const created = await db.entities.QRCode.create({
-        hash,
-        classroom_id: null,
-        qr_type: form.qr_type,
-        base_points: Number(form.base_points),
-        created_by: user.id,
-      });
-      newCodes.push(created);
+    } finally {
+      // Whatever was issued stays visible and printable even if a later code in
+      // the batch failed, and the button always comes back.
+      if (newCodes.length) {
+        setCodes(newCodes);
+        setImages(imgs);
+        setStored((current) => [...newCodes, ...current]);
+      }
+      setGenerating(false);
     }
-
-    setCodes(newCodes);
-    setStored((current) => [...newCodes, ...current]);
-    const imgs = {};
-    for (const c of newCodes) {
-      imgs[c.id] = await QRCode.toDataURL(c.hash, { width: 360, margin: 2, color: { dark: "#000000", light: "#ffffff" } });
-    }
-    setImages(imgs);
-    setGenerating(false);
   }
 
   function downloadCSV() {
@@ -110,8 +156,8 @@ export default function TeacherQRGenerator() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="grid items-center gap-4 xl:grid-cols-[1fr_.8fr]">
+    <div className="mx-auto max-w-5xl space-y-6 print:max-w-none print:space-y-0">
+      <div className="grid items-center gap-4 xl:grid-cols-[1fr_.8fr] no-print">
         <div>
           <p className="mb-2 text-sm font-display font-bold text-clay-purple">Classroom tools</p>
           <h1 className="uc-page-title text-4xl leading-[.92]">QR Code Generator</h1>
@@ -158,19 +204,15 @@ export default function TeacherQRGenerator() {
           <div className="flex gap-3 no-print">
             <ClayButton color="sky" onClick={() => window.print()}><Printer className="w-4 h-4" /> Print Sheet</ClayButton>
             <ClayButton color="lime" onClick={downloadCSV}><Download className="w-4 h-4" /> Download CSV</ClayButton>
-            <ClayChip color="purple">Dense A4 · 70 per page · up to 100 per batch</ClayChip>
+            <ClayChip color="purple">Folio 8.5in × 13in · 0.5in margin · 10 × 10 · 100 per page</ClayChip>
           </div>
           <div className="qr-print-sheet clay-card bg-white p-4">
-            <div className="qr-print-header mb-4 flex items-center justify-between border-b-2 border-ink pb-2">
-              <h2 className="font-display font-bold text-lg">General UniClass QR Codes</h2>
-              <span className="font-mono text-sm">{form.qr_type.toUpperCase()} · {form.base_points} pts · {codes.length} codes · Scan once</span>
-            </div>
             <div className="qr-code-grid grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
               {codes.map((c) => (
                 <div key={c.id} className="qr-code-card flex flex-col items-center rounded-lg border-2 border-black p-2">
                   {images[c.id] && <img src={images[c.id]} alt={`QR code ${c.hash}`} className="h-24 w-24" />}
-                  <p className="mt-1 break-all text-center font-mono text-[10px]">{c.hash}</p>
-                  <p className="mt-0.5 font-display text-xs font-bold">{c.qr_type === "gacha" ? "GACHA" : `${c.base_points} PTS`}</p>
+                  <p className="qr-code-hash mt-1 break-all text-center font-mono text-[10px]">{c.hash}</p>
+                  <p className="qr-code-value mt-0.5 font-display text-xs font-bold">{c.base_points} PTS{c.qr_type === "gacha" ? " · GACHA" : ""}</p>
                 </div>
               ))}
             </div>
