@@ -36,6 +36,7 @@ export default function Roster() {
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [transferSummary, setTransferSummary] = useState("");
+  const [transferHistory, setTransferHistory] = useState([]);
 
   useEffect(() => { load(); }, [user]);
 
@@ -44,18 +45,20 @@ export default function Roster() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     setClassroom(c);
-    const [g, m, acc, badgeRows, definitions] = await Promise.all([
+    const [g, m, acc, badgeRows, definitions, transfers] = await Promise.all([
       getClassroomGroups(c.id),
       getClassroomMembers(c.id),
       db.entities.GroupAccount.filter({ classroom_id: c.id }),
       db.entities.Badge.filter({ classroom_id: c.id }),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
+      db.entities.StudentRecordTransfer.filter({ classroom_id: c.id }, { orderBy: 'created_at', ascending: false, limit: 12 }),
     ]);
     setGroups(g.sort((a, b) => a.group_number - b.group_number));
     setMembers(m);
     setAccounts(acc);
     setBadges(badgeRows);
     setBadgeDefinitions(definitions);
+    setTransferHistory(transfers || []);
   }
 
   function startEdit(mem) { setEdit({ ...edit, [mem.id]: { last_name: mem.last_name, first_name: mem.first_name, group_id: mem.group_id } }); }
@@ -216,7 +219,9 @@ export default function Roster() {
                           <ArrowRightLeft className="w-4 h-4" /> Move record
                         </ClayButton>
                         {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => makeRepresentative(memberAccount)} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
-                        <ClayButton size="sm" color="coral" onClick={() => removeMember(mem)} disabled={saving === mem.id}>{saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Remove</ClayButton>
+                        <ClayButton size="sm" color="coral" onClick={() => removeMember(mem)} disabled={saving === mem.id} title="Delete this student and their class-only record">
+                          {saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete student
+                        </ClayButton>
                       </>
                     )}
                   </div>
@@ -226,6 +231,20 @@ export default function Roster() {
           </ClayCard>
         );
       })}
+
+      <ClayCard className="p-4 sm:p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <ArrowRightLeft className="h-6 w-6 text-clay-purple" />
+          <div><h2 className="font-display text-lg font-extrabold text-[var(--uc-navy-950)]">Record transfer history</h2><p className="text-xs text-ink/60">Recent duplicate-record merges are kept as a teacher audit trail.</p></div>
+        </div>
+        {transferHistory.length === 0 ? <p className="rounded-xl bg-cream px-3 py-2 text-sm text-ink/60">No student records have been transferred in this class.</p> : <div className="space-y-2">
+          {transferHistory.map((entry) => <div key={entry.id} className="rounded-xl border border-ink/10 bg-[var(--uc-bg)] p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-display font-bold">Record transfer completed</span><span className="text-xs text-ink/55">{entry.created_at ? new Date(entry.created_at).toLocaleString() : ''}</span></div>
+            <p className="mt-1 text-xs text-ink/65">{entry.moved_logs || 0} point entries · {entry.moved_attendance || 0} attendance marks · {entry.moved_scores || 0} scores · {entry.moved_submissions || 0} missions moved</p>
+            {entry.note && <p className="mt-1 text-xs text-ink/55">Note: {entry.note}</p>}
+          </div>)}
+        </div>}
+      </ClayCard>
 
       {transfer && (
         /* A dialog, not a panel at the foot of the page: the button sits on a
