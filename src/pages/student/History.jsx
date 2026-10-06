@@ -11,6 +11,8 @@ import NovaMessage from "@/components/NovaMessage";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import { Loader2, History as HistoryIcon, Users, User, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 
+const db = globalThis.__B44_DB__;
+
 const KINDS = {
   qr_scan: { label: "QR Scan", color: "sky" },
   gacha_win: { label: "Gacha Win", color: "lime" },
@@ -25,7 +27,7 @@ const KINDS = {
   attendance: { label: "Attendance", color: "sky" },
   correction: { label: "Correction", color: "purple" },
   manual_award: { label: "Points Awarded", color: "lime" },
-  score_edit: { label: "Score Review", color: "purple" },
+  score_edit: { label: "Activity score", color: "purple" },
 };
 
 const FILTERS = [
@@ -38,6 +40,82 @@ const FILTERS = [
 ];
 
 const PAGE_SIZE = 60;
+
+function signedLogPoints(log) {
+  const points = Number(log.points_awarded || 0);
+  return log.event_type === "behavior_penalty" ? -Math.abs(points) : points;
+}
+
+// The original report RPC remains the fastest way to load a long ledger. This
+// fallback keeps a student's own records visible if an older database function
+// has an ambiguous column reference during a rollout.
+async function loadDirectHistory(account) {
+  const classroomId = account.classroom_id;
+  const [logs, attendance, submissions, scores, activities, badges, rewards] = await Promise.all([
+    db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
+    db.entities.Attendance.filter({ classroom_id: classroomId, group_member_id: account.group_member_id }),
+    db.entities.MissionSubmission.filter({ classroom_id: classroomId, group_member_id: account.group_member_id }),
+    db.entities.ActivityScore.filter({ classroom_id: classroomId, group_member_id: account.group_member_id }),
+    db.entities.Activity.filter({ classroom_id: classroomId }),
+    db.entities.Badge.filter({ classroom_id: classroomId, group_id: account.group_id }),
+    db.entities.RewardRedemption.filter({ classroom_id: classroomId, group_id: account.group_id }),
+  ]);
+  const activityById = new Map((activities || []).map((activity) => [activity.id, activity]));
+  const personalLogs = (logs || []).filter((log) => log.group_id === account.group_id && log.group_member_id === account.group_member_id);
+  const groupLogs = (logs || []).filter((log) => log.group_id === account.group_id && !log.group_member_id);
+  const visibleLogs = [...personalLogs, ...groupLogs];
+  const rows = [
+    ...visibleLogs.map((log) => ({
+      entry_id: `log-${log.id}`,
+      kind: log.event_type === "mission_redemption" ? "xp_redeemed" : log.event_type === "scan" ? "qr_scan" : log.event_type || "manual_award",
+      title: log.event_type === "mission_redemption" ? "XP redeemed for points" : log.event_type === "behavior_penalty" ? "Behavior deduction" : log.event_type?.startsWith("gacha_") ? "Gacha result" : "Points recorded",
+      detail: log.note || "Participation update",
+      points: signedLogPoints(log), xp_earned: 0, xp_spent: Number(log.xp_spent || 0),
+      scope: log.group_member_id ? "member" : "group", status: log.reversed_at ? "reversed" : null, occurred_at: log.created_date,
+    })),
+    ...(attendance || []).map((row) => ({
+      entry_id: `attendance-${row.id}`, kind: "attendance", title: row.status === "present" ? "Marked present" : "Marked absent",
+      detail: row.attendance_date, points: 0, xp_earned: 0, xp_spent: 0, scope: "member", status: null,
+      occurred_at: `${row.attendance_date}T12:00:00+08:00`,
+    })),
+    ...(submissions || []).map((row) => ({
+      entry_id: `mission-${row.id}`, kind: "mission_xp", title: "Mission completed", detail: "Mission score recorded",
+      points: 0, xp_earned: Number(row.xp_earned || 0), xp_spent: 0, scope: "member",
+      status: Number(row.xp_earned || 0) > 0 ? "awarded" : "no xp", occurred_at: row.created_date,
+    })),
+    ...(scores || []).map((row) => {
+      const activity = activityById.get(row.activity_id);
+      return {
+        entry_id: `score-${row.id}`, kind: "score_edit", title: activity?.title || `Activity ${activity?.activity_number || "score"}`,
+        detail: `${Number(row.score || 0)}/${Number(activity?.max_score || 0) || "—"} recorded`, points: 0, xp_earned: 0, xp_spent: 0,
+        scope: "member", status: null, occurred_at: row.created_date,
+      };
+    }),
+    ...(badges || []).filter((badge) => !badge.member_id || badge.member_id === account.group_member_id).map((badge) => ({
+      entry_id: `badge-${badge.id}`, kind: "badge_claim", title: badge.approval_status === "approved" ? "Badge earned" : "Badge request",
+      detail: badge.badge_type?.replaceAll("_", " ") || "Badge", points: Number(badge.approval_status === "approved" ? badge.points_awarded || 0 : 0), xp_earned: 0, xp_spent: 0,
+      scope: badge.member_id ? "member" : "group", status: badge.approval_status || "pending", occurred_at: badge.created_date,
+    })),
+    ...(rewards || []).map((reward) => ({
+      entry_id: `reward-${reward.id}`, kind: "reward_request", title: "Reward requested", detail: reward.reward_title || "Reward",
+      points: 0, xp_earned: 0, xp_spent: 0, scope: "group", status: reward.approval_status || "pending", occurred_at: reward.created_date,
+    })),
+  ].sort((left, right) => String(right.occurred_at || "").localeCompare(String(left.occurred_at || "")));
+  const presentDays = (attendance || []).filter((row) => row.status === "present").length;
+  const absentDays = (attendance || []).filter((row) => row.status !== "present").length;
+  const xpEarned = (submissions || []).reduce((sum, row) => sum + Number(row.xp_earned || 0), 0);
+  const xpSpent = personalLogs.reduce((sum, row) => sum + Number(row.xp_spent || 0), 0);
+  return {
+    rows: rows.slice(0, PAGE_SIZE),
+    totals: {
+      personal_points: personalLogs.reduce((sum, row) => sum + signedLogPoints(row), 0),
+      group_points: personalLogs.reduce((sum, row) => sum + signedLogPoints(row), 0) + groupLogs.reduce((sum, row) => sum + signedLogPoints(row), 0),
+      xp_earned: xpEarned, xp_spent: xpSpent, xp_available: Math.max(0, xpEarned - xpSpent),
+      present_days: presentDays, absent_days: absentDays,
+      attendance_rate: attendance?.length ? (presentDays / attendance.length) * 100 : null,
+    },
+  };
+}
 
 // Approved/pending/declined reads differently per kind, so the chip colour and
 // label come from the server-supplied status rather than being inferred.
@@ -91,14 +169,23 @@ export default function StudentHistory() {
           }),
           supabase.rpc("get_student_account_totals", { p_classroom_id: account.classroom_id }),
         ]);
-        if (history.error) throw history.error;
-        if (totalsResult.error) throw totalsResult.error;
         if (!active) return;
-        const rows = history.data || [];
-        const [total] = totalsResult.data || [];
+        let rows = history.data || [];
+        let [total] = totalsResult.data || [];
+        let usingFallback = false;
+        if (history.error || totalsResult.error) {
+          const fallback = await loadDirectHistory(account);
+          if (!active) return;
+          rows = fallback.rows;
+          total = fallback.totals;
+          usingFallback = true;
+          console.warn("[history] using direct account-record fallback", history.error || totalsResult.error);
+        }
         setEntries(rows);
         if (total) setTotals(total);
-        setHasMore(rows.length === PAGE_SIZE);
+        // Direct records are intentionally a complete, bounded rescue view;
+        // paging would call the failing legacy report again.
+        setHasMore(!usingFallback && rows.length === PAGE_SIZE);
       } catch (err) {
         if (active) setError(err?.message || "Your history could not be loaded.");
       } finally {
@@ -176,7 +263,7 @@ export default function StudentHistory() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ClayCard className="p-3 text-center">
           <p className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(personalPoints)}</p>
-          <p className="text-[10px] font-display font-bold text-ink/60">MY OWN POINTS</p>
+          <p className="text-[10px] font-display font-bold text-ink/60">MY CURRENT POINTS</p>
         </ClayCard>
         <ClayCard className="p-3 text-center">
           <p className="font-mono text-2xl font-extrabold text-clay-sky">{Math.round(groupPoints)}</p>

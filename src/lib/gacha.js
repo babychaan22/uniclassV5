@@ -41,6 +41,8 @@ export function playTick() {
 }
 
 export function playChime(mood) {
+  if (mood === "sad") { playAww(); return; }
+  if (mood === "happy") { playRewardCelebration(); return; }
   const ctx = getCtx();
   if (!ctx) return;
   const notes = mood === "happy" ? [523, 659, 784, 1047] : mood === "sad" ? [440, 392, 311] : [523];
@@ -58,6 +60,49 @@ export function playChime(mood) {
     osc.start(t);
     osc.stop(t + 0.25);
   });
+}
+
+// These are intentionally short, generated tones rather than downloaded audio
+// files. They work offline, add no page weight, and only play after a learner
+// has pressed an answer or submit button.
+export function primeAudio() {
+  const ctx = getCtx();
+  if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+}
+
+function playNotes(notes, type = "sine", volume = 0.06, spacing = 0.09) {
+  const ctx = getCtx();
+  if (!ctx) return;
+  notes.forEach((freq, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const start = ctx.currentTime + index * spacing;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+    osc.start(start);
+    osc.stop(start + 0.24);
+  });
+}
+
+export function playCorrectAnswer() {
+  playNotes([660, 880], "triangle", 0.055, 0.08);
+}
+
+export function playIncorrectAnswer() {
+  playNotes([330, 247], "sine", 0.06, 0.11);
+}
+
+export function playRewardCelebration() {
+  playNotes([523, 659, 784, 1047], "triangle", 0.075, 0.08);
+}
+
+export function playAww() {
+  playNotes([392, 330, 262], "sine", 0.07, 0.1);
 }
 
 export function playStamp() {

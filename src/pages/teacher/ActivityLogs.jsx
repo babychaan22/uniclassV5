@@ -37,6 +37,9 @@ const LOG_LABELS = {
 // participation_logs at all.
 const SYNTHETIC_LABELS = {
   redemption: { label: "Reward Redeemed", color: "pink" },
+  attendance: { label: "Attendance", color: "sky" },
+  activity_score: { label: "Activity score", color: "purple" },
+  mission_xp: { label: "Mission XP", color: "purple" },
 };
 
 const labelFor = (type) =>
@@ -76,18 +79,25 @@ export default function ActivityLogs() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const offset = nextPage * 100;
-    const [logs, redemptions, badges, groups, members, badgeDefinitions] = await Promise.all([
+    const [logs, redemptions, badges, attendance, activityScores, activities, submissions, missions, groups, members, badgeDefinitions] = await Promise.all([
       db.entities.ParticipationLog.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.RewardRedemption.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.Badge.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      db.entities.Attendance.filter({ classroom_id: c.id }, { orderBy: 'attendance_date', ascending: false, limit: 100, offset }),
+      db.entities.ActivityScore.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      db.entities.Activity.filter({ classroom_id: c.id }),
+      db.entities.MissionSubmission.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
+      db.entities.Mission.filter({ classroom_id: c.id }),
       getClassroomGroups(c.id), getClassroomMembers(c.id),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
     ]);
     setDefinitions(badgeDefinitions || []);
     setGroups(groups || []);
-    setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100);
+    setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100 || attendance.length === 100 || activityScores.length === 100 || submissions.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
+    const activityMap = new Map((activities || []).map((activity) => [activity.id, activity]));
+    const missionMap = new Map((missions || []).map((mission) => [mission.id, mission]));
     setMembers(members);
 
 const logEntries = logs.map((l) => {
@@ -155,7 +165,49 @@ const logEntries = logs.map((l) => {
       };
     });
 
-    const merged = [...logEntries, ...redemptionEntries, ...badgeEntries].sort(
+    const attendanceEntries = attendance.map((row) => ({
+      id: `attendance-${row.id}`,
+      type: 'attendance',
+      points: null,
+      groupLabel: gmap[row.group_id] ? `Group ${gmap[row.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+      group_id: row.group_id,
+      memberLabel: mmap[row.group_member_id] || null,
+      note: `${row.status === 'present' ? 'Present' : 'Absent'} · ${new Date(`${row.attendance_date}T00:00:00`).toLocaleDateString()}`,
+      created_date: row.created_date || `${row.attendance_date}T12:00:00+08:00`,
+    }));
+
+    const scoreEntries = activityScores.map((row) => {
+      const activity = activityMap.get(row.activity_id);
+      const maximum = Number(activity?.max_score || 0);
+      return {
+        id: `score-${row.id}`,
+        type: 'activity_score',
+        points: null,
+        groupLabel: gmap[row.group_id] ? `Group ${gmap[row.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+        group_id: row.group_id,
+        memberLabel: mmap[row.group_member_id] || null,
+        note: `${activity?.title || `Activity ${activity?.activity_number || ''}`.trim()} · ${Number(row.score || 0)}${maximum ? `/${maximum}` : ''}`,
+        created_date: row.updated_date || row.created_date,
+      };
+    });
+
+    const missionEntries = submissions.map((row) => {
+      const mission = missionMap.get(row.mission_id);
+      const xp = Number(row.xp_earned || 0);
+      return {
+        id: `mission-${row.id}`,
+        type: 'mission_xp',
+        points: null,
+        xp,
+        groupLabel: gmap[row.group_id] ? `Group ${gmap[row.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+        group_id: row.group_id,
+        memberLabel: mmap[row.group_member_id] || null,
+        note: `${mission?.title || 'Mission'} · ${xp > 0 ? `+${xp} XP earned` : 'completed'}`,
+        created_date: row.created_date,
+      };
+    });
+
+    const merged = [...logEntries, ...redemptionEntries, ...badgeEntries, ...attendanceEntries, ...scoreEntries, ...missionEntries].sort(
       (a, b) => (b.created_date || "").localeCompare(a.created_date || "")
     );
 
@@ -223,7 +275,7 @@ const logEntries = logs.map((l) => {
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2">
           <ScrollText className="w-6 h-6" /> Activity Logs
         </h1>
-        <p className="text-ink/60 text-sm">Every scan, gacha result, redemption, and badge award in your classroom.</p>
+        <p className="text-ink/60 text-sm">Attendance, activity scores, mission XP, points, scans, gacha results, rewards, and badges—newest first.</p>
       </div>
       {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
 
@@ -284,6 +336,9 @@ const logEntries = logs.map((l) => {
                           <p className="shrink-0 font-mono font-extrabold text-ink/40" title="Added only after approval">
                             +{e.pendingPoints}
                           </p>
+                        )}
+                        {e.xp != null && (
+                          <p className="shrink-0 font-mono font-extrabold text-clay-purple">+{formatAmount(e.xp)} XP</p>
                         )}
                       </div>
                       {(e.correctable || e.voidable) && (

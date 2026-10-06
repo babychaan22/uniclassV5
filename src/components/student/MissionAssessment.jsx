@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ClayCard from "@/components/ClayCard";
 import ClayButton from "@/components/ClayButton";
@@ -7,6 +7,7 @@ import DragDropMatch from "@/components/student/DragDropMatch";
 import { Loader2, RotateCcw } from "lucide-react";
 import { getMissionSubmissionReview, startMissionRetry, submitMission } from '@/lib/secureActions';
 import { formatMissionDeadline, isMissionLocked } from '@/lib/missionProgress';
+import { playCorrectAnswer, playIncorrectAnswer, primeAudio } from '@/lib/gacha';
 
 function displayAnswer(question, value, type) {
   if (value === undefined || value === null) return "No answer";
@@ -47,6 +48,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   const [questionIndex, setQuestionIndex] = useState(() => initialDraft?.questionIndex || 0);
   const [showReview, setShowReview] = useState(() => Boolean(initialDraft?.showReview));
   const [draftRestored, setDraftRestored] = useState(() => Boolean(initialDraft));
+  const shouldPlayFeedback = useRef(false);
 
   useEffect(() => { setQuestions(originalQuestions); }, [originalQuestions]);
   useEffect(() => {
@@ -67,7 +69,15 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   useEffect(() => {
     if (!result) return;
     let live = true;
-    getMissionSubmissionReview(mission.id, group.id, retryAttemptId).then((data) => { if (live) setReview(data); }).catch(() => { if (live) setReview(null); });
+    getMissionSubmissionReview(mission.id, group.id, retryAttemptId).then((data) => {
+      if (!live) return;
+      setReview(data);
+      if (shouldPlayFeedback.current) {
+        shouldPlayFeedback.current = false;
+        if ((data?.items || []).every((item) => item.correct)) playCorrectAnswer();
+        else playIncorrectAnswer();
+      }
+    }).catch(() => { if (live) setReview(null); });
     return () => { live = false; };
   }, [result, mission.id, mission.formative_type, group.id, retryAttemptId]);
 
@@ -84,9 +94,11 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
 
   async function submit(submittedAnswers) {
     setSubmitting(true); setSubmitError("");
+    primeAudio();
     try {
       const submission = await submitMission({ p_mission_id: mission.id, p_group_id: group.id, p_score: 0, p_answers: JSON.stringify(submittedAnswers), p_retry_attempt_id: retryAttemptId });
       try { window.localStorage.removeItem(draftKey); } catch {}
+      shouldPlayFeedback.current = true;
       setResult({ ...submission }); onDone();
     } catch (err) { setSubmitError(err?.message || "Your answers could not be submitted. Please try again."); }
     finally { setSubmitting(false); }
@@ -110,7 +122,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
       <div className="text-center"><div className="text-4xl mb-2">{reviewedScore >= reviewedMax * 0.8 ? "🎉" : reviewedScore >= reviewedMax * 0.5 ? "🙂" : "😢"}</div><p className="font-display font-bold text-lg">{retryAttemptId ? `Retry result: ${reviewedScore}/${reviewedMax}` : `${reviewedScore}/${reviewedMax}`}</p><ClayChip color="sun">{result.xp_earned ?? Math.round((reviewedScore / reviewedMax) * mission.xp_reward)} XP earned</ClayChip>{retryAttemptId && <p className="mt-2 text-xs text-ink/60">This retry is for feedback and practice only. Your XP stays based on the first attempt.</p>}</div>
       {mission.formative_type !== 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
         const question = questions[item.index];
-        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct' : 'Try again'}</p>{!item.correct && <p className="mt-1">Correct answer: <b>{displayAnswer(question, item.correct_answer, mission.formative_type)}</b></p>}<p className="mt-1 text-xs text-ink/70">Why: {item.explanation}</p></div>;
+        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct' : 'Try again'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p>{!item.correct && <p className="mt-1">Correct answer: <b>{displayAnswer(question, item.correct_answer, mission.formative_type)}</b></p>}<div className="mt-2 rounded-lg bg-white/60 p-2 text-xs text-ink/80"><p className="font-display font-bold text-ink">Why this works</p><p className="mt-0.5 leading-relaxed">{item.explanation || 'Review this idea with your teacher or lesson notes.'}</p>{item.feedback && <p className="mt-2 border-t border-ink/10 pt-2 font-medium text-ink/70">Nova&apos;s tip: {item.feedback}</p>}</div></div>;
       })}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
         <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
@@ -141,7 +153,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
         {question.image_url && <img src={question.image_url} alt={`Visual for question ${questionIndex + 1}`} className="max-h-72 w-full rounded-xl border-2 border-ink bg-white object-contain" loading="lazy" />}
         {mission.formative_type === "true_false" ? <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: value })} className={`clay-btn px-4 py-2 text-sm ${answers[questionIndex] === value ? (value ? "bg-clay-lime text-ink" : "bg-clay-coral text-white") : "bg-cream text-ink/60"}`}>{value ? 'True' : 'False'}</button>)}</div> : <div className="grid grid-cols-2 gap-2">{question.options?.map((option, optionIndex) => <button key={optionIndex} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: optionIndex })} className={`clay-btn min-h-12 w-full justify-start px-3 py-2 text-left text-sm ${answers[questionIndex] === optionIndex ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>{option}</button>)}</div>}</div>
       <div className="flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setQuestionIndex((index) => Math.max(0, index - 1))} disabled={questionIndex === 0}>Back</ClayButton><ClayButton color="purple" size="sm" className="ml-auto" onClick={() => isLastQuestion ? setShowReview(true) : setQuestionIndex((index) => index + 1)} disabled={answers[questionIndex] === undefined}>{isLastQuestion ? 'Review answers' : 'Next question'}</ClayButton></div>
-    </> : <div className="rounded-xl border-2 border-clay-purple/30 bg-clay-purple/10 p-3"><p className="font-display font-bold">Ready to submit?</p><p className="mt-1 text-xs text-ink/65">You answered all {questions.length} questions. Your score attempt is submitted once; feedback practice does not change XP.</p><div className="mt-3 flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setShowReview(false)}>Check answers</ClayButton><ClayButton color="lime" size="sm" className="ml-auto" onClick={() => submit(answers)} disabled={submitting}>{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit for secure grading'}</ClayButton></div></div>}
+    </> : <div className="rounded-xl border-2 border-clay-purple/30 bg-clay-purple/10 p-3"><p className="font-display font-bold">Review every answer</p><p className="mt-1 text-xs text-ink/65">Tap any question to change it before submitting. Your score attempt is submitted once; feedback practice does not change XP.</p><div className="mt-3 space-y-2">{questions.map((reviewQuestion, index) => <button key={index} type="button" onClick={() => { setQuestionIndex(index); setShowReview(false); }} className="flex w-full items-center gap-3 rounded-lg border-2 border-ink/10 bg-white/80 p-2 text-left transition hover:border-clay-purple"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-clay-purple text-xs font-bold text-white">{index + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium">{reviewQuestion.prompt}</span><span className="mt-0.5 block text-[11px] text-ink/60">Your answer: {displayAnswer(reviewQuestion, answers[index], mission.formative_type)}</span></span><span className="text-xs font-display font-bold text-clay-purple">Edit</span></button>)}</div><div className="mt-3 flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setShowReview(false)}>Back to questions</ClayButton><ClayButton color="lime" size="sm" className="ml-auto" onClick={() => submit(answers)} disabled={submitting}>{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit for secure grading'}</ClayButton></div></div>}
     {submitError && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{submitError}</p>}
   </ClayCard>;
 }

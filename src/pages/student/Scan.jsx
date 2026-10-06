@@ -13,7 +13,7 @@ import Tambiolo from "@/components/Tambiolo";
 import MascotWidget from "@/components/MascotWidget";
 import Nova from "@/components/mascot/Nova";
 import { peekQrCode, scanAndResolve } from "@/lib/scanService";
-import { GACHA_OUTCOMES, MOOD_COLOR } from "@/lib/gacha";
+import { GACHA_OUTCOMES, MOOD_COLOR, playChime, playRewardCelebration, primeAudio } from "@/lib/gacha";
 import { getWeekStartManila } from "@/lib/week";
 import { signedPoints } from "@/lib/stats";
 import { QrCode as QrIcon, Camera, Keyboard, VolumeX, Volume2, Loader2, History, Star, Trophy } from "lucide-react";
@@ -31,7 +31,9 @@ export default function StudentScan() {
   const [pendingHash, setPendingHash] = useState(null);
   const [pendingCode, setPendingCode] = useState(null);
   const [history, setHistory] = useState([]);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => {
+    try { return window.localStorage.getItem("uniclass.scanSounds") !== "off"; } catch { return true; }
+  });
   const [error, setError] = useState("");
   const [resolving, setResolving] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -62,6 +64,10 @@ export default function StudentScan() {
     window.addEventListener('offline', update);
     return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
   }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem("uniclass.scanSounds", soundOn ? "on" : "off"); } catch {}
+  }, [soundOn]);
 
   async function stopCamera() {
     setScanning(false);
@@ -133,12 +139,14 @@ export default function StudentScan() {
 
   async function confirmScan() {
     if (!pendingHash) return;
+    if (soundOn) primeAudio();
     setResolving(true);
     const res = await scanAndResolve(pendingHash, recipientType === "member" ? memberId : null, false, recipientType);
     setResolving(false);
     if (res.error) { setError(res.error); setPhase("idle"); setPendingHash(null); setPendingCode(null); return; }
     setResult(res);
     setPhase("result");
+    if (soundOn) playRewardCelebration();
     refreshHistory();
     computeSummary(res.points);
   }
@@ -175,6 +183,7 @@ export default function StudentScan() {
 
   async function riskIt(choice) {
     if (!pendingHash) return;
+    if (soundOn) primeAudio();
     setResolving(true);
     const res = await scanAndResolve(pendingHash, recipientType === "member" ? memberId : null, choice === "risk", recipientType);
     setResolving(false);
@@ -182,6 +191,7 @@ export default function StudentScan() {
     if (choice === "safe" || res.gacha === null) {
       setResult(res);
       setPhase("result");
+      if (soundOn) playChime(res.gacha?.mood || "neutral");
       refreshHistory();
       computeSummary(res.points);
     } else {
@@ -210,7 +220,7 @@ export default function StudentScan() {
           <h1 className="text-2xl font-display font-extrabold flex items-center gap-2"><QrIcon className="w-6 h-6" /> Scan QR</h1>
           <p className="text-ink/60 text-sm">Earn participation points</p>
         </div>
-        <button onClick={() => setSoundOn(!soundOn)} className={`clay-btn px-3 py-2 ${soundOn ? "bg-clay-lime text-ink" : "bg-cream text-ink/60"}`}>
+        <button onClick={() => setSoundOn(!soundOn)} aria-label={soundOn ? "Turn sounds off" : "Turn sounds on"} title={soundOn ? "Sounds on" : "Sounds off"} className={`clay-btn px-3 py-2 ${soundOn ? "bg-clay-lime text-ink" : "bg-cream text-ink/60"}`}>
           {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
       </div>
