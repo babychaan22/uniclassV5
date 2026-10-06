@@ -21,21 +21,49 @@ function parseAiContent(raw) {
   try { return JSON.parse(raw || "{}"); } catch { return {}; }
 }
 
+function readDraft(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    const draft = raw ? JSON.parse(raw) : null;
+    return draft && typeof draft.answers === "object" ? draft : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function MissionAssessment({ mission, group, existing, onDone }) {
   const content = parseAiContent(mission.ai_content);
   const originalQuestions = useMemo(() => Array.isArray(content.questions) ? content.questions : [], [mission.ai_content]);
+  const draftKey = `uniclass:mission-draft:${mission.id}:${group.id}`;
+  const initialDraft = useMemo(() => readDraft(draftKey), [draftKey]);
   const [questions, setQuestions] = useState(originalQuestions);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => initialDraft?.answers || {});
   const [submitting, setSubmitting] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryAttemptId, setRetryAttemptId] = useState(null);
   const [submitError, setSubmitError] = useState("");
   const [review, setReview] = useState(null);
   const [result, setResult] = useState(() => existing ? { ...existing } : null);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [showReview, setShowReview] = useState(false);
+  const [questionIndex, setQuestionIndex] = useState(() => initialDraft?.questionIndex || 0);
+  const [showReview, setShowReview] = useState(() => Boolean(initialDraft?.showReview));
+  const [draftRestored, setDraftRestored] = useState(() => Boolean(initialDraft));
 
-  useEffect(() => { setQuestions(originalQuestions); setQuestionIndex(0); setShowReview(false); }, [originalQuestions]);
+  useEffect(() => { setQuestions(originalQuestions); }, [originalQuestions]);
+  useEffect(() => {
+    const draft = existing?.id ? null : readDraft(draftKey);
+    setAnswers(draft?.answers || {});
+    setQuestionIndex(Math.min(Number(draft?.questionIndex) || 0, Math.max(originalQuestions.length - 1, 0)));
+    setShowReview(Boolean(draft?.showReview));
+    setDraftRestored(Boolean(draft));
+  }, [draftKey, existing?.id, originalQuestions.length]);
+  useEffect(() => {
+    if (existing?.id || result || retryAttemptId || mission.formative_type === "drag_drop") return;
+    try {
+      window.localStorage.setItem(draftKey, JSON.stringify({ answers, questionIndex, showReview }));
+    } catch {
+      // Saving a local convenience draft must never interrupt the assessment.
+    }
+  }, [answers, draftKey, existing?.id, mission.formative_type, questionIndex, result, retryAttemptId, showReview]);
   useEffect(() => {
     if (!result) return;
     let live = true;
@@ -58,6 +86,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     setSubmitting(true); setSubmitError("");
     try {
       const submission = await submitMission({ p_mission_id: mission.id, p_group_id: group.id, p_score: 0, p_answers: JSON.stringify(submittedAnswers), p_retry_attempt_id: retryAttemptId });
+      try { window.localStorage.removeItem(draftKey); } catch {}
       setResult({ ...submission }); onDone();
     } catch (err) { setSubmitError(err?.message || "Your answers could not be submitted. Please try again."); }
     finally { setSubmitting(false); }
@@ -67,6 +96,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     setRetrying(true); setSubmitError("");
     try {
       const retry = await startMissionRetry(mission.id, group.id);
+      try { window.localStorage.removeItem(draftKey); } catch {}
       setQuestions(retry.questions || []); setRetryAttemptId(retry.attemptId); setAnswers({}); setReview(null); setResult(null); setQuestionIndex(0); setShowReview(false);
     } catch (err) { setSubmitError(err?.message || "A fresh retry could not be started."); }
     finally { setRetrying(false); }
@@ -104,6 +134,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   return <ClayCard className="p-4 space-y-4">
     {formativeBrief}
     <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm">{retryAttemptId ? 'Practice retry' : 'Score attempt'}</p><span className="text-xs font-mono text-ink/60">{answeredCount}/{questions.length} answered</span></div>
+    {!retryAttemptId && <p className="-mt-2 text-[11px] text-ink/50">{draftRestored ? 'Your unfinished answers were restored on this device.' : 'Your unfinished answers are saved on this device.'}</p>}
     <div className="h-2 overflow-hidden rounded-full bg-ink/10"><div className="h-full rounded-full bg-clay-purple transition-all" style={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }} /></div>
     {!showReview ? <>
       <div className="space-y-2"><p className="font-body text-sm">{questionIndex + 1}. {question.prompt}</p>
