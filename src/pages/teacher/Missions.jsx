@@ -558,7 +558,7 @@ export default function TeacherMissions() {
                       Archived {m.archived_at ? new Date(m.archived_at).toLocaleDateString() : ''} · +{m.xp_reward} XP · /{m.max_score} max
                     </p>
                   </div>
-                  <ClayButton size="sm" color="cream" onClick={() => setArchivingId(m.id)} disabled={archivingId === m.id}>
+                  <ClayButton size="sm" color="cream" onClick={() => archiveMission(m)} disabled={archivingId === m.id}>
                     <ArchiveRestore className="w-3.5 h-3.5" /> Restore
                   </ClayButton>
                 </div>
@@ -638,16 +638,14 @@ export default function TeacherMissions() {
                       <RotateCcw className="w-4 h-4" />
                     </button>
                   )}
-                  {m.mission_source !== 'daily_foundation' && (
-                    <button
-                      onClick={() => archiveMission(m)}
-                      className="clay-btn bg-cream px-2 py-2"
-                      title="Archive: remove from this list and from students, without deleting"
-                      disabled={archivingId === m.id}
-                    >
-                      {archivingId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => archiveMission(m)}
+                    className="clay-btn bg-cream px-2 py-2"
+                    title="Archive: remove from this list and from students, without deleting"
+                    disabled={archivingId === m.id}
+                  >
+                    {archivingId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             </div>
