@@ -40,7 +40,10 @@ export default function StudentMissions() {
     if (!user) return;
     const account = await getActiveStudentAccount(user.id);
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
-    const group = await db.entities.Group.get(account.group_id);
+    const [group, classroom] = await Promise.all([
+      db.entities.Group.get(account.group_id),
+      db.entities.Classroom.get(account.classroom_id),
+    ]);
     const classroomId = group.classroom_id;
     // The Power-Up is a Mathematics activity. A student in another subject has
     // no Power-Up coming, so the whole section stays hidden rather than telling
@@ -77,7 +80,7 @@ export default function StudentMissions() {
     const redeemed = Number(dashboard?.redeemed || 0);
     const available = Math.max(0, earned - redeemed);
     const dueReviews = (dashboard?.reviews || []).filter((review) => new Date(review.next_review_at) <= new Date());
-    setData({ account, group, missions, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
+    setData({ account, group, classroom, missions, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
   }
 
   async function redeem(e) {
@@ -108,7 +111,7 @@ export default function StudentMissions() {
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification } = data;
+  const { group, classroom, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification } = data;
   const completedMissions = active.filter((m) => subs.find((s) => s.mission_id === m.id));
   const currentMissions = active.filter((m) => !subs.find((s) => s.mission_id === m.id));
   const gradedCount = completedMissions.length;
@@ -139,6 +142,7 @@ export default function StudentMissions() {
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning quests</p>
           <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">My missions</h1>
           <p className="mt-1 text-sm leading-relaxed text-ink/60">Complete your own teacher-assigned activities, learn from feedback, and exchange your XP for your participation points.</p>
+          <p className="mt-2 text-xs font-semibold text-ink/55">Viewing: {classroom?.grade_level} · {classroom?.section} · {classroom?.subject || 'Class'}</p>
           <p className="mt-2 inline-flex rounded-full bg-[var(--uc-green-soft)] px-3 py-1 text-xs font-semibold text-[var(--uc-navy-950)]">Learning status: {classification.tag}</p>
         </div>
         <NovaMessage variant="assessment" tone="violet" title="Ready for your next step?">Take your time. Feedback will help you strengthen each topic.</NovaMessage>
@@ -242,7 +246,9 @@ export default function StudentMissions() {
           <NovaEmptyState
             variant="teacher"
             title="No active missions"
-            description="Nova is watching for the next quest. Check back when your teacher posts one."
+            description={powerUpApplies
+              ? "Your teacher-assigned missions will appear here. Today’s Daily Math Power-Up is shown above."
+              : "This selected classroom is not a Mathematics class, so it does not receive the Daily Math Power-Up. Use the class switcher in the header to view a Mathematics classroom."}
           />
         ) : (
           <div className="space-y-3">
