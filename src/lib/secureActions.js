@@ -213,6 +213,33 @@ export async function redeemMissionPoints(amount, classroomId) {
   return data;
 }
 
+// Personal rewards spend only a learner's mission XP. They never touch the
+// group-points ledger used for shared classroom goals.
+export async function getPersonalRewardDashboard(classroomId) {
+  const { data, error } = await supabase.rpc('get_personal_reward_dashboard', {
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function claimPersonalReward(rewardId, classroomId) {
+  const { data, error } = await supabase.rpc('claim_personal_reward', {
+    p_reward_id: rewardId,
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function equipPersonalReward(claimId) {
+  const { data, error } = await supabase.rpc('equip_personal_reward', {
+    p_claim_id: claimId,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function correctParticipationRecipient(sourceLogId, targetMemberId) {
   const { data, error } = await supabase.rpc('correct_participation_recipient', {
     p_source_log_id: sourceLogId,
