@@ -18,14 +18,12 @@ import { Printer, BarChart3, Award, Download, CheckCircle2, ClipboardCheck, Targ
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import PendingApprovalBulk from "@/components/teacher/PendingApprovalBulk";
-import BehaviorPenalty from "@/components/teacher/BehaviorPenalty";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
-import { applyBehaviorPenalty } from "@/lib/secureActions";
 
 let teacherDashboardCache = null;
 const TEACHER_DASHBOARD_CACHE_MS = 30_000;
@@ -111,15 +109,9 @@ export default function TeacherDashboard() {
         return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown };
       });
 
-      const penaltyLogs = logs
-        .filter((l) => l.event_type === "behavior_penalty")
-        .sort((a, b) => (b.created_date || "").localeCompare(a.created_date || ""))
-        .slice(0, 6)
-        .map((l) => ({ ...l, groupNumber: groups.find((g) => g.id === l.group_id)?.group_number }));
-
       if (!active) return;
       setPending(pendingAccounts);
-      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass: [] };
+      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, attentionByClass: [] };
       teacherDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
       setData(snapshot);
       setLoading(false);
@@ -158,7 +150,7 @@ export default function TeacherDashboard() {
   if (loading) return <PanelSkeleton cards={4} />;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, penaltyLogs, attentionByClass } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRiskRows = memberRows.filter((r) => r.cls.tag === "At Risk")
@@ -193,12 +185,6 @@ export default function TeacherDashboard() {
     { label: "Activities", value: activityAverage, color: "bg-clay-lime" },
     { label: "Participation", value: memberRows.length ? Math.round((onTrack / memberRows.length) * 100) : 0, color: "bg-clay-purple" },
   ];
-
-  async function applyPenalty(groupId, points, note) {
-    await applyBehaviorPenalty(groupId, points, note);
-    invalidateClassroomDataset();
-    refresh();
-  }
 
   async function approveAll(ids) {
     await db.entities.GroupAccount.bulkUpdate(ids.map((id) => ({ id, is_approved: true })));
@@ -336,8 +322,6 @@ export default function TeacherDashboard() {
         <p className="mt-1 text-xs text-ink/60">The dashboard now stays focused on daily actions and students who need support.</p>
         <Link to={ROUTES.TEACHER.ANALYTICS} className="mt-3 inline-flex text-sm font-display font-bold text-clay-purple underline">Open analytics</Link>
       </ClayCard>
-
-      <BehaviorPenalty classroom={classroom} groups={groups} onPenalty={applyPenalty} penaltyLogs={penaltyLogs} wholeGroupPointsByGroup={Object.fromEntries(groups.map((group) => [group.id, logs.filter((log) => log.group_id === group.id && !log.group_member_id).reduce((sum, log) => sum + signedPoints(log), 0)]))} />
 
       <ClayCard className="p-4">
         <h2 className="font-display font-bold text-lg mb-3">Group Classifications</h2>
