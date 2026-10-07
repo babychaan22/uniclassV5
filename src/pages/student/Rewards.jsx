@@ -11,11 +11,10 @@ import ClayChip from "@/components/ClayChip";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { ROUTES } from "@/lib/routes";
-import { claimPersonalReward, getPersonalRewardDashboard, redeemReward } from "@/lib/secureActions";
+import { getPersonalRewardDashboard, redeemMissionPoints, redeemReward, unlockStyleChoice } from "@/lib/secureActions";
 
 const PERSONAL_TYPES = {
-  learning_privilege: "Learning boosts", avatar_frame: "Avatar frames", nova_accessory: "Nova accessories",
-  banner_theme: "Banner themes", profile_sticker: "Profile stickers",
+  avatar_choice: "Avatar choice", theme_choice: "Theme choice",
 };
 
 export default function StudentRewards() {
@@ -48,10 +47,21 @@ export default function StudentRewards() {
   async function claimPersonal(reward) {
     setClaiming(reward.id); setNotice(null);
     try {
-      const result = await claimPersonalReward(reward.id, data.classroomId);
-      setNotice({ ok: true, text: reward.is_consumable ? `${result.title} is ready in your learning wallet.` : `${result.title} is now in your collection. Customize it in Settings.` });
+      await unlockStyleChoice(reward.reward_type, data.classroomId);
+      setNotice({ ok: true, text: `${reward.title} is ready. Choose it in Profile settings before unlocking another style.` });
       await load();
     } catch (error) { setNotice({ ok: false, text: error.message || "That reward could not be claimed." }); }
+    finally { setClaiming(null); }
+  }
+
+  async function convertXp() {
+    setClaiming("converter"); setNotice(null);
+    try {
+      const amount = Math.max(10, Math.floor(Number(data.personal.available || 0) / 10) * 10);
+      const result = await redeemMissionPoints(amount, data.classroomId);
+      setNotice({ ok: true, text: `${result.xpAmount} XP converted to ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}. Missions are available again.` });
+      await load();
+    } catch (error) { setNotice({ ok: false, text: error.message || "XP could not be converted." }); }
     finally { setClaiming(null); }
   }
 
@@ -67,27 +77,27 @@ export default function StudentRewards() {
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
   const { personal, groupPoints, groupRewards, redemptions, group } = data;
-  const ownedRewardIds = new Set((personal.claims || []).filter((claim) => !claim.is_consumable).map((claim) => claim.reward_id));
+  const activeStyleChoice = (personal.claims || []).find((claim) => claim.status === "active" && ["avatar_choice", "theme_choice"].includes(claim.reward_type));
   const personalGroups = Object.entries(PERSONAL_TYPES).map(([type, label]) => ({ type, label, rewards: (personal.catalog || []).filter((reward) => reward.reward_type === type) })).filter((grouping) => grouping.rewards.length);
-  const availablePersonal = (personal.catalog || []).filter((reward) => Number(personal.available || 0) >= Number(reward.xp_cost) && (reward.is_consumable || !ownedRewardIds.has(reward.id))).length;
+  const availablePersonal = (personal.catalog || []).filter((reward) => Number(personal.available || 0) >= Number(reward.xp_cost) && !activeStyleChoice).length;
   const closestGroupGoal = groupRewards.find((reward) => groupPoints < reward.cost_points);
 
   return <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
     <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Your rewards</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Grow, collect, and unlock</h1><p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink/60">Personal XP unlocks learning boosts and profile items. Group points unlock shared class goals—one never takes from the other.</p></div><NovaMessage variant="achievement" tone="pink" title="You choose what to grow.">Use XP for your own learning and style. Work with your group toward class goals.</NovaMessage></section>
 
     <section className="grid gap-4 sm:grid-cols-2">
-      <ClayCard color="purple" className="p-5"><div className="flex items-start gap-3 text-white"><Sparkles className="mt-1 h-7 w-7 shrink-0" /><div><p className="font-mono text-4xl font-extrabold leading-none">{Math.floor(Number(personal.available || 0))}</p><p className="font-display text-sm font-bold">personal XP available</p><p className="mt-1 text-xs text-white/75">Earned through your missions · spent only on personal rewards</p></div></div><div className="mt-4 flex items-center justify-between gap-2 border-t border-white/15 pt-3 text-xs"><span>{availablePersonal} reward{availablePersonal === 1 ? "" : "s"} ready now</span><Link to={ROUTES.STUDENT.SETTINGS} className="font-display font-bold underline">Customize profile</Link></div></ClayCard>
+      <ClayCard color="purple" className="p-5"><div className="flex items-start gap-3 text-white"><Sparkles className="mt-1 h-7 w-7 shrink-0" /><div><p className="font-mono text-4xl font-extrabold leading-none">{Math.floor(Number(personal.available || 0))}</p><p className="font-display text-sm font-bold">personal XP available</p><p className="mt-1 text-xs text-white/75">20 XP unlocks one avatar or theme choice.</p></div></div><div className="mt-4 flex items-center justify-between gap-2 border-t border-white/15 pt-3 text-xs"><span>{activeStyleChoice ? "Style choice ready in Settings" : availablePersonal ? "A style unlock is ready" : "Earn 20 XP for your next style"}</span><Link to={ROUTES.STUDENT.SETTINGS} className="font-display font-bold underline">Profile settings</Link></div>{Number(personal.available || 0) >= 30 && <div className="mt-3 rounded-xl bg-white/15 p-3"><p className="font-display text-sm font-bold">Redeem XP to continue missions</p><p className="mt-0.5 text-xs text-white/80">Your wallet is at 30 XP or more, so new missions are paused until you convert XP.</p><ClayButton size="sm" color="lime" className="mt-2" disabled={claiming === "converter"} onClick={convertXp}>{claiming === "converter" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Convert available XP"}</ClayButton></div>}</ClayCard>
       <ClayCard color="sky" className="p-5"><div className="flex items-start gap-3"><Users className="mt-1 h-7 w-7 shrink-0 text-clay-purple" /><div><p className="font-mono text-4xl font-extrabold leading-none">{Math.round(groupPoints)}</p><p className="font-display text-sm font-bold">Group {group.group_number} points</p><p className="mt-1 text-xs text-ink/60">Shared progress toward class goals; requests never spend them.</p></div></div>{closestGroupGoal ? <p className="mt-4 border-t border-ink/10 pt-3 text-xs font-display font-bold">{Math.max(0, closestGroupGoal.cost_points - groupPoints)} points until {closestGroupGoal.title}</p> : <p className="mt-4 border-t border-ink/10 pt-3 text-xs font-display font-bold">Your group has reached every current goal.</p>}</ClayCard>
     </section>
     {notice && <p role="status" className={`text-center text-sm font-display font-bold ${notice.ok ? "text-clay-lime" : "text-clay-coral"}`}>{notice.text}</p>}
 
-    <section><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="font-display text-xl font-extrabold">Personal rewards</h2><p className="text-sm text-ink/60">Spend your mission XP. Cosmetics stay in your collection forever.</p></div><Link to={ROUTES.STUDENT.SETTINGS} className="hidden text-sm font-display font-bold text-clay-purple underline sm:block">My collection</Link></div><div className="space-y-5">
+    <section><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="font-display text-xl font-extrabold">Personal style unlocks</h2><p className="text-sm text-ink/60">Spend 20 XP to choose one avatar or theme. Choosing it uses the unlock, so other styles stay locked until you earn another 20 XP.</p></div><Link to={ROUTES.STUDENT.SETTINGS} className="hidden text-sm font-display font-bold text-clay-purple underline sm:block">Profile settings</Link></div><div className="space-y-5">
       {personalGroups.map((grouping) => <div key={grouping.type}><h3 className="mb-2 text-sm font-display font-extrabold text-ink/70">{grouping.label}</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {grouping.rewards.map((reward) => {
-          const owned = !reward.is_consumable && ownedRewardIds.has(reward.id);
+          const owned = false;
           const remaining = Math.max(0, Number(reward.xp_cost) - Number(personal.available || 0));
-          const ready = remaining === 0 && !owned;
-          return <ClayCard key={reward.id} className="flex min-h-52 flex-col p-4"><div className="flex items-start gap-3"><span className="text-3xl" aria-hidden="true">{reward.emoji}</span><div className="min-w-0"><p className="font-display font-bold">{reward.title}</p><p className="mt-0.5 text-xs leading-relaxed text-ink/60">{reward.description}</p></div></div><div className="mt-auto pt-4"><div className="mb-2 flex items-center justify-between gap-2"><ClayChip color="sun">{reward.xp_cost} XP</ClayChip>{owned ? <ClayChip color="lime">Owned</ClayChip> : reward.is_consumable ? <ClayChip color="sky">Use with teacher</ClayChip> : <ClayChip color="purple">Permanent</ClayChip>}</div>{!owned && !ready && <p className="mb-2 text-xs text-ink/55">{remaining} more XP to unlock</p>}<ClayButton size="sm" color={ready ? "lime" : "cream"} className="w-full" disabled={!ready || claiming === reward.id} onClick={() => claimPersonal(reward)}>{claiming === reward.id ? <Loader2 className="h-4 w-4 animate-spin" /> : owned ? "In collection" : ready ? reward.is_consumable ? "Claim boost" : "Unlock item" : <><Lock className="h-4 w-4" /> Locked</>}</ClayButton></div></ClayCard>;
+          const ready = remaining === 0 && !activeStyleChoice;
+          return <ClayCard key={reward.id} className="flex min-h-52 flex-col p-4"><div className="flex items-start gap-3"><span className="text-3xl" aria-hidden="true">{reward.emoji}</span><div className="min-w-0"><p className="font-display font-bold">{reward.title}</p><p className="mt-0.5 text-xs leading-relaxed text-ink/60">{reward.description}</p></div></div><div className="mt-auto pt-4"><div className="mb-2 flex items-center justify-between gap-2"><ClayChip color="sun">20 XP</ClayChip><ClayChip color="purple">One-time choice</ClayChip></div>{activeStyleChoice ? <p className="mb-2 text-xs text-ink/55">Use your current style choice in Settings first.</p> : !ready && <p className="mb-2 text-xs text-ink/55">{remaining} more XP to unlock</p>}<ClayButton size="sm" color={ready ? "lime" : "cream"} className="w-full" disabled={!ready || claiming === reward.id} onClick={() => claimPersonal(reward)}>{claiming === reward.id ? <Loader2 className="h-4 w-4 animate-spin" /> : ready ? "Unlock choice" : <><Lock className="h-4 w-4" /> Locked</>}</ClayButton></div></ClayCard>;
         })}
       </div></div>)}
     </div></section>

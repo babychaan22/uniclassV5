@@ -140,7 +140,8 @@ export default function Layout() {
         { label: "Dashboard", path: ROUTES.STUDENT.DASHBOARD },
         { label: "Missions", path: ROUTES.STUDENT.MISSIONS },
         { label: "Rewards", path: ROUTES.STUDENT.REWARDS },
-      ];
+    ];
+  const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
 
   useEffect(() => {
     const current = TEACHER_NAV_SECTIONS.find((section) => section.items.some((item) => item.path === location.pathname));
@@ -178,7 +179,7 @@ export default function Layout() {
 
   return (
     <GroupBadgeProvider user={user} isTeacher={isTeacher}>
-    <div className="min-h-screen bg-[var(--uc-bg)]">
+    <div className={`min-h-screen bg-[var(--uc-bg)] ${learnerTheme}`}>
       <OfflineStatus />
       <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
         <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
@@ -196,7 +197,7 @@ export default function Layout() {
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             <NotificationBell teacher={isTeacher} />
-            <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={user?.avatar_key} size="md" /></span>
+            <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

@@ -14,6 +14,12 @@ import { Gift, Plus, Trash2, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { reviewRewardRedemption } from '@/lib/secureActions';
 
+const GROUP_GOAL_TEMPLATES = [
+  { title: "Brain Break", description: "A short class game or movement break.", emoji: "🧠", cost_points: 50 },
+  { title: "Class DJ", description: "Choose the clean-up or transition playlist.", emoji: "🎵", cost_points: 75 },
+  { title: "Choose a Warm-up", description: "Pick from the teacher's warm-up options.", emoji: "☀️", cost_points: 60 },
+];
+
 export default function TeacherRewards() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -65,7 +71,8 @@ export default function TeacherRewards() {
   }
 
   async function removeReward(id) {
-    await db.entities.Reward.delete(id);
+    if (!window.confirm("Archive this group goal? Students will no longer be able to request it, but its past requests will stay in your records.")) return;
+    await db.entities.Reward.update(id, { is_active: false });
     invalidateClassroomDataset();
     load();
   }
@@ -81,12 +88,13 @@ export default function TeacherRewards() {
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Rewards Shop</h1>
-        <p className="text-ink/60 text-sm">Define rewards students can request after reaching a group-points threshold in any of your classes.</p>
+        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><Gift className="w-6 h-6" /> Group unlock catalog</h1>
+        <p className="text-ink/60 text-sm">Create shared class goals. Points are a progress threshold—not a currency students lose when a goal is approved.</p>
       </div>
 
       <ClayCard className="p-5">
         <h2 className="font-display font-bold text-sm mb-3">New Reward</h2>
+        <div className="mb-4"><p className="mb-2 text-xs font-display font-bold text-ink/60">Start with a template</p><div className="flex flex-wrap gap-2">{GROUP_GOAL_TEMPLATES.map((template) => <button key={template.title} type="button" className="rounded-full border-2 border-clay-purple/20 bg-clay-purple/5 px-3 py-1.5 text-xs font-display font-bold text-clay-purple hover:bg-clay-purple/10" onClick={() => setForm(template)}>{template.emoji} {template.title}</button>)}</div></div>
         <form onSubmit={createReward} className="space-y-3">
           <div className="grid grid-cols-[64px_1fr] gap-3">
             <div>

@@ -227,6 +227,13 @@
 .uc-brand-mark__stem { position: absolute; bottom: .08rem; left: .94rem; width: .15rem; height: .55rem; border-radius: 99px; background: #2E9A53; }
 .uc-brand-mark--compact { transform: scale(.84); transform-origin: center; }
 
+/* Learner-selected themes decorate the complete app canvas, while cards stay
+   high-contrast and easy to read. They are visual-only and never affect data. */
+.uc-theme-sky-banner { background-color: #e9f8ff; background-image: radial-gradient(ellipse at 14% 16%, rgba(255,255,255,.92) 0 6%, transparent 7%), radial-gradient(ellipse at 78% 22%, rgba(255,255,255,.8) 0 7%, transparent 8%), radial-gradient(ellipse at 45% 74%, rgba(255,255,255,.68) 0 8%, transparent 9%), linear-gradient(180deg, #aee5ff 0%, #e9f8ff 48%, #d5f2ff 100%); background-attachment: fixed; }
+.uc-theme-sunset-banner { background-color: #fff0d8; background-image: radial-gradient(circle at 83% 12%, rgba(255,209,86,.72) 0 5%, transparent 12%), radial-gradient(ellipse at 15% 82%, rgba(255,162,133,.34) 0 12%, transparent 26%), linear-gradient(180deg, #ffd7bd 0%, #ffe9c8 50%, #f8bfd0 100%); background-attachment: fixed; }
+.uc-theme-starry-banner { background-color: #17235f; background-image: radial-gradient(circle at 12% 16%, #fff 0 1px, transparent 2px), radial-gradient(circle at 84% 24%, #fff9c2 0 1.5px, transparent 2.5px), radial-gradient(circle at 35% 74%, #fff 0 1px, transparent 2px), radial-gradient(circle at 68% 62%, #9fdcff 0 1.5px, transparent 2.5px), linear-gradient(160deg, #101b56, #34236e 58%, #19285e); background-attachment: fixed; }
+.uc-theme-starry-banner .uc-page-title, .uc-theme-starry-banner .text-ink { text-shadow: 0 1px 0 rgba(255,255,255,.12); }
+
 @keyframes xp-pop { 0% { opacity: 0; transform: translateY(10px) rotate(-4deg) scale(0.7); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-24px) rotate(4deg) scale(1.08); } }
 @keyframes nova-nap { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(3px); } }
 @keyframes nova-celebrate { 0%,100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-12px) rotate(-8deg); } 60% { transform: translateY(-4px) rotate(8deg); } }

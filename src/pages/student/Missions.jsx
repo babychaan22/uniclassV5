@@ -2,7 +2,7 @@
 const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
 import { supabase } from '@/api/supabaseClient';
@@ -10,23 +10,20 @@ import { supabase } from '@/api/supabaseClient';
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Loader2, Rocket, History, Zap } from "lucide-react";
+import { Rocket, History, Zap } from "lucide-react";
 import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { completeLearningReview, ensureDailyPowerUp, powerUpAppliesToClassroom, redeemMissionPoints } from '@/lib/secureActions';
+import { completeLearningReview, ensureDailyPowerUp, getPersonalRewardDashboard, powerUpAppliesToClassroom } from '@/lib/secureActions';
 import { formatMissionDeadline, isDailyFoundationMission, isMissionLocked, manilaDateKey } from '@/lib/missionProgress';
 
 export default function StudentMissions() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [redeemAmt, setRedeemAmt] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
-  const [msg, setMsg] = useState(null);
   const [historyMissionId, setHistoryMissionId] = useState(null);
 
   useEffect(() => {
@@ -62,7 +59,10 @@ export default function StudentMissions() {
         console.warn('[power-up] not generated for today:', err?.message || err);
       }
     }
-    const { data: dashboard, error: dashboardError } = await supabase.rpc('get_student_mission_dashboard', { p_classroom_id: classroomId });
+    const [{ data: dashboard, error: dashboardError }, personalRewards] = await Promise.all([
+      supabase.rpc('get_student_mission_dashboard', { p_classroom_id: classroomId }),
+      getPersonalRewardDashboard(classroomId),
+    ]);
     if (dashboardError) throw dashboardError;
     const missions = [...(dashboard?.missions || [])];
     // A Power-Up generated after the RPC snapshot still belongs in today's list,
@@ -76,32 +76,11 @@ export default function StudentMissions() {
     const powerUps = missions.filter(isDailyFoundationMission);
     const active = missions.filter((m) => !isDailyFoundationMission(m));
     const subs = dashboard?.submissions || [];
-    const earned = Number(dashboard?.earned || 0);
-    const redeemed = Number(dashboard?.redeemed || 0);
-    const available = Math.max(0, earned - redeemed);
+    const earned = Number(personalRewards?.earned || 0);
+    const spent = Number(personalRewards?.spent || 0);
+    const available = Math.max(0, Number(personalRewards?.available || 0));
     const dueReviews = (dashboard?.reviews || []).filter((review) => new Date(review.next_review_at) <= new Date());
-    setData({ account, group, classroom, missions, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
-  }
-
-  async function redeem(e) {
-    e.preventDefault();
-    const requested = Number(redeemAmt);
-    const amt = Math.floor(Math.min(requested || 0, data.available) / 10) * 10;
-    if (amt < 10) {
-      setMsg({ ok: false, text: "Enter at least 10 XP to redeem 1 participation point." });
-      return;
-    }
-    setRedeeming(true);
-    setMsg(null);
-    try {
-      const result = await redeemMissionPoints(amt, data.account.classroom_id);
-      setRedeemAmt("");
-      const remainder = Math.max(0, Math.floor(Math.min(requested, data.available)) - amt);
-      setMsg({ ok: true, text: `Redeemed ${result.xpAmount} XP for ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}.${remainder ? ` ${remainder} XP stays available.` : ""}` });
-      load();
-    } catch (err) { setMsg({ ok: false, text: err.message || "Could not redeem XP." }); }
-    setRedeeming(false);
-    setTimeout(() => setMsg(null), 3000);
+    setData({ account, group, classroom, missions, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
   }
 
   async function markReviewed(review, correct) {
@@ -111,7 +90,8 @@ export default function StudentMissions() {
 
   if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  const { group, classroom, active, powerUps, powerUpApplies, subs, earned, redeemed, available, dueReviews, classification } = data;
+  const { group, classroom, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification } = data;
+  const walletBlocked = available >= 30;
   const completedMissions = active.filter((m) => subs.find((s) => s.mission_id === m.id));
   const currentMissions = active.filter((m) => !subs.find((s) => s.mission_id === m.id));
   const gradedCount = completedMissions.length;
@@ -141,7 +121,7 @@ export default function StudentMissions() {
         <div>
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning quests</p>
           <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">My missions</h1>
-          <p className="mt-1 text-sm leading-relaxed text-ink/60">Complete your own teacher-assigned activities, learn from feedback, and exchange your XP for your participation points.</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Complete your own teacher-assigned activities, learn from feedback, and use your XP for learning boosts or profile collectibles.</p>
           <p className="mt-2 text-xs font-semibold text-ink/55">Viewing: {classroom?.grade_level} · {classroom?.section} · {classroom?.subject || 'Class'}</p>
           <p className="mt-2 inline-flex rounded-full bg-[var(--uc-green-soft)] px-3 py-1 text-xs font-semibold text-[var(--uc-navy-950)]">Learning status: {classification.tag}</p>
         </div>
@@ -153,26 +133,13 @@ export default function StudentMissions() {
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="assessment" className="h-14 w-14" /></div>
           <div className="flex-1 text-white">
             <p className="font-mono font-extrabold text-4xl leading-none">{available}</p>
-            <p className="font-display font-bold text-sm">XP available to redeem</p>
-            <p className="text-xs text-white/70">{`Earned ${earned} XP - Redeemed ${redeemed} XP · 10 XP = 1 point`}</p>
+            <p className="font-display font-bold text-sm">personal XP available</p>
+            <p className="text-xs text-white/70">{`Earned ${earned} XP - Spent ${spent} XP on your rewards`}</p>
           </div>
         </div>
-        <form onSubmit={redeem} className="mt-4 flex items-center gap-2">
-          <label className="sr-only" htmlFor="redeem-xp">XP to redeem</label>
-          <input id="redeem-xp" type="number" min="10" inputMode="numeric" className="clay-input h-10 w-28 shrink-0 bg-cream px-3 py-2 font-mono text-sm text-ink placeholder:text-ink/50" placeholder="XP" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} />
-          <span className="min-w-0 flex-1 text-xs text-white/75">10 XP = 1 point</span>
-          <ClayButton type="submit" color="lime" size="sm" disabled={redeeming || available < 10}>
-            {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "Redeem"}
-          </ClayButton>
-        </form>
-        {available > 0 && (
-          <button type="button" onClick={() => setRedeemAmt(String(Math.floor(available / 10) * 10))} className="mt-2 text-xs text-white/80 underline">{`Use ${Math.floor(available / 10) * 10} XP`}</button>
-        )}
+        <Link to={ROUTES.STUDENT.REWARDS} className="clay-btn mt-4 inline-flex bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">Choose a personal reward</Link>
       </ClayCard>
-
-      {msg && (
-        <p className={`font-display font-bold text-sm text-center ${msg.ok ? "text-clay-lime" : "text-clay-coral"}`}>{msg.text}</p>
-      )}
+      {walletBlocked && <ClayCard color="coral" className="p-4"><p className="font-display font-bold">Missions are paused while your XP wallet is full.</p><p className="mt-1 text-sm text-ink/70">Redeem XP in Rewards to bring your available balance below 30 XP, then return here to continue.</p><Link to={ROUTES.STUDENT.REWARDS} className="clay-btn mt-3 inline-flex bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">Redeem XP in Rewards</Link></ClayCard>}
 
       {dueReviews?.length > 0 && (
         <ClayCard color="sky" className="p-4">
@@ -228,7 +195,7 @@ export default function StudentMissions() {
                   </div>
                 </ClayCard>
                 {powerUpLocked && !powerUpSubmission && <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">Today's Power-Up has closed.</p><p className="text-xs text-ink/60 mt-1">A fresh one arrives tomorrow morning. Keep practising in your mission history in the meantime.</p></ClayCard>}
-                {!powerUpLocked && <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />}
+                {!powerUpLocked && (walletBlocked && !powerUpSubmission ? <ClayCard className="p-4"><p className="font-display font-bold">Redeem XP to start this mission.</p></ClayCard> : <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />)}
               </>
             ) : (
               <ClayCard className="p-4">
@@ -278,7 +245,7 @@ export default function StudentMissions() {
                 return (
                   <div key={m.id} className="space-y-2">
                     <ClayCard className="p-4"><div className="mb-3 flex items-center gap-2"><MascotWidget state="quest" size="sm" /><span className="text-xs font-display font-bold">Generated by UniClass AI Assistant</span></div>{m.image_url && <img src={m.image_url} alt={`${m.title} illustration`} className="mb-3 max-h-64 w-full rounded-xl border-2 border-ink object-cover" loading="lazy" />}{header}</ClayCard>
-                    {isMissionLocked(m) ? <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">This mission is locked.</p><p className="text-xs text-ink/60 mt-1">Its deadline was {formatMissionDeadline(m)}. You can still view completed missions in your history.</p></ClayCard> : <MissionAssessment mission={m} group={group} userId={user.id} existing={sub} onDone={load} />}
+                    {isMissionLocked(m) ? <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">This mission is locked.</p><p className="text-xs text-ink/60 mt-1">Its deadline was {formatMissionDeadline(m)}. You can still view completed missions in your history.</p></ClayCard> : walletBlocked && !sub ? <ClayCard className="p-4"><p className="font-display font-bold">Redeem XP in Rewards to start this mission.</p></ClayCard> : <MissionAssessment mission={m} group={group} userId={user.id} existing={sub} onDone={load} />}
                   </div>
                 );
               }

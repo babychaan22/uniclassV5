@@ -240,6 +240,24 @@ export async function equipPersonalReward(claimId) {
   return data;
 }
 
+export async function unlockStyleChoice(choiceType, classroomId) {
+  const { data, error } = await supabase.rpc('unlock_style_choice', {
+    p_choice_type: choiceType,
+    p_classroom_id: classroomId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function applyStyleChoice(claimId, assetKey) {
+  const { data, error } = await supabase.rpc('use_style_choice', {
+    p_claim_id: claimId,
+    p_asset_key: assetKey,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function correctParticipationRecipient(sourceLogId, targetMemberId) {
   const { data, error } = await supabase.rpc('correct_participation_recipient', {
     p_source_log_id: sourceLogId,

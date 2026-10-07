@@ -32,6 +32,18 @@ function readDraft(key) {
   }
 }
 
+function SolutionGuide({ item, correctAnswer }) {
+  return <div className="mt-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/85">
+    <p className="font-display font-extrabold text-ink">How to solve it</p>
+    <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
+      <li>{item.correct ? "Check the rule or method you used:" : "Start with the rule or method for this question:"} {item.tags || item.skill || "Read the question and identify what it is asking."}</li>
+      <li>{item.explanation || "Use that rule to work through the choices."}</li>
+      <li>The answer is <b>{correctAnswer}</b>.</li>
+    </ol>
+    {item.feedback && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">Remember:</span> {item.feedback}</p>}
+  </div>;
+}
+
 export default function MissionAssessment({ mission, group, existing, onDone }) {
   const content = parseAiContent(mission.ai_content);
   const originalQuestions = useMemo(() => Array.isArray(content.questions) ? content.questions : [], [mission.ai_content]);
@@ -122,14 +134,15 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
       <div className="text-center"><div className="text-4xl mb-2">{reviewedScore >= reviewedMax * 0.8 ? "🎉" : reviewedScore >= reviewedMax * 0.5 ? "🙂" : "😢"}</div><p className="font-display font-bold text-lg">{retryAttemptId ? `Retry result: ${reviewedScore}/${reviewedMax}` : `${reviewedScore}/${reviewedMax}`}</p><ClayChip color="sun">{result.xp_earned ?? Math.round((reviewedScore / reviewedMax) * mission.xp_reward)} XP earned</ClayChip>{retryAttemptId && <p className="mt-2 text-xs text-ink/60">This retry is for feedback and practice only. Your XP stays based on the first attempt.</p>}</div>
       {mission.formative_type !== 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
         const question = questions[item.index];
-        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct' : 'Try again'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p>{!item.correct && <p className="mt-1">Correct answer: <b>{displayAnswer(question, item.correct_answer, mission.formative_type)}</b></p>}<div className="mt-2 rounded-lg bg-white/60 p-2 text-xs text-ink/80"><p className="font-display font-bold text-ink">Why this works</p><p className="mt-0.5 leading-relaxed">{item.explanation || 'Review this idea with your teacher or lesson notes.'}</p>{item.feedback && <p className="mt-2 border-t border-ink/10 pt-2 font-medium text-ink/70">Nova&apos;s tip: {item.feedback}</p>}</div></div>;
+        const correctAnswer = displayAnswer(question, item.correct_answer, mission.formative_type);
+        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={item} correctAnswer={correctAnswer} /></div>;
       })}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
         <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
           <p className="font-display font-bold">{item.item} · {item.correct ? 'Correct placement' : 'Try again'}</p>
           <p className="mt-1 text-xs">Your category: <b>{item.selected || 'No category selected'}</b></p>
           {!item.correct && <p className="mt-1">Correct category: <b>{item.correct_answer}</b></p>}
-          <p className="mt-1 text-xs text-ink/70">Why: {item.explanation}</p>
+          <SolutionGuide item={item} correctAnswer={item.correct_answer} />
         </div>
       ))}</div>}
       {mission.formative_type !== 'drag_drop' && reviewedScore < reviewedMax && <ClayButton color="sky" size="sm" className="w-full" onClick={beginRetry} disabled={retrying}>{retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RotateCcw className="w-4 h-4" /> Try a fresh variant</>}</ClayButton>}

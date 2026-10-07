@@ -72,6 +72,9 @@ begin
     where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id;
   select coalesce(sum(xp_spent), 0) into v_spent from public.personal_reward_claims
     where user_id = v_user and classroom_id = p_classroom_id;
+  select v_spent + coalesce(sum(xp_spent), 0) into v_spent from public.participation_logs
+    where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id
+      and event_type = 'mission_redemption';
   return jsonb_build_object(
     'earned', v_earned,
     'spent', v_spent,
@@ -105,6 +108,9 @@ begin
   end if;
   select coalesce(sum(xp_earned), 0) into v_earned from public.mission_submissions where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id;
   select coalesce(sum(xp_spent), 0) into v_spent from public.personal_reward_claims where user_id = v_user and classroom_id = p_classroom_id;
+  select v_spent + coalesce(sum(xp_spent), 0) into v_spent from public.participation_logs
+    where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id
+      and event_type = 'mission_redemption';
   if v_earned - v_spent < v_reward.xp_cost then raise exception 'You need % more XP for this reward', v_reward.xp_cost - (v_earned - v_spent); end if;
   insert into public.personal_reward_claims(reward_id, user_id, group_member_id, classroom_id, xp_spent)
   values(v_reward.id, v_user, v_account.group_member_id, p_classroom_id, v_reward.xp_cost)
@@ -134,3 +140,29 @@ revoke all on function public.equip_personal_reward(uuid) from public;
 grant execute on function public.get_personal_reward_dashboard(uuid) to authenticated;
 grant execute on function public.claim_personal_reward(uuid, uuid) to authenticated;
 grant execute on function public.equip_personal_reward(uuid) to authenticated;
+
+-- Keep the legacy XP-to-points RPC safe for deployed older clients. New
+-- screens present XP as personal-only, but an old tab must not be able to
+-- spend the same XP that a learner used for a collectible.
+create or replace function public.redeem_mission_points(p_amount numeric, p_classroom_id uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user uuid := auth.uid(); v_account public.group_accounts%rowtype;
+  v_earned numeric; v_redeemed numeric; v_personal_spent numeric; v_points integer;
+begin
+  if p_amount is null or p_amount < 10 or mod(p_amount, 10) <> 0 then raise exception 'Redeem XP in multiples of 10'; end if;
+  select * into v_account from public.group_accounts where user_id = v_user and classroom_id = p_classroom_id and is_approved = true limit 1;
+  if not found or v_account.group_member_id is null then raise exception 'Approved classroom account required'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_user::text || ':' || p_classroom_id::text, 0));
+  select coalesce(sum(xp_earned), 0) into v_earned from public.mission_submissions where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id;
+  select coalesce(sum(xp_spent), 0) into v_redeemed from public.participation_logs where group_member_id = v_account.group_member_id and classroom_id = p_classroom_id and event_type = 'mission_redemption';
+  select coalesce(sum(xp_spent), 0) into v_personal_spent from public.personal_reward_claims where user_id = v_user and classroom_id = p_classroom_id;
+  if p_amount > v_earned - v_redeemed - v_personal_spent then raise exception 'Not enough personal mission XP available'; end if;
+  v_points := trunc(p_amount / 10)::integer;
+  insert into public.participation_logs(group_member_id, group_id, classroom_id, points_awarded, xp_spent, event_type, multiplier, recipient_type, note)
+  values (v_account.group_member_id, v_account.group_id, v_account.classroom_id, v_points, p_amount, 'mission_redemption', 1, 'member', format('%s XP redeemed for %s participation point%s', p_amount::integer, v_points, case when v_points = 1 then '' else 's' end));
+  return jsonb_build_object('xpAmount', p_amount::integer, 'pointsAwarded', v_points, 'groupId', v_account.group_id, 'memberId', v_account.group_member_id);
+end;
+$$;
+revoke all on function public.redeem_mission_points(numeric, uuid) from public;
+grant execute on function public.redeem_mission_points(numeric, uuid) to authenticated;

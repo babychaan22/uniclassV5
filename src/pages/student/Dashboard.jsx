@@ -17,6 +17,7 @@ import { getTodayManila } from "@/lib/week";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
+import UserAvatar from "@/components/visual/UserAvatar";
 import { ROUTES } from '@/lib/routes';
 
 export default function StudentDashboard() {
@@ -34,7 +35,7 @@ export default function StudentDashboard() {
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [classroom, members, rankResult, attendance, scores, activities, logs] = await Promise.all([
+      const [classroom, members, rankResult, attendance, scores, activities, logs, avatarResult] = await Promise.all([
         db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
@@ -42,22 +43,24 @@ export default function StudentDashboard() {
         db.entities.ActivityScore.filter({ classroom_id: classroomId }),
         db.entities.Activity.filter({ classroom_id: classroomId }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
+        supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
       ]);
       if (rankResult.error) throw rankResult.error;
       if (!active) return;
 
+      const avatarKeys = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.avatar_key]));
       const memberCards = members.map((m) => {
         const streak = computeAttendanceStreak(m.id, attendance, classroom?.class_days);
         const act = computeActivityPct(m.id, scores, activities);
         const pts = computeParticipationPoints(m.id, logs);
-        return { member: m, streak, activityPct: act.pct, points: pts };
+        return { member: m, streak, activityPct: act.pct, points: pts, avatarKey: avatarKeys.get(m.id) };
       });
 
       const groupLeaderboard = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, points: Number(row.points || 0) }))
         .sort((a, b) => b.points - a.points);
 
       const indLeaderboard = members
-        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs) }))
+        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs), avatarKey: avatarKeys.get(m.id) }))
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 
@@ -105,6 +108,7 @@ export default function StudentDashboard() {
     { label: "Activity", value: Math.round(myActivityPct), color: "bg-clay-lime" },
     { label: "Participation", value: memberCards.length ? Math.round((memberCards.filter((c) => c.points > 0).length / memberCards.length) * 100) : 0, color: "bg-clay-purple" },
   ];
+  const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
 
   return (
     <div className="space-y-6">
@@ -123,6 +127,14 @@ export default function StudentDashboard() {
         <DashboardRangeTabs value={range} onChange={setRange} />
         <ClayChip color="sky">Group {group.group_number} <GroupBadgeMarkers groupId={group.id} badges={badges} definitions={badgeDefinitions} /></ClayChip>
       </div>
+
+      <ClayCard color="purple" className="no-print p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-4 text-white">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 font-mono text-xl font-extrabold">1</div>
+          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next best step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `Earn up to ${nextMission.xp_reward || 0} personal XP, then choose a learning boost or profile item.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
+          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Continue mission" : "Open scanner"}</Link>
+        </div>
+      </ClayCard>
 
       <section className="no-print">
         <div className="grid grid-cols-2 gap-3 text-center sm:gap-3">
@@ -211,10 +223,10 @@ export default function StudentDashboard() {
         <div className="mb-3 flex items-center gap-2"><Users className="h-5 w-5 text-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
       <RepresentativeRosterPanel account={account} members={members} />
       <div className="grid gap-4 sm:grid-cols-2">
-        {memberCards.map(({ member, streak, activityPct, points }) => (
+        {memberCards.map(({ member, streak, activityPct, points, avatarKey }) => (
           <ClayCard key={member.id} className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="font-display font-bold">{member.last_name}, {member.first_name}</p>
+              <div className="flex min-w-0 items-center gap-2"><UserAvatar name={`${member.first_name} ${member.last_name}`} avatarKey={avatarKey} size="sm" /><p className="truncate font-display font-bold">{member.last_name}, {member.first_name}</p></div>
               {member.id === account.group_member_id && <ClayChip color="purple">You</ClayChip>}
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -268,6 +280,7 @@ export default function StudentDashboard() {
           {indLeaderboard.map((item, i) => (
             <div key={item.member.id} className="flex items-center gap-3">
               <span className="font-mono font-bold w-6">{i + 1}</span>
+              <UserAvatar name={`${item.member.first_name} ${item.member.last_name}`} avatarKey={item.avatarKey} size="sm" />
               <div className="flex-1">
                 <div className="flex justify-between mb-1">
                   <span className="font-display font-bold text-sm">{item.member.last_name}, {item.member.first_name[0]}.</span>
