@@ -134,12 +134,7 @@ export default function Layout() {
         { label: "Missions", path: ROUTES.TEACHER.MISSIONS, icon: Target },
         { label: "QR", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       ]
-    : [
-        { label: "Home", path: ROUTES.STUDENT.DASHBOARD, icon: Home },
-        { label: "Missions", path: ROUTES.STUDENT.MISSIONS, icon: Target },
-        { label: "Scan", path: ROUTES.STUDENT.SCAN, icon: QrCode },
-        { label: "Rewards", path: ROUTES.STUDENT.REWARDS, icon: Gift },
-      ];
+    : STUDENT_NAV;
   const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
 
   useEffect(() => {
@@ -248,10 +243,10 @@ export default function Layout() {
               </Link>
             );
           })}
-          <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+          {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
             <MoreHorizontal className="h-5 w-5" />
             <span className="text-[10px] font-display font-bold">More</span>
-          </button>
+          </button>}
         </div>
       </nav>
     </div>

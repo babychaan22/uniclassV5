@@ -10,7 +10,7 @@ import { supabase } from '@/api/supabaseClient';
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Loader2, Rocket, History, Zap } from "lucide-react";
+import { Rocket, History, Zap } from "lucide-react";
 import MissionAssessment from "@/components/student/MissionAssessment";
 import { ROUTES } from '@/lib/routes';
 import MascotWidget from "@/components/MascotWidget";
@@ -18,7 +18,7 @@ import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
 import PanelSkeleton from "@/components/PanelSkeleton";
-import { completeLearningReview, ensureDailyPowerUp, getPersonalRewardDashboard, powerUpAppliesToClassroom, redeemMissionPoints } from '@/lib/secureActions';
+import { completeLearningReview, ensureDailyPowerUp, getPersonalRewardDashboard, powerUpAppliesToClassroom } from '@/lib/secureActions';
 import { formatMissionDeadline, isDailyFoundationMission, isMissionLocked, manilaDateKey } from '@/lib/missionProgress';
 
 export default function StudentMissions() {
@@ -26,9 +26,6 @@ export default function StudentMissions() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [historyMissionId, setHistoryMissionId] = useState(null);
-  const [redeemAmount, setRedeemAmount] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
-  const [redemptionNotice, setRedemptionNotice] = useState(null);
 
   useEffect(() => {
     load();
@@ -92,32 +89,6 @@ export default function StudentMissions() {
     setData((current) => ({ ...current, dueReviews: current.dueReviews.filter((item) => item.id !== review.id) }));
   }
 
-  async function redeemXp(event) {
-    event.preventDefault();
-    const requested = Number(redeemAmount);
-    const amount = Math.floor(Math.min(requested || 0, data.available) / 10) * 10;
-    if (amount < 10) {
-      setRedemptionNotice({ ok: false, text: "Enter at least 10 XP to receive 1 participation point." });
-      return;
-    }
-    setRedeeming(true);
-    setRedemptionNotice(null);
-    try {
-      const result = await redeemMissionPoints(amount, data.account.classroom_id);
-      const remainder = Math.max(0, Math.floor(Math.min(requested, data.available)) - amount);
-      setRedeemAmount("");
-      setRedemptionNotice({
-        ok: true,
-        text: `${result.xpAmount} XP converted to ${result.pointsAwarded} participation point${result.pointsAwarded === 1 ? "" : "s"}.${remainder ? ` ${remainder} XP stays available.` : ""}`,
-      });
-      await load();
-    } catch (error) {
-      setRedemptionNotice({ ok: false, text: error.message || "XP could not be converted." });
-    } finally {
-      setRedeeming(false);
-    }
-  }
-
   if (!data) return <PanelSkeleton />;
 
   const { group, classroom, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification } = data;
@@ -167,19 +138,11 @@ export default function StudentMissions() {
             <p className="text-xs text-white/70">{`Earned ${earned} XP - Spent ${spent} XP · 10 XP = 1 participation point`}</p>
           </div>
         </div>
-        <form onSubmit={redeemXp} className="mt-4 flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor="mission-xp-redemption">XP to redeem</label>
-          <input id="mission-xp-redemption" type="number" min="10" max={Math.floor(available / 10) * 10 || undefined} step="10" inputMode="numeric" className="clay-input h-10 w-28 shrink-0 bg-cream px-3 py-2 font-mono text-sm text-ink placeholder:text-ink/50" placeholder="XP" value={redeemAmount} onChange={(event) => setRedeemAmount(event.target.value)} />
-          <span className="min-w-0 flex-1 text-xs text-white/75">10 XP = 1 participation point</span>
-          <ClayButton type="submit" color="lime" size="sm" disabled={redeeming || available < 10}>
-            {redeeming ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem"}
-          </ClayButton>
-        </form>
-        {available >= 10 && <button type="button" onClick={() => setRedeemAmount(String(Math.floor(available / 10) * 10))} className="mt-2 text-xs font-display font-bold text-white/85 underline">Use {Math.floor(available / 10) * 10} XP</button>}
-        <Link to={ROUTES.STUDENT.REWARDS} className="mt-3 inline-flex text-xs font-display font-bold text-white underline">Or choose a personal reward</Link>
+        <Link to={ROUTES.STUDENT.REWARDS} className="mt-4 inline-flex items-center gap-1 text-xs font-display font-bold text-white underline">
+          <span>Use 10 XP</span><span>Or choose a personal reward</span>
+        </Link>
       </ClayCard>
-      {redemptionNotice && <p role="status" className={`text-center text-sm font-display font-bold ${redemptionNotice.ok ? "text-clay-lime" : "text-clay-coral"}`}>{redemptionNotice.text}</p>}
-      {walletBlocked && <ClayCard color="coral" className="p-4"><p className="font-display font-bold">Missions are paused while your XP wallet is full.</p><p className="mt-1 text-sm text-ink/70">Use the XP wallet above to bring your available balance below 30 XP, then continue with your missions.</p></ClayCard>}
+      {walletBlocked && <ClayCard color="coral" className="p-4"><p className="font-display font-bold">Missions are paused while your XP wallet is full.</p><p className="mt-1 text-sm text-ink/70">Open Rewards and redeem at least 10 XP to bring your available balance below 30 XP, then continue with your missions.</p></ClayCard>}
 
       {dueReviews?.length > 0 && (
         <ClayCard color="sky" className="p-4">
@@ -235,7 +198,7 @@ export default function StudentMissions() {
                   </div>
                 </ClayCard>
                 {powerUpLocked && !powerUpSubmission && <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">Today's Power-Up has closed.</p><p className="text-xs text-ink/60 mt-1">A fresh one arrives tomorrow morning. Keep practising in your mission history in the meantime.</p></ClayCard>}
-                {!powerUpLocked && (walletBlocked && !powerUpSubmission ? <ClayCard className="p-4"><p className="font-display font-bold">Use the XP wallet above to start this mission.</p></ClayCard> : <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />)}
+                {!powerUpLocked && (walletBlocked && !powerUpSubmission ? <ClayCard className="p-4"><p className="font-display font-bold">Open Rewards and redeem 10 XP to start this mission.</p></ClayCard> : <MissionAssessment mission={todayPowerUp} group={group} userId={user.id} existing={powerUpSubmission} onDone={load} />)}
               </>
             ) : (
               <ClayCard className="p-4">
@@ -285,7 +248,7 @@ export default function StudentMissions() {
                 return (
                   <div key={m.id} className="space-y-2">
                     <ClayCard className="p-4"><div className="mb-3 flex items-center gap-2"><MascotWidget state="quest" size="sm" /><span className="text-xs font-display font-bold">Generated by UniClass AI Assistant</span></div>{m.image_url && <img src={m.image_url} alt={`${m.title} illustration`} className="mb-3 max-h-64 w-full rounded-xl border-2 border-ink object-cover" loading="lazy" />}{header}</ClayCard>
-                    {isMissionLocked(m) ? <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">This mission is locked.</p><p className="text-xs text-ink/60 mt-1">Its deadline was {formatMissionDeadline(m)}. You can still view completed missions in your history.</p></ClayCard> : walletBlocked && !sub ? <ClayCard className="p-4"><p className="font-display font-bold">Use the XP wallet above to start this mission.</p></ClayCard> : <MissionAssessment mission={m} group={group} userId={user.id} existing={sub} onDone={load} />}
+                    {isMissionLocked(m) ? <ClayCard className="p-4"><p className="font-display font-bold text-clay-coral">This mission is locked.</p><p className="text-xs text-ink/60 mt-1">Its deadline was {formatMissionDeadline(m)}. You can still view completed missions in your history.</p></ClayCard> : walletBlocked && !sub ? <ClayCard className="p-4"><p className="font-display font-bold">Open Rewards and redeem 10 XP to start this mission.</p></ClayCard> : <MissionAssessment mission={m} group={group} userId={user.id} existing={sub} onDone={load} />}
                   </div>
                 );
               }
