@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 export const AVATAR_OPTIONS = [
-  ...Array.from({ length: 12 }, (_, index) => ({
+  ...Array.from({ length: 30 }, (_, index) => ({
     id: `avatar-${index + 1}`,
     label: `Avatar ${String(index + 1).padStart(2, "0")}`,
     src: `/ui-kit/figma-avatars/avatar-${index + 1}.svg`,
