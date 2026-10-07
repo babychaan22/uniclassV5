@@ -18,7 +18,17 @@ import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
 import UserAvatar from "@/components/visual/UserAvatar";
+import { NovaAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
+
+function missionEstimate(mission) {
+  try {
+    const content = JSON.parse(mission?.ai_content || "{}");
+    return Number(content.estimated_minutes || 0) || null;
+  } catch {
+    return null;
+  }
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -109,18 +119,31 @@ export default function StudentDashboard() {
     { label: "Participation", value: memberCards.length ? Math.round((memberCards.filter((c) => c.points > 0).length / memberCards.length) * 100) : 0, color: "bg-clay-purple" },
   ];
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
+  const nextMissionMinutes = missionEstimate(nextMission);
+  const hasChosenHero = Boolean(user?.avatar_key);
 
   return (
     <div className="space-y-6">
       <section className="grid items-center gap-4 lg:grid-cols-[1fr_.82fr] no-print">
         <div>
-          <h1 className="uc-page-title text-4xl leading-none sm:text-5xl">Hi, {account.first_name}!</h1>
-          <p className="mt-3 text-sm text-ink/60 sm:text-base">Keep going—your everyday effort is adding up.</p>
+          <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning space</p>
+          <h1 className="uc-page-title mt-1 text-4xl leading-none sm:text-5xl">Hi, {account.first_name}!</h1>
+          <p className="mt-3 text-sm text-ink/60 sm:text-base">One clear step at a time—your everyday effort is adding up.</p>
           <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn mt-4 bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
         </div>
-        <NovaMessage variant="teacher" tone="violet" title="Small steps, big progress!" className="hidden lg:flex">
-          {missions?.length ? `${missions.length} mission${missions.length === 1 ? " is" : "s are"} ready for your group.` : "Your effort this week is building something great."}
-        </NovaMessage>
+        <div className="relative hidden min-h-44 overflow-hidden rounded-[26px] border border-[rgba(142,92,246,.1)] bg-[linear-gradient(135deg,#F3EFFF_0%,#EAE5FF_100%)] p-5 shadow-[var(--uc-shadow-sm)] lg:flex lg:items-center">
+          {hasChosenHero ? (
+            <UserAvatar name={user?.email} avatarKey={user?.avatar_key} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
+          ) : (
+            <NovaAsset pose="welcome" priority className="absolute -bottom-2 -left-1 h-36 w-36" />
+          )}
+          <div className={`relative min-w-0 ${hasChosenHero ? "ml-16" : "ml-32"}`}>
+            <p className="text-xs font-display font-bold text-[var(--uc-purple)]">{hasChosenHero ? "Your hero" : "Nova is here"}</p>
+            <h2 className="mt-1 font-display text-2xl font-extrabold leading-none text-[var(--uc-navy-950)]">{hasChosenHero ? "This is your space." : "Small steps, big progress!"}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink/65">{hasChosenHero ? "Your chosen avatar appears here and across your learner profile." : missions?.length ? `${missions.length} mission${missions.length === 1 ? " is" : "s are"} ready for your group.` : "Your effort this week is building something great."}</p>
+            <Link to={ROUTES.STUDENT.SETTINGS} className="mt-3 inline-flex text-xs font-display font-bold text-[var(--uc-purple)] underline">{hasChosenHero ? "Change avatar" : "Unlock an avatar"}</Link>
+          </div>
+        </div>
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -131,8 +154,8 @@ export default function StudentDashboard() {
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 font-mono text-xl font-extrabold">1</div>
-          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next best step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `Earn up to ${nextMission.xp_reward || 0} personal XP, then choose a learning boost or profile item.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
-          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Continue mission" : "Open scanner"}</Link>
+          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
+          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : "Open scanner"}</Link>
         </div>
       </ClayCard>
 

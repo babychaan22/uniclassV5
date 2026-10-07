@@ -7,7 +7,7 @@ import { ROUTES } from "@/lib/routes";
 import {
   Home, Settings, FileText, QrCode, Award, ClipboardCheck,
   LogOut, Menu, X, Target, Gift, User,
-  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image, History,
+  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image, History, MoreHorizontal,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
@@ -57,25 +57,31 @@ const TEACHER_NAV_SECTIONS = [
     ],
   },
   {
-    label: "Teach",
+    label: "Class",
+    icon: Users,
+    items: [
+      { label: "Roster",         path: ROUTES.TEACHER.ROSTER,             icon: Users },
+      { label: "Attendance",     path: ROUTES.TEACHER.ATTENDANCE,         icon: ClipboardCheck },
+      { label: "Accounts",       path: ROUTES.TEACHER.STUDENT_MANAGEMENT, icon: UserCheck },
+      { label: "Announcements",  path: ROUTES.TEACHER.ANNOUNCEMENTS,      icon: Megaphone },
+    ],
+  },
+  {
+    label: "Learning",
     icon: Target,
     items: [
       { label: "Missions",       path: ROUTES.TEACHER.MISSIONS,     icon: Target },
       { label: "QR Generator",   path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       { label: "Score Import", path: ROUTES.TEACHER.SCORE_IMPORT, icon: Upload },
       { label: "Activities", path: ROUTES.TEACHER.ACTIVITIES, icon: FileText },
-      { label: "Reward Catalog", path: ROUTES.TEACHER.REWARDS,      icon: Gift },
-      { label: "Badges", path: ROUTES.TEACHER.BADGES, icon: Award },
     ],
   },
   {
-    label: "Class",
-    icon: Users,
+    label: "Rewards",
+    icon: Gift,
     items: [
-      { label: "Roster",         path: ROUTES.TEACHER.ROSTER,             icon: Users },
-      { label: "Attendance",     path: ROUTES.TEACHER.ATTENDANCE,         icon: ClipboardCheck },
-      { label: "Accounts",      path: ROUTES.TEACHER.STUDENT_MANAGEMENT, icon: UserCheck },
-      { label: "Announcements", path: ROUTES.TEACHER.ANNOUNCEMENTS,      icon: Megaphone },
+      { label: "Reward Catalog", path: ROUTES.TEACHER.REWARDS, icon: Gift },
+      { label: "Badges", path: ROUTES.TEACHER.BADGES, icon: Award },
     ],
   },
   {
@@ -90,7 +96,7 @@ const TEACHER_NAV_SECTIONS = [
     ],
   },
   {
-    label: "More",
+    label: "Settings",
     icon: Settings,
     items: [
       { label: "Class Setup", path: ROUTES.TEACHER.ONBOARDING, icon: Settings },
@@ -121,26 +127,19 @@ export default function Layout() {
   const [openSection, setOpenSection] = useState("Home");
 
   const isTeacher = location.pathname.startsWith("/teacher") || location.pathname === ROUTES.LEADERBOARD;
-  const nav = isTeacher
+  const mobileNav = isTeacher
     ? [
         { label: "Home", path: ROUTES.TEACHER.DASHBOARD, icon: Home },
-        { label: "Teach", path: ROUTES.TEACHER.MISSIONS, icon: Target },
-        { label: "Class", path: ROUTES.TEACHER.ROSTER, icon: Users },
-        { label: "Reports", path: ROUTES.TEACHER.ANALYTICS, icon: BarChart3 },
-      ]
-    : STUDENT_NAV;
-  const headerLinks = isTeacher
-    ? [
-        { label: "Dashboard", path: ROUTES.TEACHER.DASHBOARD },
-        { label: "Classes", path: ROUTES.TEACHER.ROSTER },
-        { label: "Students", path: ROUTES.TEACHER.STUDENT_MANAGEMENT },
-        { label: "Resources", path: ROUTES.TEACHER.ACTIVITIES },
+        { label: "Attendance", path: ROUTES.TEACHER.ATTENDANCE, icon: ClipboardCheck },
+        { label: "Missions", path: ROUTES.TEACHER.MISSIONS, icon: Target },
+        { label: "QR", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       ]
     : [
-        { label: "Dashboard", path: ROUTES.STUDENT.DASHBOARD },
-        { label: "Missions", path: ROUTES.STUDENT.MISSIONS },
-        { label: "Rewards", path: ROUTES.STUDENT.REWARDS },
-    ];
+        { label: "Home", path: ROUTES.STUDENT.DASHBOARD, icon: Home },
+        { label: "Missions", path: ROUTES.STUDENT.MISSIONS, icon: Target },
+        { label: "Scan", path: ROUTES.STUDENT.SCAN, icon: QrCode },
+        { label: "Rewards", path: ROUTES.STUDENT.REWARDS, icon: Gift },
+      ];
   const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
 
   useEffect(() => {
@@ -187,13 +186,7 @@ export default function Layout() {
             <BrandMark />
             <span className="font-display text-xl font-extrabold tracking-tight text-[var(--uc-navy-950)] sm:text-2xl">UniClass</span>
           </Link>
-          <nav aria-label="Primary" className="ml-8 hidden flex-1 items-center gap-1 xl:flex">
-            {headerLinks.map((item) => {
-              const active = location.pathname === item.path;
-              return <Link key={item.path} to={item.path} className={`rounded-xl px-4 py-2 text-sm font-display font-bold transition-colors ${active ? "bg-clay-purple/15 text-[var(--uc-navy-950)]" : "text-ink/65 hover:bg-clay-purple/8 hover:text-ink"}`}>{item.label}</Link>;
-            })}
-          </nav>
-          <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block xl:hidden">Teach. Learn. Grow. Together.</p>
+          <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block">{isTeacher ? "Teacher workspace" : "Your learning space"}</p>
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             <NotificationBell teacher={isTeacher} />
@@ -244,7 +237,7 @@ export default function Layout() {
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(29,38,88,.08)] backdrop-blur no-print">
         <div className="flex h-16 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {nav.map((item) => {
+          {mobileNav.map((item) => {
             const Icon = item.icon;
             const assetName = NAV_ASSET_BY_LABEL[item.label];
             const active = location.pathname === item.path;
@@ -255,6 +248,10 @@ export default function Layout() {
               </Link>
             );
           })}
+          <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+            <MoreHorizontal className="h-5 w-5" />
+            <span className="text-[10px] font-display font-bold">More</span>
+          </button>
         </div>
       </nav>
     </div>

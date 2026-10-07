@@ -14,10 +14,9 @@ import { computeClassification } from "@/lib/classification";
 import {
   computeAttendanceRate, computeActivityPct, computeParticipationPoints, computeCategoryPct, signedPoints,
 } from "@/lib/stats";
-import { Printer, BarChart3, Award, Download, CheckCircle2 } from "lucide-react";
+import { Printer, BarChart3, Award, Download, CheckCircle2, ClipboardCheck, Target, QrCode, Coins } from "lucide-react";
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
-import AtRiskAlerts from "@/components/teacher/AtRiskAlerts";
 import PendingApprovalBulk from "@/components/teacher/PendingApprovalBulk";
 import BehaviorPenalty from "@/components/teacher/BehaviorPenalty";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
@@ -35,6 +34,7 @@ export default function TeacherDashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
+  const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
   const [attentionLoading, setAttentionLoading] = useState(true);
 
@@ -149,15 +149,28 @@ export default function TeacherDashboard() {
   const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, penaltyLogs, attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
-  const atRisk = memberRows.filter((r) => r.cls.tag === "At Risk").length;
+  const atRiskRows = memberRows.filter((r) => r.cls.tag === "At Risk")
+    .sort((left, right) => (left.cls.total || 0) - (right.cls.total || 0));
+  const atRisk = atRiskRows.length;
   const filteredRows = (filter === "all" ? memberRows : memberRows.filter((r) => r.cls.tag === filter))
     .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
   const todayStr = getTodayManila();
-  const monthStart = new Date(`${todayStr}T00:00:00Z`);
+  const selectedDate = anchorDate || todayStr;
+  const monthStart = new Date(`${selectedDate}T00:00:00Z`);
   monthStart.setUTCDate(monthStart.getUTCDate() - 29);
-  const visibleTrend = chartRange === "term" ? trend : trend.filter((item) => item.date >= (chartRange === "month" ? monthStart.toISOString().slice(0, 10) : getWeekStartManila()));
-  const attendanceRate = attendance.length ? Math.round((attendance.filter((record) => record.status === "present").length / attendance.length) * 100) : 0;
-  const activityAverage = groupActivity.length ? Math.round(groupActivity.reduce((sum, item) => sum + item.avg, 0) / groupActivity.length) : 0;
+  const rangeStart = chartRange === "term" ? (term?.start_date || null) : chartRange === "month" ? monthStart.toISOString().slice(0, 10) : getWeekStartManila(new Date(`${selectedDate}T12:00:00+08:00`));
+  const rangeLabel = chartRange === "term" ? "this term" : chartRange === "month" ? "this month" : "this week";
+  const isInRange = (value) => !rangeStart || String(value || "").slice(0, 10) >= rangeStart;
+  const visibleTrend = trend.filter((item) => isInRange(item.date));
+  const rangeAttendance = attendance.filter((record) => isInRange(record.attendance_date));
+  const attendanceRate = rangeAttendance.length ? Math.round((rangeAttendance.filter((record) => record.status === "present").length / rangeAttendance.length) * 100) : 0;
+  const activityById = new Map(activities.map((activity) => [activity.id, activity]));
+  // Older score records may not carry a timestamp. Keep those included rather
+  // than hiding valid grades when the date selector is changed.
+  const rangeScores = scores.filter((score) => !score.created_date || isInRange(score.created_date));
+  const activityAverage = rangeScores.length
+    ? Math.round((rangeScores.reduce((sum, score) => sum + (Number(score.score || 0) / Math.max(1, Number(activityById.get(score.activity_id)?.max_score || 1))) * 100, 0) / rangeScores.length))
+    : 0;
   const classProgress = Math.round((attendanceRate + activityAverage) / (attendanceRate > 0 || activityAverage > 0 ? 2 : 1)) || 0;
   const scoredActivityIds = new Set(scores.map((s) => s.activity_id));
   const toGradeCount = activities.filter((a) => !scoredActivityIds.has(a.id)).length;
@@ -215,30 +228,50 @@ export default function TeacherDashboard() {
         className="no-print"
       />
 
+      <section className="no-print">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[var(--uc-purple)]">Today</p>
+            <h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Run your class</h2>
+          </div>
+          <p className="hidden text-xs text-ink/55 sm:block">Start with the task in front of you.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Take attendance", detail: "Mark today’s roster", path: ROUTES.TEACHER.ATTENDANCE, icon: ClipboardCheck, tone: "bg-clay-sky/15 text-clay-sky" },
+            { label: "Create mission", detail: "Set the next learning step", path: ROUTES.TEACHER.MISSIONS, icon: Target, tone: "bg-clay-purple/15 text-clay-purple" },
+            { label: "Award points", detail: "Recognize participation", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: Coins, tone: "bg-clay-lime/20 text-clay-lime" },
+            { label: "Open QR", detail: "Prepare a quick scan", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode, tone: "bg-clay-sun/20 text-clay-sun" },
+          ].map((action) => {
+            const Icon = action.icon;
+            return <Link key={action.label} to={action.path} className="group rounded-2xl border border-ink/10 bg-white p-3 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${action.tone}`}><Icon className="h-4 w-4" /></span><p className="mt-2 font-display text-sm font-extrabold text-[var(--uc-navy-950)]">{action.label}</p><p className="mt-0.5 text-xs text-ink/60">{action.detail}</p></Link>;
+          })}
+        </div>
+      </section>
+
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
-        <DashboardRangeTabs value={chartRange} onChange={setChartRange} />
-        <span className="text-xs text-ink/60">Charts update for the selected period.</span>
+        <DashboardRangeTabs value={chartRange} onChange={setChartRange} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
+        <span className="text-xs text-ink/60">Showing {rangeLabel} containing {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.</span>
       </div>
 
       <div className="flex flex-wrap gap-3 no-print">
         <ClayChip color="lime">On Track: {onTrack}</ClayChip>
         <ClayChip color="sun">Developing: {developing}</ClayChip>
-        <ClayChip color="coral">At Risk: {atRisk}</ClayChip>
       </div>
 
       <section className="no-print">
         <div className="grid grid-cols-3 gap-2 text-center sm:gap-3">
           <ClayCard className="p-3">
             <div className="text-2xl font-mono font-extrabold text-clay-sky">{attendanceRate}%</div>
-            <p className="text-xs font-display font-bold text-ink/60">Attendance</p>
+            <p className="text-xs font-display font-bold text-ink/60">Attendance {rangeLabel}</p>
           </ClayCard>
           <ClayCard className="p-3">
             <div className="text-2xl font-mono font-extrabold text-clay-purple">{toGradeCount}</div>
-            <p className="text-xs font-display font-bold text-ink/60">To Grade</p>
+            <p className="text-xs font-display font-bold text-ink/60">{toGradeCount === 1 ? "activity needs a score" : "activities need scores"}</p>
           </ClayCard>
           <ClayCard className="p-3">
             <div className="text-2xl font-mono font-extrabold text-clay-lime">{classProgress}%</div>
-            <p className="text-xs font-display font-bold text-ink/60">Class Progress</p>
+            <p className="text-xs font-display font-bold text-ink/60">Progress {rangeLabel}</p>
           </ClayCard>
         </div>
       </section>
@@ -257,9 +290,10 @@ export default function TeacherDashboard() {
           </div>
         </ClayCard>
         <ClayCard className="p-4">
-          <h3 className="font-display text-sm font-bold text-ink/60 mb-4">Needs attention</h3>
+          <h3 className="font-display text-sm font-bold text-ink/60 mb-1">Needs attention</h3>
+          <p className="mb-4 text-xs text-ink/50">Only the decisions that need you.</p>
           <ul className="space-y-3 text-sm">
-            {atRisk > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-coral" />{atRisk} learner{atRisk === 1 ? "" : "s"} need{atRisk === 1 ? "s" : ""} support</span></li>}
+            {atRisk > 0 && <li><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-coral" /><span className="font-display font-bold">At-risk learners ({atRisk})</span></div><div className="mt-2 flex flex-wrap gap-1.5">{atRiskRows.map((row) => <Link key={row.member.id} to={ROUTES.TEACHER.ROSTER} className="rounded-full border border-clay-coral/25 bg-clay-coral/10 px-2 py-1 text-xs font-display font-bold text-ink hover:bg-clay-coral/20">{row.member.last_name}, {row.member.first_name} · G{row.group?.group_number || "—"} · {Math.round(row.cls.total || 0)}%</Link>)}</div></li>}
             {pending.length > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-sun" />{pending.length} pending account{pending.length === 1 ? "" : "s"} awaiting approval</span></li>}
             {memberRows.filter((r) => r.att.rate < 60).length > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-sky" />{memberRows.filter((r) => r.att.rate < 60).length} student{memberRows.filter((r) => r.att.rate < 60).length === 1 ? "" : "s"} with low attendance</span></li>}
             {atRisk === 0 && pending.length === 0 && memberRows.filter((r) => r.att.rate < 60).length === 0 && <li className="text-ink/60">All caught up! No urgent items.</li>}
@@ -277,8 +311,6 @@ export default function TeacherDashboard() {
         <ClayCard tone="blue" className="p-4 sm:p-5"><div className="flex items-center gap-2"><div className="rounded-2xl bg-clay-sky/25 p-2 text-clay-sky"><BarChart3 className="h-5 w-5" /></div><div><h3 className="font-display text-lg font-extrabold">Learning progress</h3><p className="text-xs text-ink/60">Average mastery by classroom signal</p></div></div><div className="mt-5 space-y-4">{learningAreas.map((area) => <div key={area.label}><div className="mb-1 flex justify-between text-sm font-display font-bold"><span>{area.label}</span><span>{area.value}%</span></div><div className="h-4 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${area.color}`} style={{ width: `${area.value}%` }} /></div></div>)}</div></ClayCard>
         <ClayCard tone="pink" className="p-4 sm:p-5"><div className="flex items-center gap-2"><div className="rounded-2xl bg-clay-pink/25 p-2 text-clay-pink"><Award className="h-5 w-5" /></div><div><h3 className="font-display text-lg font-extrabold">Recent achievements</h3><p className="text-xs text-ink/60">Latest points and milestones</p></div></div><div className="mt-4 space-y-3">{recentAchievements.length ? recentAchievements.map((entry) => { const shown = signedPoints(entry); return <div key={entry.id} className="flex items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay-lime/25 text-clay-lime"><CheckCircle2 className="h-4 w-4" /></span><p className="min-w-0 flex-1 truncate text-sm font-display font-bold">{entry.note || entry.event_type?.replaceAll("_", " ") || "Participation recorded"}</p><span className="text-xs font-mono text-ink/60">{shown > 0 ? `+${shown}` : shown}</span></div>; }) : <p className="py-4 text-sm text-ink/50">Achievements will appear as students participate.</p>}</div></ClayCard>
       </section>
-
-      <AtRiskAlerts memberRows={memberRows} />
 
       <ClayCard className="p-4 no-print">
         <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
