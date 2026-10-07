@@ -58,17 +58,25 @@ export function computeActivityPct(memberId, activityScores, activities) {
   return { pct: totalMax > 0 ? (totalScore / totalMax) * 100 : 0, count: memberScores.length };
 }
 
-// Behavior penalties are stored as a positive number and must always be read as
-// a deduction. Every total in the app goes through here so a penalty can never
-// be counted as a reward.
+// Behavior penalties may be stored by older records as a positive magnitude or
+// by the protected action as a negative ledger amount. Reading them through one
+// helper keeps either form a deduction everywhere.
 export function signedPoints(log) {
   const points = Number(log?.points_awarded || 0);
   return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
 }
 
-export function computeParticipationPoints(memberId, logs) {
-  const memberLogs = logs.filter((l) => l.group_member_id === memberId);
-  return memberLogs.reduce((sum, l) => sum + signedPoints(l), 0);
+// A behavior penalty is deliberately a group-scoped ledger record. It needs to
+// affect every group member's participation calculation (and thus the teacher
+// dashboard, reports, and individual rankings), without accidentally turning
+// ordinary shared group rewards into personal awards.
+export function computeParticipationPoints(memberId, logs, groupId = null) {
+  return logs
+    .filter((log) => (
+      log.group_member_id === memberId ||
+      (log.event_type === "behavior_penalty" && !log.group_member_id && groupId && log.group_id === groupId)
+    ))
+    .reduce((sum, log) => sum + signedPoints(log), 0);
 }
 
 export function computeCategoryPct(memberId, assessments, category, term) {

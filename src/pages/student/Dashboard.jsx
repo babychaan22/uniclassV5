@@ -67,7 +67,7 @@ export default function StudentDashboard() {
       const memberCards = members.map((m) => {
         const streak = computeAttendanceStreak(m.id, attendance, classroom?.class_days);
         const act = computeActivityPct(m.id, scores, activities);
-        const pts = computeParticipationPoints(m.id, logs);
+        const pts = computeParticipationPoints(m.id, logs, group.id);
         return { member: m, streak, activityPct: act.pct, points: pts, avatarKey: avatarKeys.get(m.id) };
       });
 
@@ -75,7 +75,7 @@ export default function StudentDashboard() {
         .sort((a, b) => b.points - a.points);
 
       const indLeaderboard = members
-        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs), avatarKey: avatarKeys.get(m.id) }))
+        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs, group.id), avatarKey: avatarKeys.get(m.id) }))
         .sort((a, b) => b.points - a.points)
         .slice(0, 10);
 

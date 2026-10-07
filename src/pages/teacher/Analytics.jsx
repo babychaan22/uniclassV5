@@ -8,14 +8,10 @@ import { getMissionProgress } from "@/lib/missionProgress";
 import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
 import { getGroupBadgeItems } from "@/lib/groupBadges";
+import { signedPoints } from "@/lib/stats";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
 const shortTitle = (title, max = 15) => title?.length > max ? `${title.slice(0, max - 1)}…` : (title || "Mission");
-const logPoints = (log) => {
-  const points = Number(log?.points_awarded) || 0;
-  return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
-};
-
 function weekKey(day) {
   const date = new Date(`${day}T00:00:00Z`);
   const currentDay = date.getUTCDay();
@@ -76,11 +72,14 @@ export default function TeacherAnalytics() {
     const pointTotalsByGroup = new Map();
     for (const log of data.logs || []) {
       const groupId = log.group_id || "class";
-      const current = pointTotalsByGroup.get(groupId) || { points: 0, wholeGroup: 0, members: new Map() };
-      const points = logPoints(log);
+      const current = pointTotalsByGroup.get(groupId) || { points: 0, wholeGroup: 0, sharedPenalty: 0, members: new Map() };
+      const points = signedPoints(log);
       current.points += points;
       if (log.group_member_id) current.members.set(log.group_member_id, (current.members.get(log.group_member_id) || 0) + points);
-      else current.wholeGroup += points;
+      else {
+        current.wholeGroup += points;
+        if (log.event_type === "behavior_penalty") current.sharedPenalty += points;
+      }
       pointTotalsByGroup.set(groupId, current);
     }
 
@@ -112,15 +111,16 @@ export default function TeacherAnalytics() {
 
     const points = groupSets.map((set) => {
       const totals = classroom.uses_groups
-        ? pointTotalsByGroup.get(set.id) || { points: 0, wholeGroup: 0, members: new Map() }
+        ? pointTotalsByGroup.get(set.id) || { points: 0, wholeGroup: 0, sharedPenalty: 0, members: new Map() }
         : Array.from(pointTotalsByGroup.values()).reduce((all, current) => {
           all.points += current.points;
           all.wholeGroup += current.wholeGroup;
+          all.sharedPenalty += current.sharedPenalty;
           for (const [memberId, points] of current.members) all.members.set(memberId, (all.members.get(memberId) || 0) + points);
           return all;
-        }, { points: 0, wholeGroup: 0, members: new Map() });
-      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: totals.members.get(member.id) || 0 })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
-      return { name: set.name, label: set.name, points: totals.points, students, wholeGroup: totals.wholeGroup };
+        }, { points: 0, wholeGroup: 0, sharedPenalty: 0, members: new Map() });
+      const students = set.members.map((member) => ({ name: memberNames[member.id] || "Student", points: (totals.members.get(member.id) || 0) + totals.sharedPenalty })).filter((item) => item.points !== 0).sort((a, b) => b.points - a.points);
+      return { name: set.name, label: set.name, points: totals.points, students, wholeGroup: totals.wholeGroup, sharedPenalty: totals.sharedPenalty };
     });
 
     const missions = (data.missions || []).map((mission) => {
@@ -153,7 +153,7 @@ export default function TeacherAnalytics() {
 
     <ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><TrendingUp className="h-4 w-4" /> Activity score average</h2>{analytics.activities.some((item) => item.rate > 0) ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.activities} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("activities")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#4FD1F21A" }} /><Bar dataKey="rate" fill="#4FD1F2" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No activity scores recorded yet.</p>}<ContainedDetail title="Activity scores" entry={hovered.activities}>{hovered.activities?.students?.length ? <ul className="space-y-0.5">{hovered.activities.students.map((student) => <li key={student.name} className="flex justify-between gap-3"><span className="truncate">{student.name}</span><span className="shrink-0 font-mono">{student.earned}/{student.max} · {student.rate}%</span></li>)}</ul> : <p>No scores for this group yet.</p>}</ContainedDetail></ClayCard>
 
-    <ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><Medal className="h-4 w-4" /> Participation points</h2>{analytics.points.some((item) => item.points !== 0) ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("points")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#FF5FA81A" }} /><Bar dataKey="points" fill="#FF5FA8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No participation points logged yet.</p>}<ContainedDetail title="Participation points" entry={hovered.points}><p className="font-display font-bold">Whole Group: {hovered.points?.wholeGroup || 0} points</p>{hovered.points?.students?.length ? <ul className="mt-1 space-y-0.5">{hovered.points.students.map((student) => <li key={student.name} className="flex justify-between gap-3"><span className="truncate">{student.name}</span><span className="font-mono">{student.points}</span></li>)}</ul> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hovered.points?.points || 0} points</p></ContainedDetail></ClayCard>
+    <ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><Medal className="h-4 w-4" /> Participation points</h2>{analytics.points.some((item) => item.points !== 0) ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("points")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#FF5FA81A" }} /><Bar dataKey="points" fill="#FF5FA8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No participation points logged yet.</p>}<ContainedDetail title="Participation points" entry={hovered.points}><p className="font-display font-bold">Whole Group: {hovered.points?.wholeGroup || 0} points</p>{hovered.points?.sharedPenalty < 0 && <p className="mt-1 text-xs font-display font-bold text-clay-coral">Shared behavior deductions: {hovered.points.sharedPenalty} · reflected in each member's participation total</p>}{hovered.points?.students?.length ? <ul className="mt-1 space-y-0.5">{hovered.points.students.map((student) => <li key={student.name} className="flex justify-between gap-3"><span className="truncate">{student.name}</span><span className="font-mono">{student.points}</span></li>)}</ul> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hovered.points?.points || 0} points</p></ContainedDetail></ClayCard>
 
     <div className="grid gap-4 lg:grid-cols-2"><ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><Target className="h-4 w-4" /> Mission mastery</h2>{analytics.missions.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.missions} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("mastery")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#A6E22E1A" }} /><Bar dataKey="mastery" fill="#A6E22E" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No missions yet.</p>}<ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p><p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p></ContainedDetail></ClayCard><ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><CheckCircle2 className="h-4 w-4" /> Mission completion rate</h2>{analytics.missions.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.missions} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("completion")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#FFD93D1A" }} /><Bar dataKey="completion" fill="#FFD93D" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No missions yet.</p>}<ContainedDetail title="Mission completion" entry={hovered.completion}><p><span className="font-display font-bold">Completed:</span> {hovered.completion?.completed || 0}/{hovered.completion?.total || 0}</p><p className="mt-1"><span className="font-display font-bold">Still pending:</span> {hovered.completion?.pendingNames?.join(", ") || "None"}</p></ContainedDetail></ClayCard></div>
   </div>;

@@ -63,7 +63,7 @@ export default function TeacherDashboard() {
       const term = terms.find((t) => t.is_active) || terms[0] || null;
       const weights = settings[0] || {};
 
-      const pointsByMember = Object.fromEntries(members.map((member) => [member.id, computeParticipationPoints(member.id, logs)]));
+      const pointsByMember = Object.fromEntries(members.map((member) => [member.id, computeParticipationPoints(member.id, logs, member.group_id)]));
       const maxPts = Math.max(...Object.values(pointsByMember), 1);
       const memberRows = members.map((m) => {
         const att = computeAttendanceRate(m.id, attendance, term);
@@ -79,7 +79,7 @@ export default function TeacherDashboard() {
           { key: "quiz_pct", value: quiz.pct, count: quiz.count },
           { key: "major_exam_pct", value: exam.pct, count: exam.count },
           { key: "performance_task_pct", value: perf.pct, count: perf.count },
-          { key: "participation_normalized", value: partNorm, count: pts > 0 ? 1 : 0 },
+          { key: "participation_normalized", value: partNorm, count: pts !== 0 ? 1 : 0 },
         ];
         const cls = computeClassification(categories, weights);
         const group = groups.find((g) => g.id === m.group_id);

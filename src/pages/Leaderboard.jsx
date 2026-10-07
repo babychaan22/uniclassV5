@@ -11,6 +11,7 @@ import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Trophy, Target } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { getTeacherClassroom } from '@/lib/teacherClassroom';
+import { computeParticipationPoints, signedPoints } from '@/lib/stats';
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -42,12 +43,12 @@ export default function Leaderboard() {
     const rows = groups.map((g) => {
       const pts = logs
         .filter((l) => l.group_id === g.id)
-        .reduce((s, l) => s + (l.event_type === "behavior_penalty" ? -Math.abs(l.points_awarded || 0) : (l.points_awarded || 0)), 0);
+        .reduce((s, l) => s + signedPoints(l), 0);
       const missions = submissions.filter((s) => s.group_id === g.id).length;
       return { group: g, points: Math.round(pts), missions };
     }).sort((a, b) => b.points - a.points || b.missions - a.missions);
     const students = members.map((member) => {
-      const points = logs.filter((log) => log.group_member_id === member.id).reduce((sum, log) => sum + (log.event_type === 'behavior_penalty' ? -Math.abs(log.points_awarded || 0) : (log.points_awarded || 0)), 0);
+      const points = computeParticipationPoints(member.id, logs, member.group_id);
       const missions = submissions.filter((submission) => submission.group_member_id === member.id).length;
       return { member, points: Math.round(points), missions };
     }).sort((a, b) => b.points - a.points || b.missions - a.missions);
