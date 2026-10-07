@@ -220,22 +220,21 @@ export default function TeacherDashboard() {
       />
 
       <section className="no-print">
-        <div className="mb-3 flex items-end justify-between gap-3">
+        <div className="mb-2 flex items-end justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-[var(--uc-purple)]">Today</p>
-            <h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Run your class</h2>
+            <p className="text-xs font-semibold text-[var(--uc-purple)]">Today</p>
+            <h2 className="font-display text-lg font-extrabold text-[var(--uc-navy-950)]">Run your class</h2>
           </div>
-          <p className="hidden text-xs text-ink/55 sm:block">Start with the task in front of you.</p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            { label: "Take attendance", detail: "Mark today’s roster", path: ROUTES.TEACHER.ATTENDANCE, icon: ClipboardCheck, tone: "bg-clay-sky/15 text-clay-sky" },
-            { label: "Create mission", detail: "Set the next learning step", path: ROUTES.TEACHER.MISSIONS, icon: Target, tone: "bg-clay-purple/15 text-clay-purple" },
-            { label: "Award points", detail: "Recognize participation", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: Coins, tone: "bg-clay-lime/20 text-clay-lime" },
-            { label: "Open QR", detail: "Prepare a quick scan", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode, tone: "bg-clay-sun/20 text-clay-sun" },
+            { label: "Attendance", path: ROUTES.TEACHER.ATTENDANCE, icon: ClipboardCheck, tone: "bg-clay-sky/15 text-clay-sky" },
+            { label: "Mission", path: ROUTES.TEACHER.MISSIONS, icon: Target, tone: "bg-clay-purple/15 text-clay-purple" },
+            { label: "Points", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: Coins, tone: "bg-clay-lime/20 text-clay-lime" },
+            { label: "QR code", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode, tone: "bg-clay-sun/20 text-clay-sun" },
           ].map((action) => {
             const Icon = action.icon;
-            return <Link key={action.label} to={action.path} className="group rounded-2xl border border-ink/10 bg-white p-3 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${action.tone}`}><Icon className="h-4 w-4" /></span><p className="mt-2 font-display text-sm font-extrabold text-[var(--uc-navy-950)]">{action.label}</p><p className="mt-0.5 text-xs text-ink/60">{action.detail}</p></Link>;
+            return <Link key={action.label} to={action.path} className="group flex min-h-14 items-center gap-2 rounded-xl border border-ink/10 bg-white px-2.5 py-2 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.tone}`}><Icon className="h-4 w-4" /></span><p className="min-w-0 font-display text-xs font-extrabold text-[var(--uc-navy-950)] sm:text-sm">{action.label}</p></Link>;
           })}
         </div>
       </section>
