@@ -10,6 +10,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ROUTES } from '@/lib/routes';
+import PanelSkeleton from '@/components/PanelSkeleton';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -53,7 +54,7 @@ const CheckEmail = lazy(() => import('./pages/CheckEmail'));
 const Leaderboard = lazy(() => import('./pages/Leaderboard'));
 const StudentLeaderboard = lazy(() => import('./pages/student/Leaderboard'));
 
-const PageLoader = () => <div className="fixed inset-0 flex items-center justify-center bg-cream"><div className="w-8 h-8 border-4 border-clay-purple/30 border-t-clay-purple rounded-full animate-spin" /></div>;
+const PageLoader = () => <div className="min-h-screen bg-cream px-5 py-8"><PanelSkeleton cards={3} /></div>;
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();

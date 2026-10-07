@@ -20,6 +20,10 @@ import RepresentativeRosterPanel from "@/components/student/RepresentativeRoster
 import UserAvatar from "@/components/visual/UserAvatar";
 import { NovaAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
+import PanelSkeleton from "@/components/PanelSkeleton";
+
+let studentDashboardCache = null;
+const STUDENT_DASHBOARD_CACHE_MS = 30_000;
 
 function missionEstimate(mission) {
   try {
@@ -33,8 +37,9 @@ function missionEstimate(mission) {
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialCache = studentDashboardCache?.userId === user?.id && Date.now() - studentDashboardCache.savedAt < STUDENT_DASHBOARD_CACHE_MS ? studentDashboardCache.data : null;
+  const [data, setData] = useState(initialCache);
+  const [loading, setLoading] = useState(!initialCache);
   const [range, setRange] = useState("week");
 
   useEffect(() => {
@@ -76,7 +81,9 @@ export default function StudentDashboard() {
 
       const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
 
-      setData({ account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: [], announcements: [] });
+      const snapshot = { account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: [], announcements: [] };
+      studentDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
+      setData(snapshot);
       setLoading(false);
 
       Promise.all([
@@ -86,13 +93,17 @@ export default function StudentDashboard() {
         db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
       ]).then(([announcements, missions, badges, badgeDefinitions]) => {
         if (!active) return;
-        setData((current) => current && ({
+        setData((current) => {
+          const next = current && ({
           ...current,
           badges,
           badgeDefinitions,
           missions: missions.data || [],
           announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")),
-        }));
+          });
+          if (next) studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          return next;
+        });
       }).catch((error) => console.warn("Dashboard extras could not be loaded", error));
     }
     load().catch((error) => {
@@ -102,7 +113,7 @@ export default function StudentDashboard() {
     return () => { active = false; };
   }, [user, navigate]);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <PanelSkeleton />;
 
   const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;

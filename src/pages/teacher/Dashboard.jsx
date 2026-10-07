@@ -24,13 +24,18 @@ import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
+import PanelSkeleton from "@/components/PanelSkeleton";
+
+let teacherDashboardCache = null;
+const TEACHER_DASHBOARD_CACHE_MS = 30_000;
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+  const initialCache = teacherDashboardCache?.userId === user?.id && Date.now() - teacherDashboardCache.savedAt < TEACHER_DASHBOARD_CACHE_MS ? teacherDashboardCache.data : null;
+  const [data, setData] = useState(initialCache);
   const [pending, setPending] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCache);
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
@@ -113,7 +118,9 @@ export default function TeacherDashboard() {
 
       if (!active) return;
       setPending(pendingAccounts);
-      setData({ classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass: [] });
+      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, penaltyLogs, attentionByClass: [] };
+      teacherDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
+      setData(snapshot);
       setLoading(false);
 
       Promise.all(teacherClasses.map(async (item) => {
@@ -129,7 +136,11 @@ export default function TeacherDashboard() {
         return { classroom: item, missingToday: needsAttendance.length, awaitingApproval: source.groupAccounts.filter((account) => !account.is_approved).length, needsAttendance, isClassToday };
       })).then((attentionByClass) => {
         if (!active) return;
-        setData((current) => current && ({ ...current, attentionByClass }));
+        setData((current) => {
+          const next = current && ({ ...current, attentionByClass });
+          if (next) teacherDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          return next;
+        });
         setAttentionLoading(false);
       }).catch((error) => {
         console.warn("Cross-class attendance summary could not be loaded", error);
@@ -143,7 +154,7 @@ export default function TeacherDashboard() {
     return () => { active = false; };
   }, [user, reloadKey, navigate]);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <PanelSkeleton cards={4} />;
   if (!data) return null;
 
   const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, penaltyLogs, attentionByClass } = data;

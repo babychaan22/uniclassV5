@@ -10,6 +10,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
+import PanelSkeleton from "@/components/PanelSkeleton";
 import { ROUTES } from "@/lib/routes";
 import { getPersonalRewardDashboard, redeemMissionPoints, redeemReward, unlockStyleChoice } from "@/lib/secureActions";
 
@@ -75,7 +76,7 @@ export default function StudentRewards() {
     finally { setRequesting(null); }
   }
 
-  if (!data) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
+  if (!data) return <PanelSkeleton cards={2} />;
   const { personal, groupPoints, groupRewards, redemptions, group } = data;
   const activeStyleChoice = (personal.claims || []).find((claim) => claim.status === "active" && ["avatar_choice", "theme_choice"].includes(claim.reward_type));
   const personalGroups = Object.entries(PERSONAL_TYPES).map(([type, label]) => ({ type, label, rewards: (personal.catalog || []).filter((reward) => reward.reward_type === type) })).filter((grouping) => grouping.rewards.length);

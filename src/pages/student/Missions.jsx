@@ -17,6 +17,7 @@ import MascotWidget from "@/components/MascotWidget";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import { UIAsset } from "@/components/visual/UIAsset";
+import PanelSkeleton from "@/components/PanelSkeleton";
 import { completeLearningReview, ensureDailyPowerUp, getPersonalRewardDashboard, powerUpAppliesToClassroom } from '@/lib/secureActions';
 import { formatMissionDeadline, isDailyFoundationMission, isMissionLocked, manilaDateKey } from '@/lib/missionProgress';
 
@@ -88,7 +89,7 @@ export default function StudentMissions() {
     setData((current) => ({ ...current, dueReviews: current.dueReviews.filter((item) => item.id !== review.id) }));
   }
 
-  if (!data) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (!data) return <PanelSkeleton />;
 
   const { group, classroom, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification } = data;
   const walletBlocked = available >= 30;

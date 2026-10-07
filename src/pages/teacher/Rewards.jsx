@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Gift, Plus, Trash2, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { reviewRewardRedemption } from '@/lib/secureActions';
+import PanelSkeleton from "@/components/PanelSkeleton";
 
 const GROUP_GOAL_TEMPLATES = [
   { title: "Brain Break", description: "A short class game or movement break.", emoji: "🧠", cost_points: 50 },
@@ -83,7 +84,7 @@ export default function TeacherRewards() {
     finally { setReviewing(null); }
   }
 
-  if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (!classroom) return <PanelSkeleton cards={2} />;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">

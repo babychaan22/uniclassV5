@@ -20,6 +20,7 @@ import { ROUTES } from '@/lib/routes';
 import { invokeLLM } from "@/lib/aiService";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
+import PanelSkeleton from "@/components/PanelSkeleton";
 import { NovaAsset, UIAsset } from "@/components/visual/UIAsset";
 import { formatMissionDeadline, getMissionProgress } from '@/lib/missionProgress';
 
@@ -342,7 +343,7 @@ export default function TeacherMissions() {
     load();
   }
 
-  if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (!classroom) return <PanelSkeleton cards={3} />;
 
   // Anything the teacher has not reviewed yet. The Daily Math Power-Up is one
   // shared mission that lands here first; students see nothing until a teacher
