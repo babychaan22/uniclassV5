@@ -66,16 +66,12 @@ export function signedPoints(log) {
   return log?.event_type === "behavior_penalty" ? -Math.abs(points) : points;
 }
 
-// A behavior penalty is deliberately a group-scoped ledger record. It needs to
-// affect every group member's participation calculation (and thus the teacher
-// dashboard, reports, and individual rankings), without accidentally turning
-// ordinary shared group rewards into personal awards.
-export function computeParticipationPoints(memberId, logs, groupId = null) {
+// Personal participation is limited to a learner's own positive/neutral ledger
+// entries. Behavior deductions belong exclusively to the whole-group pool and
+// must never lower an individual's points, rank, or academic classification.
+export function computeParticipationPoints(memberId, logs) {
   return logs
-    .filter((log) => (
-      log.group_member_id === memberId ||
-      (log.event_type === "behavior_penalty" && !log.group_member_id && groupId && log.group_id === groupId)
-    ))
+    .filter((log) => log.group_member_id === memberId && log.event_type !== "behavior_penalty")
     .reduce((sum, log) => sum + signedPoints(log), 0);
 }
 

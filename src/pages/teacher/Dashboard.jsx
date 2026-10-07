@@ -63,7 +63,7 @@ export default function TeacherDashboard() {
       const term = terms.find((t) => t.is_active) || terms[0] || null;
       const weights = settings[0] || {};
 
-      const pointsByMember = Object.fromEntries(members.map((member) => [member.id, computeParticipationPoints(member.id, logs, member.group_id)]));
+      const pointsByMember = Object.fromEntries(members.map((member) => [member.id, computeParticipationPoints(member.id, logs)]));
       const maxPts = Math.max(...Object.values(pointsByMember), 1);
       const memberRows = members.map((m) => {
         const att = computeAttendanceRate(m.id, attendance, term);
@@ -79,7 +79,7 @@ export default function TeacherDashboard() {
           { key: "quiz_pct", value: quiz.pct, count: quiz.count },
           { key: "major_exam_pct", value: exam.pct, count: exam.count },
           { key: "performance_task_pct", value: perf.pct, count: perf.count },
-          { key: "participation_normalized", value: partNorm, count: pts !== 0 ? 1 : 0 },
+          { key: "participation_normalized", value: partNorm, count: pts > 0 ? 1 : 0 },
         ];
         const cls = computeClassification(categories, weights);
         const group = groups.find((g) => g.id === m.group_id);
@@ -337,7 +337,7 @@ export default function TeacherDashboard() {
         <Link to={ROUTES.TEACHER.ANALYTICS} className="mt-3 inline-flex text-sm font-display font-bold text-clay-purple underline">Open analytics</Link>
       </ClayCard>
 
-      <BehaviorPenalty classroom={classroom} groups={groups} onPenalty={applyPenalty} penaltyLogs={penaltyLogs} />
+      <BehaviorPenalty classroom={classroom} groups={groups} onPenalty={applyPenalty} penaltyLogs={penaltyLogs} wholeGroupPointsByGroup={Object.fromEntries(groups.map((group) => [group.id, logs.filter((log) => log.group_id === group.id && !log.group_member_id).reduce((sum, log) => sum + signedPoints(log), 0)]))} />
 
       <ClayCard className="p-4">
         <h2 className="font-display font-bold text-lg mb-3">Group Classifications</h2>

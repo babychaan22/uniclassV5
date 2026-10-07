@@ -41,14 +41,6 @@ function attRate(memberId, attendance, start, end) {
   if (!recs.length) return 0;
   return Math.round((recs.filter((a) => a.status === "present").length / recs.length) * 100);
 }
-function participation(memberId, groupId, logs, upTo) {
-  return logs
-    .filter((log) => (
-      (log.group_member_id === memberId || (log.event_type === "behavior_penalty" && !log.group_member_id && log.group_id === groupId)) &&
-      (log.created_date || "").slice(0, 10) <= upTo
-    ))
-    .reduce((sum, log) => sum + signedPoints(log), 0);
-}
 function activityPct(memberId, scores, activities, start, end) {
   const actIds = new Set(activities.map((a) => a.id));
   const recs = scores.filter((s) => s.group_member_id === memberId && actIds.has(s.activity_id) && (s.created_date || "").slice(0, 10) >= start && (s.created_date || "").slice(0, 10) <= end);
@@ -111,7 +103,7 @@ export default function TrendCharts({ classroomId, members, currentMemberId, att
     return {
       week: weekEnd.slice(5),
       points: logs
-        .filter((log) => (log.group_member_id === member.id || (log.event_type === "behavior_penalty" && !log.group_member_id && log.group_id === member.group_id)) && (log.created_date || "").slice(0, 10) >= weekStart && (log.created_date || "").slice(0, 10) <= weekEnd)
+        .filter((log) => log.group_member_id === member.id && log.event_type !== "behavior_penalty" && (log.created_date || "").slice(0, 10) >= weekStart && (log.created_date || "").slice(0, 10) <= weekEnd)
         .reduce((sum, log) => sum + signedPoints(log), 0),
     };
   });
