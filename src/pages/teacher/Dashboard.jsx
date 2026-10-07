@@ -25,6 +25,7 @@ import { UIAsset } from "@/components/visual/UIAsset";
 import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
+import { applyBehaviorPenalty } from "@/lib/secureActions";
 
 let teacherDashboardCache = null;
 const TEACHER_DASHBOARD_CACHE_MS = 30_000;
@@ -194,14 +195,7 @@ export default function TeacherDashboard() {
   ];
 
   async function applyPenalty(groupId, points, note) {
-    await db.entities.ParticipationLog.create({
-      group_id: groupId,
-      classroom_id: classroom.id,
-      points_awarded: Number(points),
-      event_type: "behavior_penalty",
-      multiplier: 1,
-      note: note || undefined,
-    });
+    await applyBehaviorPenalty(groupId, points, note);
     invalidateClassroomDataset();
     refresh();
   }

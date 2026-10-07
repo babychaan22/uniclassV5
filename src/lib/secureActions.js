@@ -306,6 +306,18 @@ export async function awardParticipationPoints(groupId, points, memberId = null,
   return data;
 }
 
+// A penalty is deliberately its own protected action. The database receives a
+// positive magnitude from the form and records the ledger value as negative.
+export async function applyBehaviorPenalty(groupId, points, note = null) {
+  const { data, error } = await supabase.rpc('apply_behavior_penalty', {
+    p_group_id: groupId,
+    p_points: points,
+    p_note: note,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function voidParticipationEntry(logId, reason = null) {
   const { data, error } = await supabase.rpc('void_participation_entry', {
     p_log_id: logId,

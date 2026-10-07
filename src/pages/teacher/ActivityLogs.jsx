@@ -12,9 +12,10 @@ import ClayButton from "@/components/ClayButton";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
 import PointsAward from "@/components/teacher/PointsAward";
+import BehaviorPenalty from "@/components/teacher/BehaviorPenalty";
 import { ScrollText, ArrowRightLeft, Undo2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
-import { correctParticipationRecipient, voidParticipationEntry, awardParticipationPoints } from '@/lib/secureActions';
+import { applyBehaviorPenalty, correctParticipationRecipient, voidParticipationEntry, awardParticipationPoints } from '@/lib/secureActions';
 import { signedPoints } from '@/lib/stats';
 
 // Keys here are participation_logs.event_type values, nothing else. 'redemption'
@@ -289,6 +290,23 @@ const logEntries = logs.map((l) => {
           await load();
           window.setTimeout(() => setNotice(''), 4500);
         }}
+      />
+
+      <BehaviorPenalty
+        groups={groups}
+        onPenalty={async (groupId, points, note) => {
+          await applyBehaviorPenalty(groupId, points, note);
+          invalidateClassroomDataset();
+          setNotice('Penalty applied as a negative value. It is visible in the teacher log and every student history for that group.');
+          await load();
+          window.setTimeout(() => setNotice(''), 4500);
+        }}
+        penaltyLogs={entries.filter((entry) => entry.type === 'behavior_penalty').slice(0, 6).map((entry) => ({
+          id: entry.sourceLogId || entry.id,
+          groupNumber: groups.find((group) => group.id === entry.group_id)?.group_number,
+          note: entry.note,
+          points_awarded: Math.abs(Number(entry.points || 0)),
+        }))}
       />
 
       {entries.length === 0 && (

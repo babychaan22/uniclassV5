@@ -81,7 +81,7 @@ export default function StudentDashboard() {
 
       const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
 
-      const snapshot = { account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions: [], announcements: [] };
+      const snapshot = { account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null, missions: [], announcements: [] };
       studentDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
       setData(snapshot);
       setLoading(false);
@@ -115,7 +115,7 @@ export default function StudentDashboard() {
 
   if (loading) return <PanelSkeleton />;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, myAvatarKey, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
@@ -131,7 +131,7 @@ export default function StudentDashboard() {
   ];
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
   const nextMissionMinutes = missionEstimate(nextMission);
-  const hasChosenHero = Boolean(user?.avatar_key);
+  const hasChosenHero = Boolean(myAvatarKey);
 
   return (
     <div className="space-y-6">
@@ -142,9 +142,9 @@ export default function StudentDashboard() {
           <p className="mt-3 text-sm text-ink/60 sm:text-base">One clear step at a time—your everyday effort is adding up.</p>
           <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn mt-4 bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
         </div>
-        <div className="relative hidden min-h-44 overflow-hidden rounded-[26px] border border-[rgba(142,92,246,.1)] bg-[linear-gradient(135deg,#F3EFFF_0%,#EAE5FF_100%)] p-5 shadow-[var(--uc-shadow-sm)] lg:flex lg:items-center">
+        <div className="relative flex min-h-44 overflow-hidden rounded-[26px] border border-[rgba(142,92,246,.1)] bg-[linear-gradient(135deg,#F3EFFF_0%,#EAE5FF_100%)] p-5 shadow-[var(--uc-shadow-sm)] items-center">
           {hasChosenHero ? (
-            <UserAvatar name={user?.email} avatarKey={user?.avatar_key} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
+            <UserAvatar name={user?.email} avatarKey={myAvatarKey} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
           ) : (
             <NovaAsset pose="welcome" priority className="absolute -bottom-2 -left-1 h-36 w-36" />
           )}
