@@ -226,7 +226,7 @@ export default function Layout() {
           </div>
         )}
 
-        <main className="flex-1 min-w-0 pb-20 lg:pb-6">
+        <main className="uc-compact-page flex-1 min-w-0 pb-20 lg:pb-6">
           <Outlet />
         </main>
       </div>
