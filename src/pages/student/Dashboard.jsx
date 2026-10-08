@@ -13,7 +13,7 @@ import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Flame, Star, Trophy, Users, Megaphone, ArrowRight } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
-import { getTodayManila } from "@/lib/week";
+import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
@@ -34,6 +34,28 @@ function missionEstimate(mission) {
   }
 }
 
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function periodFor(range, anchorDate) {
+  if (range === "term") return { start: null, end: null, label: "this term" };
+  const anchor = new Date(`${anchorDate || getTodayManila()}T12:00:00Z`);
+  if (range === "month") {
+    const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
+    return { start: isoDate(start), end: isoDate(end), label: anchor.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" }) };
+  }
+  const start = getWeekStartManila(anchor);
+  const end = new Date(`${start}T12:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 6);
+  return { start, end: isoDate(end), label: `week of ${new Date(`${start}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}` };
+}
+
+function recordDate(record) {
+  return String(record?.attendance_date || record?.created_date || "").slice(0, 10);
+}
+
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -41,6 +63,7 @@ export default function StudentDashboard() {
   const [data, setData] = useState(initialCache);
   const [loading, setLoading] = useState(!initialCache);
   const [range, setRange] = useState("week");
+  const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
 
   useEffect(() => {
     let active = true;
@@ -120,14 +143,21 @@ export default function StudentDashboard() {
   const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
   const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
   const myMemberId = account.group_member_id;
-  const myAttendanceRate = attendance.length ? Math.round((attendance.filter((a) => a.group_member_id === myMemberId && a.status === "present").length / Math.max(1, attendance.filter((a) => a.group_member_id === myMemberId).length)) * 100) : 0;
-  const myActivityPct = memberCards.find((c) => c.member.id === myMemberId)?.activityPct || 0;
-  const myPoints = memberCards.find((c) => c.member.id === myMemberId)?.points || 0;
+  const selectedPeriod = periodFor(range, anchorDate);
+  const inSelectedPeriod = (record) => isDateInRange(recordDate(record), selectedPeriod.start, selectedPeriod.end);
+  const periodAttendance = attendance.filter(inSelectedPeriod);
+  const periodScores = scores.filter(inSelectedPeriod);
+  const periodActivityIds = new Set(periodScores.map((score) => score.activity_id));
+  const periodActivities = activities.filter((activity) => periodActivityIds.has(activity.id));
+  const myAttendanceEntries = periodAttendance.filter((entry) => entry.group_member_id === myMemberId);
+  const myAttendanceRate = myAttendanceEntries.length ? Math.round((myAttendanceEntries.filter((entry) => entry.status === "present").length / myAttendanceEntries.length) * 100) : 0;
+  const myActivityPct = computeActivityPct(myMemberId, periodScores, periodActivities).pct || 0;
+  const periodMemberCards = members.map((member) => ({ member, points: computeParticipationPoints(member.id, logs.filter(inSelectedPeriod)) }));
 
   const studentProgressAreas = [
     { label: "Attendance", value: myAttendanceRate, color: "bg-clay-sky" },
     { label: "Activity", value: Math.round(myActivityPct), color: "bg-clay-lime" },
-    { label: "Participation", value: memberCards.length ? Math.round((memberCards.filter((c) => c.points > 0).length / memberCards.length) * 100) : 0, color: "bg-clay-purple" },
+    { label: "Participation", value: periodMemberCards.length ? Math.round((periodMemberCards.filter((card) => card.points > 0).length / periodMemberCards.length) * 100) : 0, color: "bg-clay-purple" },
   ];
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
   const nextMissionMinutes = missionEstimate(nextMission);
@@ -158,7 +188,8 @@ export default function StudentDashboard() {
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <DashboardRangeTabs value={range} onChange={setRange} />
+        <DashboardRangeTabs value={range} onChange={setRange} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
+        <p className="w-full text-xs text-ink/55 sm:w-auto">Showing {selectedPeriod.label}</p>
         <ClayChip color="sky">Group {group.group_number} <GroupBadgeMarkers groupId={group.id} badges={badges} definitions={badgeDefinitions} /></ClayChip>
       </div>
 

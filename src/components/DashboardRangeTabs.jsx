@@ -35,7 +35,7 @@ export default function DashboardRangeTabs({ value, onChange, anchorDate, onAnch
           {option.label}
         </button>
       ))}
-      <button type="button" onClick={openPicker} className="hidden items-center rounded-xl px-2 text-ink/60 transition-colors hover:bg-clay-purple/10 hover:text-[var(--uc-purple)] sm:flex" aria-label="Choose a date" title="Choose a date">
+      <button type="button" onClick={openPicker} className="inline-flex items-center rounded-xl px-2 text-ink/60 transition-colors hover:bg-clay-purple/10 hover:text-[var(--uc-purple)]" aria-label="Choose a date" title="Choose a date">
         <CalendarDays className="h-4 w-4" />
       </button>
       {pickerOpen && <div className="absolute right-0 top-[calc(100%+.5rem)] z-20 w-60 rounded-2xl border border-ink/10 bg-white p-3 shadow-[var(--uc-shadow-lg)]">
