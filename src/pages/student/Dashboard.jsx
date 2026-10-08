@@ -62,6 +62,7 @@ export default function StudentDashboard() {
   const initialCache = studentDashboardCache?.userId === user?.id && Date.now() - studentDashboardCache.savedAt < STUDENT_DASHBOARD_CACHE_MS ? studentDashboardCache.data : null;
   const [data, setData] = useState(initialCache);
   const [loading, setLoading] = useState(!initialCache);
+  const [loadError, setLoadError] = useState("");
   const [range, setRange] = useState("week");
   const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
 
@@ -69,45 +70,73 @@ export default function StudentDashboard() {
     let active = true;
     async function load() {
       if (!user) return;
+      setLoadError("");
       const account = await getActiveStudentAccount(user.id);
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const group = await db.entities.Group.get(account.group_id);
       const classroomId = group.classroom_id;
-      const [classroom, members, rankResult, attendance, scores, activities, logs, avatarResult] = await Promise.all([
+
+      // Paint the learner's space as soon as their approved account and group
+      // resolve. Historical records can grow indefinitely; keeping them in a
+      // single blocking Promise.all used to leave the entire desktop page on a
+      // skeleton while old attendance and ledger rows were downloaded.
+      const immediate = {
+        account, group, classroom: {}, members: [], attendance: [], scores: [], activities: [], logs: [],
+        badges: [], badgeDefinitions: [], memberCards: [],
+        groupLeaderboard: [{ group: { id: group.id, group_number: group.group_number }, points: 0 }],
+        indLeaderboard: [], personalStreak: 0, myAvatarKey: user?.avatar_key || null,
+        missions: [], announcements: [],
+      };
+      studentDashboardCache = { userId: user.id, data: immediate, savedAt: Date.now() };
+      if (!active) return;
+      setData(immediate);
+      setLoading(false);
+
+      const [classroom, members, rankResult] = await Promise.all([
         db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
-        db.entities.Attendance.filter({ classroom_id: classroomId }),
-        db.entities.ActivityScore.filter({ classroom_id: classroomId }),
-        db.entities.Activity.filter({ classroom_id: classroomId }),
-        db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
-        supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
       ]);
       if (rankResult.error) throw rankResult.error;
       if (!active) return;
 
-      const avatarKeys = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.avatar_key]));
-      const memberCards = members.map((m) => {
-        const streak = computeAttendanceStreak(m.id, attendance, classroom?.class_days);
-        const act = computeActivityPct(m.id, scores, activities);
-        const pts = computeParticipationPoints(m.id, logs);
-        return { member: m, streak, activityPct: act.pct, points: pts, avatarKey: avatarKeys.get(m.id) };
-      });
-
       const groupLeaderboard = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, points: Number(row.points || 0) }))
         .sort((a, b) => b.points - a.points);
+      setData((current) => {
+        const next = { ...current, classroom, members, groupLeaderboard };
+        studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+        return next;
+      });
 
-      const indLeaderboard = members
-        .map((m) => ({ member: m, points: computeParticipationPoints(m.id, logs), avatarKey: avatarKeys.get(m.id) }))
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 10);
-
-      const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
-
-      const snapshot = { account, group, classroom, members, attendance, scores, activities, logs, badges: [], badgeDefinitions: [], memberCards, groupLeaderboard, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null, missions: [], announcements: [] };
-      studentDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
-      setData(snapshot);
-      setLoading(false);
+      // All record queries are explicitly scoped to the active group and only
+      // select the fields this panel renders. They hydrate independently, so a
+      // delayed historical dataset cannot make the page appear broken.
+      Promise.all([
+        db.entities.Attendance.filter({ group_id: group.id }, { columns: 'group_member_id,status,attendance_date' }),
+        db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,created_date' }),
+        db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,max_score,created_date' }),
+        db.entities.ParticipationLog.filter({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
+        supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
+      ]).then(([attendance, scores, activities, logs, avatarResult]) => {
+        if (!active || avatarResult.error) return;
+        const avatarKeys = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.avatar_key]));
+        const memberCards = members.map((member) => {
+          const streak = computeAttendanceStreak(member.id, attendance, classroom?.class_days);
+          const act = computeActivityPct(member.id, scores, activities);
+          const points = computeParticipationPoints(member.id, logs);
+          return { member, streak, activityPct: act.pct, points, avatarKey: avatarKeys.get(member.id) };
+        });
+        const indLeaderboard = members
+          .map((member) => ({ member, points: computeParticipationPoints(member.id, logs), avatarKey: avatarKeys.get(member.id) }))
+          .sort((left, right) => right.points - left.points)
+          .slice(0, 10);
+        const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
+        setData((current) => {
+          const next = current && { ...current, attendance, scores, activities, logs, memberCards, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null };
+          if (next) studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          return next;
+        });
+      }).catch((error) => console.warn('Dashboard progress data could not be loaded', error));
 
       Promise.all([
         db.entities.Announcement.filter({ classroom_id: classroomId, is_pinned: true }),
@@ -131,12 +160,16 @@ export default function StudentDashboard() {
     }
     load().catch((error) => {
       console.error("Student dashboard could not be loaded", error);
-      if (active) setLoading(false);
+      if (active) {
+        setLoadError(error?.message || "Your dashboard could not be loaded yet.");
+        setLoading(false);
+      }
     });
     return () => { active = false; };
   }, [user, navigate]);
 
   if (loading) return <PanelSkeleton />;
+  if (!data) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><h1 className="font-display text-xl font-extrabold">Dashboard unavailable</h1><p className="mt-2 text-sm text-ink/60">{loadError || "Please refresh and try again."}</p><ClayButton className="mt-4" onClick={() => window.location.reload()}>Try again</ClayButton></ClayCard>;
 
   const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, myAvatarKey, missions, announcements } = data;
   const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
