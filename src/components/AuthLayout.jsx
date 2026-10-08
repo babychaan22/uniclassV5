@@ -4,7 +4,7 @@ import BrandMark from "@/components/BrandMark";
 
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,#F3EFFF_0%,#FBFAF7_42%,#FBFAF7_100%)] px-4">
+    <div className="uc-app-background min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <div className="mb-6 inline-flex items-center gap-2 text-[var(--uc-navy-950)]"><BrandMark /><span className="font-display text-2xl font-extrabold">UniClass</span></div>

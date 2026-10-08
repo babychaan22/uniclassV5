@@ -44,15 +44,15 @@ module.exports = {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
-  			ink: '#17162B',
-  			cream: '#FFF8EF',
+			ink: '#1B2753',
+			cream: '#FFFDF7',
     clay: {
-    			purple: '#8E5CF6',
-    			pink: '#F34A9B',
-    			lime: '#84D92C',
-    			sun: '#FFC52C',
-    			sky: '#32A9ED',
-    			coral: '#EB5757',
+				purple: '#7C72E8',
+				pink: '#F58BB5',
+				lime: '#97E6BD',
+				sun: '#FFD06C',
+				sky: '#72B7FF',
+				coral: '#F27086',
     		},
   			chart: {
   				'1': 'hsl(var(--chart-1))',
@@ -72,10 +72,11 @@ module.exports = {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		fontFamily: {
-  			heading: ['"Baloo 2"', 'system-ui', 'sans-serif'],
-  			body: ['Inter', 'system-ui', 'sans-serif'],
-  			display: ['"Baloo 2"', 'system-ui', 'sans-serif'],
+		fontFamily: {
+			sans: ['Fredoka', 'system-ui', 'sans-serif'],
+			heading: ['Fredoka', 'system-ui', 'sans-serif'],
+			body: ['Fredoka', 'system-ui', 'sans-serif'],
+			display: ['Fredoka', 'system-ui', 'sans-serif'],
   			mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace']
   		},
   		keyframes: {

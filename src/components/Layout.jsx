@@ -136,6 +136,7 @@ export default function Layout() {
       ]
     : STUDENT_NAV;
   const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
+  const canvasTheme = learnerTheme || "uc-app-background";
 
   useEffect(() => {
     const current = TEACHER_NAV_SECTIONS.find((section) => section.items.some((item) => item.path === location.pathname));
@@ -173,7 +174,7 @@ export default function Layout() {
 
   return (
     <GroupBadgeProvider user={user} isTeacher={isTeacher}>
-    <div className={`min-h-screen bg-[var(--uc-bg)] ${learnerTheme}`}>
+    <div className={`min-h-screen bg-[var(--uc-bg)] ${canvasTheme}`}>
       <OfflineStatus />
       <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
         <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">

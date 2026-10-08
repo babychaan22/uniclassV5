@@ -25,18 +25,25 @@ const UI_ASSETS = {
   menu: "/ui-kit/menu.svg",
 };
 
+// The pose set shares one silhouette, palette, and hand-painted finish so Nova
+// feels native to the illustrated UniClass canvas in every context.
+const NOVA_ROBOT = "/nova/nova-robot.png";
+const NOVA_CELEBRATE = "/nova/nova-robot-celebrate.png";
+const NOVA_THINKING = "/nova/nova-robot-thinking.png";
+const NOVA_ASSESSMENT = "/nova/nova-robot-assessment.png";
+const NOVA_NOTIFICATION = "/nova/nova-robot-notification.png";
 const NOVA_ASSETS = {
-  welcome: "/ui-kit/nova-welcome.svg",
-  celebrate: "/ui-kit/nova-celebrate.svg",
-  assessment: "/ui-kit/nova-assessment.svg",
-  achievement: "/ui-kit/nova-achievement.svg",
-  ai: "/ui-kit/nova-thinking.svg",
-  success: "/ui-kit/nova-celebrate.svg",
-  thinking: "/ui-kit/nova-thinking.svg",
-  notification: "/ui-kit/nova-notification.svg",
-  learning: "/ui-kit/nova-welcome.svg",
-  listening: "/ui-kit/nova-listening.svg",
-  profile: "/ui-kit/nova-profile.svg",
+  welcome: NOVA_ROBOT,
+  celebrate: NOVA_CELEBRATE,
+  assessment: NOVA_ASSESSMENT,
+  achievement: NOVA_CELEBRATE,
+  ai: NOVA_THINKING,
+  success: NOVA_CELEBRATE,
+  thinking: NOVA_THINKING,
+  notification: NOVA_NOTIFICATION,
+  learning: NOVA_ROBOT,
+  listening: NOVA_ROBOT,
+  profile: NOVA_ROBOT,
 };
 
 const NOVA_ALIASES = { teacher: "welcome", idea: "ai", tablet: "ai", quest: "assessment" };
@@ -44,7 +51,7 @@ const NOVA_ALIASES = { teacher: "welcome", idea: "ai", tablet: "ai", quest: "ass
 export function UIAsset({ name, alt = "", className = "" }) {
   const src = UI_ASSETS[name];
   if (!src) return null;
-  return <img src={src} alt={alt} aria-hidden={alt ? undefined : true} loading="lazy" decoding="async" className={cn("object-contain", className)} />;
+  return <img src={src} alt={alt} aria-hidden={alt ? undefined : true} loading="lazy" decoding="async" className={cn("uc-icon-3d object-contain", className)} />;
 }
 
 export function NovaAsset({ pose = "welcome", alt = "", priority = false, className = "" }) {

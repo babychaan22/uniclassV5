@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -13,59 +13,59 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 258 90% 66%;
+    --primary: 247 71% 68%;
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
-    --accent: 199 91% 63%;
+    --accent: 211 100% 72%;
     --accent-foreground: 0 0% 9%;
     --destructive: 11 100% 67%;
     --destructive-foreground: 0 0% 98%;
     --border: 243 31% 12%;
     --input: 0 0% 89.8%;
-    --ring: 258 90% 66%;
-    --chart-1: 258 90% 66%;
+    --ring: 247 71% 68%;
+    --chart-1: 247 71% 68%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 340 100% 66%;
     --radius: 1rem;
-    --font-heading: "Baloo 2", system-ui, sans-serif;
-    --font-body: "Inter", system-ui, sans-serif;
-    --font-display: "Baloo 2", system-ui, sans-serif;
+    --font-heading: "Fredoka", system-ui, sans-serif;
+    --font-body: "Fredoka", system-ui, sans-serif;
+    --font-display: "Fredoka", system-ui, sans-serif;
     --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-    --uc-bg: #FBFAF7;
+    --uc-bg: #F8F7FF;
     --uc-surface: #FFFFFF;
 
-    --uc-navy: #102065;
-    --uc-navy-950: #102065;
-    --uc-navy-800: #26377B;
+    --uc-navy: #1B2753;
+    --uc-navy-950: #1B2753;
+    --uc-navy-800: #33457D;
 
-    --uc-purple: #8E5CF6;
-    --uc-purple-soft: #EEE7FF;
-    --uc-blue: #32A9ED;
-    --uc-blue-soft: #E8F7FF;
-    --uc-green: #84D92C;
-    --uc-green-soft: #EDFAE0;
-    --uc-yellow: #FFC52C;
-    --uc-yellow-soft: #FFF9E6;
-    --uc-pink: #F34A9B;
-    --uc-pink-soft: #FFF0F7;
-    --uc-danger: #EB5757;
+    --uc-purple: #7C72E8;
+    --uc-purple-soft: #F0EEFF;
+    --uc-blue: #72B7FF;
+    --uc-blue-soft: #EBF5FF;
+    --uc-green: #97E6BD;
+    --uc-green-soft: #EAFBF2;
+    --uc-yellow: #FFD06C;
+    --uc-yellow-soft: #FFF7E4;
+    --uc-pink: #F58BB5;
+    --uc-pink-soft: #FFF0F6;
+    --uc-danger: #F27086;
 
     --uc-shadow-sm: 0 2px 8px rgba(31, 42, 91, .06);
     --uc-shadow-md: 0 8px 24px rgba(31, 42, 91, .07), 0 2px 5px rgba(31, 42, 91, .04);
 
-    --clay-purple: #8E5CF6;
-    --clay-pink: #F34A9B;
-    --clay-lime: #84D92C;
-    --clay-sun: #FFC52C;
-    --clay-sky: #32A9ED;
-    --clay-coral: #EB5757;
-    --ink: #17162B;
-    --cream: #FFF8EF;
+    --clay-purple: #7C72E8;
+    --clay-pink: #F58BB5;
+    --clay-lime: #97E6BD;
+    --clay-sun: #FFD06C;
+    --clay-sky: #72B7FF;
+    --clay-coral: #F27086;
+    --ink: #1B2753;
+    --cream: #FFFDF7;
   }
 
   .dark {
@@ -112,6 +112,9 @@
     height: 2.75rem;
     flex: 0 0 auto;
     border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, .74);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.65), 0 5px 10px rgba(44, 55, 116, .13);
+    transition: transform .18s ease, box-shadow .18s ease;
   }
   .uc-progress-track {
     height: .6rem;
@@ -205,6 +208,36 @@
   }
 }
 
+/* A small depth treatment makes the illustrated asset set feel like one family
+   with Nova instead of a mix of flat navigation glyphs. */
+.uc-icon-3d {
+  filter: drop-shadow(0 2px 0 rgba(35, 50, 112, .14)) drop-shadow(0 5px 7px rgba(35, 50, 112, .14));
+  transform: translateZ(0);
+  transition: transform .18s ease, filter .18s ease;
+}
+a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
+  filter: drop-shadow(0 3px 0 rgba(35, 50, 112, .14)) drop-shadow(0 8px 10px rgba(35, 50, 112, .16));
+  transform: translateY(-2px) scale(1.045);
+}
+.uc-icon-tile:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 14px rgba(44, 55, 116, .16); }
+
+@keyframes uc-panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes uc-soft-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .uc-app-background main > * { animation: uc-panel-in .46s cubic-bezier(.2,.8,.2,1) both; }
+  .uc-app-background main > *:nth-child(2) { animation-delay: .06s; }
+  .uc-app-background main > *:nth-child(3) { animation-delay: .12s; }
+  .uc-app-background .uc-card, .uc-app-background .clay-card, .uc-app-background .clay-tile { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+  .uc-app-background .uc-card:hover, .uc-app-background .clay-card:hover { transform: translateY(-3px); box-shadow: 0 15px 28px rgba(38, 53, 118, .14); }
+  .uc-landing-float { animation: uc-soft-float 4.5s ease-in-out infinite; }
+}
+
 .uc-brand-mark {
   position: relative;
   display: inline-block;
@@ -226,6 +259,86 @@
 .uc-brand-mark__leaf--green { right: .15rem; background: linear-gradient(145deg, #B8F264, #66BD2C); transform: rotate(34deg) scaleX(-1); }
 .uc-brand-mark__stem { position: absolute; bottom: .08rem; left: .94rem; width: .15rem; height: .55rem; border-radius: 99px; background: #2E9A53; }
 .uc-brand-mark--compact { transform: scale(.84); transform-origin: center; }
+
+/* Shared canvas artwork stays deliberately quiet in the centre, where the
+   interface lives. Wide and portrait versions keep the edge illustrations
+   visible without forcing a desktop crop onto tablets or phones. */
+.uc-app-background {
+  background-color: var(--uc-bg);
+  background-image: url('/backgrounds/uniclass-learning-background.png');
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+@media (max-width: 1023px) {
+  .uc-app-background {
+    background-position: center top;
+    background-image: url('/backgrounds/uniclass-learning-background-portrait.png');
+    background-size: cover;
+    background-attachment: fixed;
+  }
+}
+
+.dark .uc-app-background {
+  background-color: #201f35;
+  background-image: linear-gradient(rgba(32,31,53,.86), rgba(32,31,53,.86)), url('/backgrounds/uniclass-learning-background.png');
+}
+
+@media (max-width: 1023px) {
+  .dark .uc-app-background {
+    background-image: linear-gradient(rgba(32,31,53,.86), rgba(32,31,53,.86)), url('/backgrounds/uniclass-learning-background-portrait.png');
+  }
+}
+
+/* Glass surfaces separate working content from the illustrated canvas without
+   softening the text inside. Strongly coloured status/reward cards keep their
+   solid fills so their meaning remains immediately recognisable. */
+.uc-app-background .uc-card,
+.uc-app-background .clay-card,
+.uc-app-background .clay-tile.bg-white,
+.uc-app-background .clay-tile.bg-cream,
+.uc-app-background aside > nav {
+  background-color: rgba(255, 255, 255, .84) !important;
+  border-color: rgba(255, 255, 255, .72);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(1.05);
+}
+
+.uc-app-background .uc-page-title {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .78);
+}
+
+.uc-app-background main {
+  border: 1px solid rgba(255, 255, 255, .48);
+  border-radius: 28px;
+  background-color: rgba(255, 255, 255, .26);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.dark .uc-app-background .uc-card,
+.dark .uc-app-background .clay-card,
+.dark .uc-app-background .clay-tile.bg-white,
+.dark .uc-app-background .clay-tile.bg-cream,
+.dark .uc-app-background aside > nav {
+  background-color: rgba(48, 46, 75, .84) !important;
+  border-color: rgba(255, 255, 255, .10);
+}
+
+.dark .uc-app-background main {
+  border-color: rgba(255, 255, 255, .08);
+  background-color: rgba(32, 31, 53, .32);
+}
+
+@media (max-width: 1023px) {
+  .uc-app-background main {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+  }
+}
 
 /* Learner-selected themes decorate the complete app canvas, while cards stay
    high-contrast and easy to read. They are visual-only and never affect data. */
