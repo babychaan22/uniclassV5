@@ -53,7 +53,7 @@ const SYSTEM_BADGE_LABELS = {
   weekly_top_individual_points: 'Top Point Earner',
 };
 
-const CORRECTABLE_TYPES = new Set(['scan', 'gacha_win', 'gacha_even', 'mission_redemption']);
+const CORRECTABLE_TYPES = new Set(['scan', 'gacha_win', 'gacha_even', 'mission_redemption', 'manual_award']);
 
 export default function ActivityLogs() {
   const { user } = useAuth();
@@ -109,9 +109,10 @@ const logEntries = logs.map((l) => {
       return {
         id: `log-${l.id}`,
         type: l.event_type || "scan",
-        // A penalty is stored positive and reads as a deduction everywhere else,
-        // so the log has to show it the same way or a teacher sees "+5".
+        // A penalty is a negative group-pool ledger entry and must display as a
+        // deduction wherever teachers review or remove it.
         points: movedOriginal || removed ? null : signedPoints(l),
+        originalPoints: Number(l.points_awarded || 0),
         removedPoints: removed ? Number(l.reversed_points || 0) : null,
         removed,
         removalReason: l.reversal_reason || null,
@@ -129,7 +130,7 @@ const logEntries = logs.map((l) => {
         correctable: CORRECTABLE_TYPES.has(l.event_type) && Number(l.points_awarded || 0) > 0,
         voidable: !removed && !movedOriginal
           && ['scan', 'gacha_win', 'gacha_even', 'manual_award', 'behavior_penalty', 'mission_redemption'].includes(l.event_type)
-          && (Number(l.points_awarded || 0) > 0 || Number(l.xp_spent || 0) > 0),
+          && (Math.abs(Number(l.points_awarded || 0)) > 0 || Number(l.xp_spent || 0) > 0),
       }; });
 
     const redemptionEntries = redemptions.map((r) => ({
@@ -363,7 +364,7 @@ const logEntries = logs.map((l) => {
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {e.correctable && (
                             <ClayButton size="sm" color="cream" onClick={() => setCorrection(correction?.sourceLogId === e.sourceLogId ? null : e)}>
-                              <ArrowRightLeft className="h-3.5 w-3.5" /> Correct recipient
+                              <ArrowRightLeft className="h-3.5 w-3.5" /> Correct points
                             </ClayButton>
                           )}
                           {e.voidable && (
@@ -373,7 +374,7 @@ const logEntries = logs.map((l) => {
                               onClick={() => setVoidTarget(voidTarget?.sourceLogId === e.sourceLogId ? null : e)}
                               title="Take these points back. The entry stays visible, marked as removed."
                             >
-                              <Undo2 className="h-3.5 w-3.5" /> Remove entry
+                              <Undo2 className="h-3.5 w-3.5" /> Remove points
                             </ClayButton>
                           )}
                           {correction?.sourceLogId === e.sourceLogId && (
@@ -382,7 +383,7 @@ const logEntries = logs.map((l) => {
                           {voidTarget?.sourceLogId === e.sourceLogId && (
                             <div className="w-full rounded-lg border-2 border-clay-coral/40 bg-clay-coral/10 p-2">
                               <p className="text-xs font-bold text-ink">
-                                Take back {e.points ? `${formatAmount(e.points)} points` : `${formatAmount(e.points_awarded)} points`}? The entry stays in the log marked as removed, and the student can see it happened.
+                                Take back {formatAmount(Math.abs(Number(e.points ?? e.originalPoints ?? 0)))} participation point{Math.abs(Number(e.points ?? e.originalPoints ?? 0)) === 1 ? '' : 's'}? The entry stays in the log marked as removed, and the student can see it happened.
                               </p>
                               <input
                                 className="clay-input mt-2 text-xs"
