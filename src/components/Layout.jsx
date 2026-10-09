@@ -248,7 +248,7 @@ export default function Layout() {
       </div>
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(29,38,88,.08)] backdrop-blur no-print">
-        <div className="flex h-16 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-16 items-center justify-start gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" style={{ justifyContent: "flex-start" }}>
           {mobileNav.map((item) => {
             const Icon = item.icon;
             const assetName = NAV_ASSET_BY_LABEL[item.label];
