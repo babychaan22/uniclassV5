@@ -8,15 +8,18 @@ const SIZES = {
   hero: "w-36 md:w-48 lg:w-56",
 };
 
-const NOVA_ROBOT = "/nova/nova-robot.png";
-const NOVA_CELEBRATE = "/nova/nova-robot-celebrate.png";
-const NOVA_THINKING = "/nova/nova-robot-thinking.png";
+const NOVA_ROBOT = "/nova/nova-robot-v2.png";
+const NOVA_TEACHER = "/nova/nova-robot-teacher.png";
+const NOVA_CELEBRATE = "/nova/nova-robot-achievement-v2.png";
+const NOVA_THINKING = "/nova/nova-robot-thinking-v2.png";
+const NOVA_ATTENDANCE = "/nova/nova-robot-attendance-v2.png";
 const ASSET_BY_VARIANT = {
   welcome: NOVA_ROBOT,
   celebrate: NOVA_CELEBRATE,
-  teacher: NOVA_ROBOT,
+  teacher: NOVA_TEACHER,
   achievement: NOVA_CELEBRATE,
   idea: NOVA_THINKING,
+  attendance: NOVA_ATTENDANCE,
 };
 
 export function NovaImage({ variant = "welcome", size = "md", className = "", priority = false, alt = "" }) {

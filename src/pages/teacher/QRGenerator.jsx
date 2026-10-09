@@ -81,7 +81,7 @@ export default function TeacherQRGenerator() {
           <h1 className="uc-page-title text-4xl leading-[.92]">QR Code Generator</h1>
           <p className="mt-3 text-sm text-ink/60">General codes · usable by any approved UniClass class · codes never expire</p>
         </div>
-        <NovaMessage variant="idea" tone="pink" title="A quick class moment">
+        <NovaMessage variant="attendance" tone="pink" title="A quick class moment">
           Generate a batch, print it, and let each scan turn participation into progress.
         </NovaMessage>
       </div>

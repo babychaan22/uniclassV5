@@ -123,7 +123,7 @@ export default function TrendCharts({ classroomId, members, currentMemberId, att
         </div>
       </ClayCard>
       <ClayCard className="p-4 sm:col-span-2 sm:p-5 lg:col-span-1">
-        <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-pink/12"><UIAsset name="analytics" className="h-8 w-8" /></span>Points earned</p>
+        <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-pink/12"><UIAsset name="reward" className="h-8 w-8" /></span>Points earned</p>
         <ResponsiveContainer width="100%" height={160}>
           <BarChart data={weeklyPoints} margin={{ top: 14, right: 0, left: -28, bottom: 0 }}><XAxis dataKey="week" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="points" fill="#FF5FA8" radius={[8, 8, 0, 0]} /></BarChart>
         </ResponsiveContainer>

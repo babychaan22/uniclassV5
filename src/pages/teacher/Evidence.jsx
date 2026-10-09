@@ -115,7 +115,7 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
           <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Activity proof</h1>
           <p className="mt-1 text-sm leading-relaxed text-ink/60">Review images uploaded by students or representatives before scores are submitted.</p>
         </div>
-        <NovaMessage variant="assessment" tone="violet" title="Every proof tells part of the story.">Open a tile to inspect the work at full size.</NovaMessage>
+        <NovaMessage variant="evidence" tone="violet" title="Every proof tells part of the story.">Open a tile to inspect the work at full size.</NovaMessage>
       </section>
       <div className="flex justify-end">
         <ClayButton onClick={load} color="white" className="shrink-0" aria-label="Refresh activity proof"><RefreshCw className="w-4 h-4" /></ClayButton>

@@ -77,7 +77,7 @@ module.exports = {
 			heading: ['Fredoka', 'system-ui', 'sans-serif'],
 			body: ['Fredoka', 'system-ui', 'sans-serif'],
 			display: ['Fredoka', 'system-ui', 'sans-serif'],
-  			mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace']
+			mono: ['Fredoka', 'system-ui', 'sans-serif']
   		},
   		keyframes: {
   			'accordion-down': {

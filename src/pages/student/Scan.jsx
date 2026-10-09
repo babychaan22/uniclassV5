@@ -331,7 +331,7 @@ export default function StudentScan() {
           <CapsulePop trigger={Date.now()} className="flex flex-col items-center">
             <div className="relative mb-3">
               <MascotWidget state="excited" size="md" />
-              <Nova variant="celebrate" size="sm" className="absolute -bottom-1 -right-2 h-8 w-8 opacity-90" />
+              <Nova variant="attendance" size="sm" className="absolute -bottom-1 -right-2 h-8 w-8 opacity-90" />
             </div>
             <ClayCard color={result.gacha ? MOOD_COLOR[result.gacha.mood] : "lime"} className="p-8 text-center max-w-xs mx-auto">
               <div className="text-5xl mb-2">

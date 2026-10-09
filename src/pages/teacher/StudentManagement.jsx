@@ -113,7 +113,7 @@ export default function TeacherStudentManagement() {
 
       {pending.length === 0 ? (
         <ClayCard className="p-6 text-center">
-          <UIAsset name="students" className="mx-auto mb-2 h-14 w-14" />
+          <UIAsset name="profile" className="mx-auto mb-2 h-14 w-14" />
           <p className="text-ink/50 text-sm">No pending requests. All students are assigned.</p>
         </ClayCard>
       ) : (

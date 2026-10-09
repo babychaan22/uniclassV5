@@ -4,6 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/api/supabaseClient";
 import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
@@ -14,14 +15,13 @@ import { computeClassification } from "@/lib/classification";
 import {
   computeAttendanceRate, computeActivityPct, computeParticipationPoints, computeCategoryPct, signedPoints,
 } from "@/lib/stats";
-import { Printer, BarChart3, Award, Download, CheckCircle2, ClipboardCheck, Target, QrCode, Coins } from "lucide-react";
+import { Printer, BarChart3, Award, CheckCircle2, ClipboardCheck, Target, QrCode, Coins } from "lucide-react";
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import PendingApprovalBulk from "@/components/teacher/PendingApprovalBulk";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { downloadGroupPdf } from "@/lib/groupPdf";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
 
@@ -51,10 +51,11 @@ export default function TeacherDashboard() {
       setAttentionLoading(true);
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-      const [ds, teacherClasses, badgeDefinitions] = await Promise.all([
+      const [ds, teacherClasses, badgeDefinitions, scoreEditsResult] = await Promise.all([
         getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges']),
         getTeacherClassrooms(user.id),
         db.entities.BadgeDefinition.filter({ classroom_id: classroom.id }),
+        supabase.from('activity_score_edit_requests').select('*').eq('classroom_id', classroom.id).eq('status', 'pending'),
       ]);
       const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
@@ -111,7 +112,7 @@ export default function TeacherDashboard() {
 
       if (!active) return;
       setPending(pendingAccounts);
-      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, attentionByClass: [] };
+      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, scoreEdits: scoreEditsResult.data || [], attentionByClass: [] };
       teacherDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
       setData(snapshot);
       setLoading(false);
@@ -150,7 +151,7 @@ export default function TeacherDashboard() {
   if (loading) return <PanelSkeleton cards={4} />;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, attentionByClass } = data;
+  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, scoreEdits = [], attentionByClass } = data;
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRiskRows = memberRows.filter((r) => r.cls.tag === "At Risk")
@@ -178,13 +179,25 @@ export default function TeacherDashboard() {
   const classProgress = Math.round((attendanceRate + activityAverage) / (attendanceRate > 0 || activityAverage > 0 ? 2 : 1)) || 0;
   const scoredActivityIds = new Set(scores.map((s) => s.activity_id));
   const toGradeCount = activities.filter((a) => !scoredActivityIds.has(a.id)).length;
-  const classParticipation = visibleTrend.map((item) => ({ label: item.date?.slice(5) || "—", value: item.present || 0 }));
+  const groupParticipation = groups.map((group) => {
+    const membersInGroup = memberRows.filter((row) => row.group?.id === group.id);
+    const total = membersInGroup.reduce((sum, row) => sum + Number(row.pts || 0), 0);
+    return { label: `G${group.group_number}`, total };
+  });
+  const highestGroupParticipation = Math.max(...groupParticipation.map((item) => item.total), 1);
   const recentAchievements = logs.slice().sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")).slice(0, 3);
-  const learningAreas = [
-    { label: "Attendance", value: attendanceRate, color: "bg-clay-sky" },
-    { label: "Activities", value: activityAverage, color: "bg-clay-lime" },
-    { label: "Participation", value: memberRows.length ? Math.round((onTrack / memberRows.length) * 100) : 0, color: "bg-clay-purple" },
-  ];
+  const lowAttendanceRows = memberRows.filter((row) => row.att.count > 0 && row.att.rate < 60);
+  const lowActivityRows = memberRows.filter((row) => row.act.count > 0 && row.act.pct < 60);
+  const averagePoints = memberRows.length ? memberRows.reduce((sum, row) => sum + Number(row.pts || 0), 0) / memberRows.length : 0;
+  const lowParticipationRows = averagePoints > 0 ? memberRows.filter((row) => Number(row.pts || 0) < averagePoints) : [];
+  const memberLabel = (row) => `${row.member.last_name}, ${row.member.first_name}`;
+  const attentionCategories = [
+    { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => `${Math.round(row.att.rate)}%` },
+    { label: "Low activity average", rows: lowActivityRows, detail: (row) => `${Math.round(row.act.pct)}%` },
+    { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${row.pts} pts` },
+    { label: "Join approvals", rows: pending, detail: () => "Awaiting approval", account: true },
+    { label: "Score edit approvals", rows: scoreEdits, detail: () => "Review score edit", edit: true },
+  ].filter((category) => category.rows.length);
 
   async function approveAll(ids) {
     await db.entities.GroupAccount.bulkUpdate(ids.map((id) => ({ id, is_approved: true })));
@@ -228,13 +241,12 @@ export default function TeacherDashboard() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            { label: "Attendance", path: ROUTES.TEACHER.ATTENDANCE, icon: ClipboardCheck, tone: "bg-clay-sky/15 text-clay-sky" },
-            { label: "Mission", path: ROUTES.TEACHER.MISSIONS, icon: Target, tone: "bg-clay-purple/15 text-clay-purple" },
-            { label: "Points", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: Coins, tone: "bg-clay-lime/20 text-clay-lime" },
-            { label: "QR code", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode, tone: "bg-clay-sun/20 text-clay-sun" },
+            { label: "Attendance", path: ROUTES.TEACHER.ATTENDANCE, icon: "attendance", tone: "bg-clay-sky/15" },
+            { label: "Mission", path: ROUTES.TEACHER.MISSIONS, icon: "missions", tone: "bg-clay-purple/15" },
+            { label: "Points", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: "reward", tone: "bg-clay-lime/20" },
+            { label: "QR code", path: ROUTES.TEACHER.QR_GENERATOR, icon: "qr", tone: "bg-clay-sun/20" },
           ].map((action) => {
-            const Icon = action.icon;
-            return <Link key={action.label} to={action.path} className="group flex min-h-14 items-center gap-2 rounded-xl border border-ink/10 bg-white px-2.5 py-2 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.tone}`}><Icon className="h-4 w-4" /></span><p className="min-w-0 font-display text-xs font-extrabold text-[var(--uc-navy-950)] sm:text-sm">{action.label}</p></Link>;
+            return <Link key={action.label} to={action.path} className="group flex min-h-14 items-center gap-2 rounded-xl border border-ink/10 bg-white px-2.5 py-2 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.tone}`}><UIAsset name={action.icon} className="h-5 w-5" /></span><p className="min-w-0 font-display text-xs font-extrabold text-[var(--uc-navy-950)] sm:text-sm">{action.label}</p></Link>;
           })}
         </div>
       </section>
@@ -268,49 +280,24 @@ export default function TeacherDashboard() {
 
       <section className="grid gap-4 no-print lg:grid-cols-[1.1fr_.9fr]">
         <ClayCard className="p-4">
-          <h3 className="font-display text-sm font-bold text-ink/60 mb-4">Today's classes</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-2 rounded-xl hover:bg-clay-purple/5 transition-colors">
-              <div>
-                <p className="font-display font-bold">{classroom.grade_level} · {classroom.section}</p>
-                <p className="text-xs text-ink/55">{classroom.subject || "Homeroom"} · {groups.length} groups</p>
-              </div>
-              <Link to={ROUTES.TEACHER.ROSTER} className="text-xs font-display font-bold text-clay-purple">Open →</Link>
-            </div>
+          <h3 className="font-display text-sm font-bold text-ink/60">Needs Action</h3>
+          <p className="mb-3 text-xs text-ink/50">Daily and all-time reminders for records that still need attention.</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[{ label: "Attendance", value: memberRows.filter((row) => row.att.count === 0).length, path: ROUTES.TEACHER.ATTENDANCE }, { label: "Activities", value: toGradeCount, path: ROUTES.TEACHER.ACTIVITIES }, { label: "Participation", value: lowParticipationRows.length, path: ROUTES.TEACHER.ACTIVITY_LOGS }, { label: "Missions", value: scoreEdits.length, path: ROUTES.TEACHER.EVIDENCE }].map((item) => <Link key={item.label} to={item.path} className="rounded-xl bg-[var(--uc-bg)] px-2.5 py-2 text-center"><p className="font-mono text-lg font-extrabold text-[var(--uc-navy-950)]">{item.value}</p><p className="text-[10px] font-display font-bold text-ink/55">{item.label}</p></Link>)}
           </div>
         </ClayCard>
         <ClayCard className="p-4">
-          <h3 className="font-display text-sm font-bold text-ink/60 mb-1">Needs attention</h3>
-          <p className="mb-4 text-xs text-ink/50">Only the decisions that need you.</p>
-          <ul className="space-y-3 text-sm">
-            {atRisk > 0 && <li><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-coral" /><span className="font-display font-bold">At-risk learners ({atRisk})</span></div><div className="mt-2 flex flex-wrap gap-1.5">{atRiskRows.map((row) => <Link key={row.member.id} to={ROUTES.TEACHER.ROSTER} className="rounded-full border border-clay-coral/25 bg-clay-coral/10 px-2 py-1 text-xs font-display font-bold text-ink hover:bg-clay-coral/20">{row.member.last_name}, {row.member.first_name} · G{row.group?.group_number || "—"} · {Math.round(row.cls.total || 0)}%</Link>)}</div></li>}
-            {pending.length > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-sun" />{pending.length} pending account{pending.length === 1 ? "" : "s"} awaiting approval</span></li>}
-            {memberRows.filter((r) => r.att.rate < 60).length > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-sky" />{memberRows.filter((r) => r.att.rate < 60).length} student{memberRows.filter((r) => r.att.rate < 60).length === 1 ? "" : "s"} with low attendance</span></li>}
-            {atRisk === 0 && pending.length === 0 && memberRows.filter((r) => r.att.rate < 60).length === 0 && <li className="text-ink/60">All caught up! No urgent items.</li>}
-          </ul>
+          <h3 className="font-display text-sm font-bold text-ink/60">Needs Attention</h3>
+          <p className="mb-3 text-xs text-ink/50">Learners and approvals that need a quick teacher decision.</p>
+          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="flex flex-wrap gap-1">{category.rows.slice(0, 3).map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : ROUTES.TEACHER.ROSTER} className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div></div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
         </ClayCard>
       </section>
 
       <section className="grid gap-4 no-print sm:grid-cols-2 lg:grid-cols-3">
-        <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-purple/12"><UIAsset name="students" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Class participation</h3><p className="text-xs text-ink/60">Active learners each day</p></div></div><div className="mt-5 flex h-24 items-end justify-around gap-2">{classParticipation.length ? classParticipation.map((item, index) => <div key={`${item.label}-${index}`} className="flex h-full flex-1 flex-col justify-end"><div className="min-h-2 rounded-t-xl" style={{ height: `${Math.max(12, Math.min(100, (item.value / Math.max(...classParticipation.map((entry) => entry.value), 1)) * 100))}%`, backgroundColor: ["#8E5CF6", "#F34A9B", "#32A9ED", "#84D92C"][index % 4] }} /><span className="mt-2 text-center text-[10px] font-display text-ink/60">{item.label}</span></div>) : <p className="m-auto text-sm text-ink/50">No attendance yet.</p>}</div></ClayCard>
+        <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-purple/12"><UIAsset name="students" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Group participation</h3><p className="text-xs text-ink/60">Total participation points by group</p></div></div><div className="mt-4 space-y-2.5">{groupParticipation.map((item, index) => <div key={item.label} className="grid grid-cols-[2.25rem_1fr_3.25rem] items-center gap-2 text-xs"><span className="font-display font-extrabold text-[var(--uc-navy-950)]">{item.label}</span><div className="h-3 overflow-hidden rounded-full bg-[var(--uc-purple-soft)]"><div className="h-full rounded-full" style={{ width: `${Math.max(item.total ? 8 : 0, (item.total / highestGroupParticipation) * 100)}%`, backgroundColor: ["#8E5CF6", "#56B4F4", "#C5A4FF", "#FFD75F"][index % 4] }} /></div><span className="text-right font-mono font-bold text-ink/65">{item.total} pts</span></div>)}</div></ClayCard>
         <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-sky/15"><UIAsset name="attendance" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Attendance</h3><p className="text-xs text-ink/60">Students present</p></div></div><div className="mx-auto mt-4 flex h-32 w-32 items-center justify-center rounded-full" style={{ background: `conic-gradient(#32A9ED ${attendanceRate}%, #E8EDF5 0)` }}><div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white"><strong className="font-mono text-3xl">{attendanceRate}%</strong><span className="text-xs text-ink/60">present</span></div></div></ClayCard>
-        <ClayCard className="p-4 sm:col-span-2 lg:col-span-1"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-pink/12"><UIAsset name="assessment" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Activity completion</h3><p className="text-xs text-ink/60">Average by group</p></div></div><div className="mt-5 flex h-24 items-end justify-around gap-3">{groupActivity.map((item, index) => <div key={item.name} className="flex h-full flex-1 flex-col justify-end"><div className="min-h-2 rounded-t-xl bg-clay-lime" style={{ height: `${Math.max(12, item.avg)}%`, backgroundColor: ["#8E5CF6", "#F34A9B", "#32A9ED", "#84D92C"][index % 4] }} /><span className="mt-2 text-center text-[10px] font-display text-ink/60">{item.name}</span></div>)}</div></ClayCard>
+        <ClayCard className="p-4 sm:col-span-2 lg:col-span-1"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-pink/12"><UIAsset name="assessment" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Activity completion</h3><p className="text-xs text-ink/60">Average by group</p></div></div><div className="mt-4 grid grid-cols-2 gap-2">{groupActivity.map((item) => <div key={item.name} className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-center"><p className="text-[10px] font-display font-bold text-ink/55">{item.name}</p><p className="font-mono text-xl font-extrabold text-[var(--uc-navy-950)]">{item.avg}%</p></div>)}</div></ClayCard>
       </section>
-
-      <section className="grid gap-4 no-print lg:grid-cols-[1.05fr_.95fr]">
-        <ClayCard tone="blue" className="p-4 sm:p-5"><div className="flex items-center gap-2"><div className="rounded-2xl bg-clay-sky/25 p-2 text-clay-sky"><BarChart3 className="h-5 w-5" /></div><div><h3 className="font-display text-lg font-extrabold">Learning progress</h3><p className="text-xs text-ink/60">Average mastery by classroom signal</p></div></div><div className="mt-5 space-y-4">{learningAreas.map((area) => <div key={area.label}><div className="mb-1 flex justify-between text-sm font-display font-bold"><span>{area.label}</span><span>{area.value}%</span></div><div className="h-4 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${area.color}`} style={{ width: `${area.value}%` }} /></div></div>)}</div></ClayCard>
-        <ClayCard tone="pink" className="p-4 sm:p-5"><div className="flex items-center gap-2"><div className="rounded-2xl bg-clay-pink/25 p-2 text-clay-pink"><Award className="h-5 w-5" /></div><div><h3 className="font-display text-lg font-extrabold">Recent achievements</h3><p className="text-xs text-ink/60">Latest points and milestones</p></div></div><div className="mt-4 space-y-3">{recentAchievements.length ? recentAchievements.map((entry) => { const shown = signedPoints(entry); return <div key={entry.id} className="flex items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay-lime/25 text-clay-lime"><CheckCircle2 className="h-4 w-4" /></span><p className="min-w-0 flex-1 truncate text-sm font-display font-bold">{entry.note || entry.event_type?.replaceAll("_", " ") || "Participation recorded"}</p><span className="text-xs font-mono text-ink/60">{shown > 0 ? `+${shown}` : shown}</span></div>; }) : <p className="py-4 text-sm text-ink/50">Achievements will appear as students participate.</p>}</div></ClayCard>
-      </section>
-
-      <ClayCard className="p-4 no-print">
-        <h2 className="font-display font-bold text-lg mb-3">Needs attention by class</h2>
-        <p className="mb-2 text-xs text-ink/60">Select a class to see which students need attendance follow-up.</p>
-        {attentionLoading && <p role="status" className="mb-2 text-xs text-ink/50">Checking attendance in your classes…</p>}
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{attentionByClass.map((item) => {
-          const expanded = expandedAttentionClass === item.classroom.id;
-          return <div key={item.classroom.id} className="rounded-xl border-2 border-ink/15 bg-cream p-3"><button type="button" onClick={() => setExpandedAttentionClass(expanded ? null : item.classroom.id)} aria-expanded={expanded} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-display font-bold text-sm">{item.classroom.grade_level} · {item.classroom.section}</p><p className="mt-1 text-xs text-ink/65">{item.isClassToday ? `${item.missingToday} without a present record today` : 'No class scheduled today'} · {item.awaitingApproval} awaiting approval</p></div><span className="text-lg leading-none text-clay-purple">{expanded ? '−' : '+'}</span></div>{item.missingToday === 0 && item.awaitingApproval === 0 && <p className="mt-1 text-xs font-display font-bold text-clay-lime">{item.isClassToday ? 'All clear' : 'Attendance paused'}</p>}</button>{expanded && <div className="mt-3 border-t-2 border-ink/10 pt-2"><p className="text-xs font-display font-bold">Attendance follow-up ({item.needsAttendance.length})</p>{item.needsAttendance.length ? <div className="mt-2 space-y-1.5">{item.needsAttendance.map((student) => <div key={student.id} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-display font-bold">{student.name}</span><ClayChip color={student.status === 'Absent' ? 'coral' : 'sun'}>{student.status}</ClayChip></div>)}</div> : <p className="mt-1 text-xs text-clay-lime">{item.isClassToday ? 'Everyone is marked present today.' : 'This class does not meet today.'}</p>}</div>}</div>;
-        })}</div>
-      </ClayCard>
 
       {pending.length > 0 && (
         <PendingApprovalBulk pending={pending} groups={groups} onApproveAll={approveAll} onApproveOne={approveOne} />
@@ -323,17 +310,17 @@ export default function TeacherDashboard() {
       </ClayCard>
 
       <ClayCard className="p-4">
-        <h2 className="font-display font-bold text-lg mb-3">Group Classifications</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <h2 className="font-display font-bold text-lg mb-3">Group Status</h2>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {groupRows.map((r) => (
-            <div key={r.group.id} className="clay-tile p-3 text-center">
-              <p className="inline-flex items-center justify-center gap-1 font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
-              <p className="font-mono text-2xl font-bold">{r.avgTotal === null ? "—" : `${Math.round(r.avgTotal)}%`}</p>
-              <ClayChip color={r.color}>{r.tag}</ClayChip>
-              <ClayButton size="sm" color="purple" className="mt-2 w-full"
-                onClick={() => downloadGroupPdf({ classroom, term, todayStr, group: r.group, groupRow: r, memberRows: memberRows.filter((mr) => mr.group?.id === r.group.id), attendance, scores, activities })}>
-                <Download className="w-4 h-4" /> PDF
-              </ClayButton>
+            <div key={r.group.id} className="clay-tile p-2.5 text-center">
+              <p className="inline-flex items-center justify-center gap-1 text-sm font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
+              {(() => {
+                const status = r.avgTotal === null ? "Developing" : r.avgTotal >= 80 ? "On Track" : r.avgTotal >= 60 ? "Developing" : "At Risk";
+                const color = status === "On Track" ? "lime" : status === "At Risk" ? "coral" : "sun";
+                const reason = r.avgTotal === null ? "Needs attendance and activity records to establish a baseline." : status === "On Track" ? `Average performance is ${Math.round(r.avgTotal)}%, meeting the class target.` : status === "At Risk" ? `Average performance is ${Math.round(r.avgTotal)}%; attendance or scores need support.` : `Average performance is ${Math.round(r.avgTotal)}%; more consistent progress will move it on track.`;
+                return <><div className="mt-1"><ClayChip color={color}>{status}</ClayChip></div><p className="mt-1 text-[11px] leading-snug text-ink/60">{reason}</p></>;
+              })()}
             </div>
           ))}
         </div>
