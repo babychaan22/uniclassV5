@@ -10,7 +10,6 @@ import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import { Flame, Star, Trophy, Users, Megaphone, ArrowRight, Target, CalendarCheck, ClipboardCheck, HandCoins, ShieldCheck } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
@@ -182,18 +181,29 @@ export default function StudentDashboard() {
   const myAttendanceEntries = periodAttendance.filter((entry) => entry.group_member_id === myMemberId);
   const myAttendanceRate = myAttendanceEntries.length ? Math.round((myAttendanceEntries.filter((entry) => entry.status === "present").length / myAttendanceEntries.length) * 100) : 0;
   const myActivityPct = computeActivityPct(myMemberId, periodScores, periodActivities).pct || 0;
-  const periodMemberCards = members.map((member) => ({ member, points: computeParticipationPoints(member.id, logs.filter(inSelectedPeriod)) }));
-
-  const participationRate = periodMemberCards.length ? Math.round((periodMemberCards.filter((card) => card.points > 0).length / periodMemberCards.length) * 100) : 0;
+  const periodLogs = logs.filter(inSelectedPeriod);
+  const periodMemberCards = members.map((member) => ({ member, points: computeParticipationPoints(member.id, periodLogs) }));
+  const myParticipationPoints = computeParticipationPoints(myMemberId, periodLogs);
+  const myQrScanPoints = periodLogs
+    .filter((log) => log.group_member_id === myMemberId && log.event_type === "scan")
+    .reduce((total, log) => total + Number(log.points_awarded || 0), 0);
+  const groupQrScanPoints = periodLogs
+    .filter((log) => log.event_type === "scan")
+    .reduce((total, log) => total + Number(log.points_awarded || 0), 0);
+  const qrParticipationRate = groupQrScanPoints > 0 ? Math.round((myQrScanPoints / groupQrScanPoints) * 100) : 0;
+  const statusAction = [
+    myAttendanceRate < 60 && "Scan QR",
+    myActivityPct < 60 && "submit work",
+  ].filter(Boolean).slice(0, 2).join(" + ") || "Keep going";
   const progressStatus = myAttendanceRate >= 80 && myActivityPct >= 70
-    ? { label: "On Track", message: "You are building strong habits—keep your steady rhythm going.", tone: "bg-clay-lime/20 text-ink", Icon: ShieldCheck }
+    ? { label: "On Track", message: "You are building strong habits—keep your steady rhythm going.", compactMessage: "My status: On track", tone: "bg-clay-lime/20 text-ink", valueTone: "text-[#228954] dark:text-[var(--uc-green)]", Icon: ShieldCheck }
     : myAttendanceRate >= 60 || myActivityPct >= 50
-      ? { label: "Developing", message: "You are making progress—one focused step today will strengthen your routine.", tone: "bg-clay-sun/25 text-ink", Icon: Target }
-      : { label: "At Risk", message: "A fresh start is always possible—choose one small task and ask for support when you need it.", tone: "bg-clay-coral/15 text-ink", Icon: Flame };
+      ? { label: "Developing", message: "You are making progress—one focused step today will strengthen your routine.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-sun/25 text-ink", valueTone: "text-[#b7791f] dark:text-[var(--uc-yellow)]", Icon: Target }
+      : { label: "At Risk", message: "A fresh start is always possible—choose one small task and ask for support when you need it.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-coral/15 text-ink", valueTone: "text-[#d94b60] dark:text-[var(--uc-danger)]", Icon: Flame };
   const progressCards = [
     { label: "My Attendance", value: `${myAttendanceRate}%`, Icon: CalendarCheck, tone: "bg-clay-sky/15 text-clay-sky" },
     { label: "My Activity", value: `${Math.round(myActivityPct)}%`, Icon: ClipboardCheck, tone: "bg-clay-lime/20 text-[#228954]" },
-    { label: "My Participation", value: `${participationRate}%`, Icon: HandCoins, tone: "bg-clay-purple/15 text-clay-purple" },
+    { label: "Participation", value: `${myParticipationPoints} pts`, detail: `${myQrScanPoints} QR · ${qrParticipationRate}%`, Icon: HandCoins, tone: "bg-clay-purple/15 text-clay-purple" },
   ];
   const dailyQuote = getDailyMotivationQuote(account.id || user?.id, new Date(`${getTodayManila()}T12:00:00Z`));
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
@@ -203,15 +213,18 @@ export default function StudentDashboard() {
   return (
     <div className="student-dashboard space-y-4 sm:space-y-4">
       <section className="grid items-center gap-4 lg:grid-cols-[1fr_.82fr] no-print">
-        <div>
+        <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning space</p>
           <h1 className="uc-page-title mt-1 text-4xl leading-none sm:text-5xl">Hi, <span className={`uc-name-effect-${user?.name_effect || "opaque-ink"}`}>{account.first_name}</span>!</h1>
           <p className="mt-3 text-sm text-ink/60 sm:text-base">One clear step at a time—your everyday effort is adding up.</p>
-          <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn mt-4 bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
+            <span className="clay-btn bg-white px-3 py-2 text-xs text-ink capitalize">Section {classroom.section || "—"} | Group {group.group_number}</span>
+          </div>
         </div>
-        <div className="student-dashboard-hero relative flex min-h-36 items-center overflow-hidden rounded-[26px] p-4">
-          <UserAvatar name={user?.email} avatarKey={dashboardAvatarKey} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
-          <div className="relative ml-16 min-w-0">
+        <div className="student-dashboard-hero relative flex min-h-36 items-center justify-center gap-8 overflow-hidden rounded-[26px] p-4">
+          <UserAvatar name={user?.email} avatarKey={dashboardAvatarKey} frameKey={user?.avatar_frame} size="lg" className="shrink-0 scale-[1.4]" />
+          <div className="relative min-w-0 max-w-xl">
             <p className="font-display text-xl font-extrabold leading-snug text-[var(--uc-navy-950)] sm:text-2xl">“{dailyQuote}”</p>
             <p className="mt-2 text-xs font-semibold text-[var(--uc-purple)]">Keep showing up, keep growing.</p>
           </div>
@@ -221,7 +234,6 @@ export default function StudentDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DashboardRangeTabs value={range} onChange={setRange} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
         <p className="w-full text-xs text-ink/55 sm:w-auto">Showing {selectedPeriod.label}</p>
-        <ClayChip color="sky">Group {group.group_number} <GroupBadgeMarkers groupId={group.id} badges={badges} definitions={badgeDefinitions} /></ClayChip>
       </div>
 
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
@@ -259,9 +271,9 @@ export default function StudentDashboard() {
 
       <section className="no-print">
         <div className="mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Your Progress</h2><p className="text-xs text-ink/60">A compact view of the habits you are building.</p></div></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {progressCards.map(({ label, value, Icon, tone }) => <ClayCard key={label} className="p-3"><div className="flex items-center gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></span><div><p className="font-display text-lg font-extrabold leading-none">{value}</p><p className="mt-1 text-xs font-display font-bold text-ink/60">{label}</p></div></div></ClayCard>)}
-          <ClayCard className="p-3"><div className="flex items-start gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${progressStatus.tone}`}><progressStatus.Icon className="h-5 w-5" /></span><div><p className="font-display text-lg font-extrabold leading-none">{progressStatus.label}</p><p className="mt-1 text-xs leading-relaxed text-ink/65">{progressStatus.message}</p></div></div></ClayCard>
+        <div className="grid w-full grid-cols-4 gap-2 sm:gap-3">
+          {progressCards.map(({ label, value, detail, Icon, tone }) => <ClayCard key={label} className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={detail ? `${label}: ${value}. ${detail}` : `${label}: ${value}`}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="font-display text-lg font-extrabold leading-none text-[#228954] dark:text-[var(--uc-green)]">{value}</p><p className="mt-1 text-[9px] font-display font-bold leading-tight text-ink/60">{label}</p>{detail && <p className="mt-1 text-[9px] leading-tight text-ink/55">{detail}</p>}</div></div></ClayCard>)}
+          <ClayCard className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={progressStatus.message}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${progressStatus.tone}`}><progressStatus.Icon className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className={`font-display text-lg font-extrabold leading-none ${progressStatus.valueTone}`} >{progressStatus.label}</p><p className="mt-1 text-[9px] leading-tight text-ink/65">{progressStatus.compactMessage}</p></div></div></ClayCard>
         </div>
       </section>
 
@@ -276,27 +288,28 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact lg:hidden">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-3">
+      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact min-w-0 !min-h-[5.25rem] !gap-1.5 !p-2 [&>img]:!h-9 [&>img]:!w-9 sm:[&>img]:!h-11 sm:[&>img]:!w-11 [&>div>h2]:!text-lg [&>div>div]:!text-[9px] [&>div>div]:!leading-snug">
             {missions?.length ? (
               <>
                 <p>You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
-                <p className="mt-1 text-xs text-ink/55">Next up: {missions[0].title}</p>
+                <p className="mt-1 text-xs text-ink/55 max-[420px]:hidden">Next up: {missions[0].title}</p>
               </>
             ) : <p>No active missions right now. Keep your group streak going.</p>}
-            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="mt-3 inline-flex items-center gap-1 font-display text-sm font-bold underline">Open missions <ArrowRight className="w-4 h-4" /></Link>}
+            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold underline">Open missions <ArrowRight className="w-3 h-3" /></Link>}
       </NovaMessage>
 
-      <ClayCard tone="green" className="p-4 flex items-center gap-4">
-        <div className="clay-medallion bg-clay-sun w-16 h-16 flex items-center justify-center shrink-0">
-          <Flame className="w-8 h-8 text-clay-coral" />
+      <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center gap-1.5 p-2">
+        <div className="clay-medallion flex h-9 w-9 shrink-0 items-center justify-center bg-clay-sun">
+          <Flame className="h-4 w-4 text-clay-coral" />
         </div>
-        <div className="flex-1">
-          <p className="font-display font-extrabold text-3xl font-mono leading-none">{personalStreak}</p>
-          <p className="font-display font-bold text-sm">your personal day{personalStreak === 1 ? "" : "s"} in a row</p>
-          <p className="text-xs text-ink/60">{personalStreak > 0 ? "Your own attendance and activity keep this streak alive!" : "Your attendance or activity on a class day starts your own streak 🔥"}</p>
-          <p className="mt-1 text-[10px] text-ink/45">Only your scheduled class days count.</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-3xl font-extrabold leading-none">{personalStreak}</p>
+          <p className="font-display text-[10px] font-bold">personal day{personalStreak === 1 ? "" : "s"} in a row</p>
+          <p className="mt-1 text-[9px] leading-snug text-ink/60 max-[420px]:hidden">{personalStreak > 0 ? "Attendance and activity keep it alive." : "A class-day action starts your streak."}</p>
         </div>
       </ClayCard>
+      </div>
 
       <section>
         <div className="mb-3 flex items-center gap-2"><Users className="h-5 w-5 text-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
