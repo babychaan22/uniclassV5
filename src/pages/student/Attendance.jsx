@@ -11,6 +11,7 @@ import { getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import { getActiveStudentAccount } from "@/lib/studentContext";
 import { Check, X, ClipboardCheck, Lock, CalendarDays, TrendingUp } from "lucide-react";
+import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
 
 export default function StudentAttendance() {
   const { user } = useAuth();
@@ -141,6 +142,8 @@ export default function StudentAttendance() {
           {saving ? "Saving..." : saved ? "Saved!" : "Save Attendance"}
         </ClayButton>
       )}
+
+      <RepresentativeRosterPanel account={account} members={members} />
 
       <ClayCard className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display font-bold text-lg flex items-center gap-2"><CalendarDays className="w-5 h-5" /> My attendance history</h2><p className="text-xs text-ink/60 mt-1">Only your own attendance is shown here.</p></div><label className="text-xs font-display font-bold">View <select aria-label="Attendance history range" value={historyRange} onChange={(event) => setHistoryRange(event.target.value)} className="clay-input ml-1 w-auto py-1 text-xs"><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="all">All</option></select></label></div>

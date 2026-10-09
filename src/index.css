@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -35,7 +35,7 @@
     --font-heading: "Fredoka", system-ui, sans-serif;
     --font-body: "Fredoka", system-ui, sans-serif;
     --font-display: "Fredoka", system-ui, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    --font-mono: "Fredoka", system-ui, sans-serif;
     --uc-bg: #F8F7FF;
     --uc-surface: #FFFFFF;
 
@@ -265,7 +265,7 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
    visible without forcing a desktop crop onto tablets or phones. */
 .uc-app-background {
   background-color: var(--uc-bg);
-  background-image: url('/backgrounds/uniclass-learning-background.png');
+  background-image: linear-gradient(rgba(248, 247, 255, .50), rgba(248, 247, 255, .50)), url('/backgrounds/uniclass-learning-background.png');
   background-position: center center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -275,7 +275,7 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 @media (max-width: 1023px) {
   .uc-app-background {
     background-position: center top;
-    background-image: url('/backgrounds/uniclass-learning-background-portrait.png');
+    background-image: linear-gradient(rgba(248, 247, 255, .50), rgba(248, 247, 255, .50)), url('/backgrounds/uniclass-learning-background-portrait.png');
     background-size: cover;
     background-attachment: fixed;
   }
@@ -283,12 +283,12 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 
 .dark .uc-app-background {
   background-color: #201f35;
-  background-image: linear-gradient(rgba(32,31,53,.86), rgba(32,31,53,.86)), url('/backgrounds/uniclass-learning-background.png');
+  background-image: linear-gradient(rgba(32,31,53,.55), rgba(32,31,53,.55)), url('/backgrounds/uniclass-learning-background.png');
 }
 
 @media (max-width: 1023px) {
   .dark .uc-app-background {
-    background-image: linear-gradient(rgba(32,31,53,.86), rgba(32,31,53,.86)), url('/backgrounds/uniclass-learning-background-portrait.png');
+    background-image: linear-gradient(rgba(32,31,53,.55), rgba(32,31,53,.55)), url('/backgrounds/uniclass-learning-background-portrait.png');
   }
 }
 
@@ -436,6 +436,31 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
     font-weight: 800;
   }
 }
+
+/* Learner profile flourishes: vivid enough to read clearly, still friendly on every theme. */
+.uc-name-effect-neon-violet {
+  color: #7c3aed;
+  text-shadow: 0 0 5px rgba(124, 58, 237, .72), 0 0 15px rgba(217, 70, 239, .48);
+}
+.uc-name-effect-neon-sky {
+  color: #0284c7;
+  text-shadow: 0 0 5px rgba(14, 165, 233, .72), 0 0 15px rgba(34, 211, 238, .42);
+}
+.uc-name-effect-soft-glow {
+  color: #be185d;
+  text-shadow: 0 2px 7px rgba(244, 114, 182, .6);
+}
+.uc-name-effect-opaque-ink { color: var(--uc-navy-950); text-shadow: none; }
+
+/* Dashboard panels stay dense enough to scan without sacrificing their breathing room. */
+.student-dashboard > .clay-card { border-radius: 19px; }
+.student-dashboard > .clay-card[class*="p-4"] { padding: .875rem; }
+.student-dashboard > .clay-card[class*="p-5"] { padding: 1rem; }
+
+.nova-tip-compact { padding: .875rem !important; }
+.nova-tip-compact > img { height: 4rem !important; width: 4rem !important; }
+.nova-tip-compact h2 { font-size: 1.05rem !important; }
+.nova-tip-compact .mt-3 { margin-top: .5rem !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }

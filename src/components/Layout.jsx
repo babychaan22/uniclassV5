@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ROUTES } from "@/lib/routes";
+import { getActiveStudentAccount } from "@/lib/studentContext";
+import { supabase } from "@/api/supabaseClient";
 
 import {
   Home, Settings, FileText, QrCode, Award, ClipboardCheck,
@@ -22,29 +24,29 @@ import { GroupBadgeProvider } from "@/components/GroupBadgeContext";
 const NAV_ASSET_BY_LABEL = {
   Dashboard: "home",
   Analytics: "analytics",
-  Missions: "assessment",
-  "QR Generator": "upload",
-  "Score Import": "upload",
-  Activities: "assessment",
+  Missions: "missions",
+  "QR Generator": "qr",
+  "Score Import": "scoreImport",
+  Activities: "activities",
   "Reward Catalog": "reward",
   Rewards: "reward",
   Badges: "badge",
   Roster: "students",
-  Accounts: "students",
+  Accounts: "profile",
   Announcements: "notifications",
-  "Activity Logs": "analytics",
+  "Activity Logs": "history",
   "Activity Proof": "view",
   "Export Data": "download",
-  "Mission Archive": "resources",
-  Leaderboard: "reward",
-  "Class Setup": "settings",
+  "Mission Archive": "archive",
+  Leaderboard: "leaderboard",
+  "Class Setup": "classes",
   Settings: "settings",
   "Help Guide": "help",
   Help: "help",
   Attendance: "attendance",
-  "Activity Scores": "assessment",
-  "Scan QR": "upload",
-  History: "analytics",
+  "Activity Scores": "activities",
+  "Scan QR": "qr",
+  History: "history",
 };
 
 const TEACHER_NAV_SECTIONS = [
@@ -125,6 +127,7 @@ export default function Layout() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState("Home");
+  const [studentAvatarKey, setStudentAvatarKey] = useState(null);
 
   const isTeacher = location.pathname.startsWith("/teacher") || location.pathname === ROUTES.LEADERBOARD;
   const mobileNav = isTeacher
@@ -142,6 +145,19 @@ export default function Layout() {
     const current = TEACHER_NAV_SECTIONS.find((section) => section.items.some((item) => item.path === location.pathname));
     if (current) setOpenSection(current.label);
   }, [location.pathname]);
+
+  useEffect(() => {
+    let active = true;
+    if (isTeacher || !user?.id) { setStudentAvatarKey(null); return () => { active = false; }; }
+    void (async () => {
+      const account = await getActiveStudentAccount(user.id);
+      if (!account || !active) return;
+      const { data } = await supabase.rpc("get_classroom_student_avatars", { p_classroom_id: account.classroom_id });
+      const saved = (data || []).find((row) => row.group_member_id === account.group_member_id)?.avatar_key;
+      if (active) setStudentAvatarKey(saved || user.avatar_key || null);
+    })().catch(() => { if (active) setStudentAvatarKey(user.avatar_key || null); });
+    return () => { active = false; };
+  }, [isTeacher, user?.id, user?.avatar_key]);
 
   const handleLogout = async () => { await logout(true); };
 
@@ -186,7 +202,7 @@ export default function Layout() {
           <div className="flex items-center gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             <NotificationBell teacher={isTeacher} />
-            <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
+            <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={isTeacher ? user?.avatar_key : studentAvatarKey || user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -232,20 +248,20 @@ export default function Layout() {
       </div>
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(29,38,88,.08)] backdrop-blur no-print">
-        <div className="flex h-16 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-16 items-center justify-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {mobileNav.map((item) => {
             const Icon = item.icon;
             const assetName = NAV_ASSET_BY_LABEL[item.label];
             const active = location.pathname === item.path;
             return (
-            <Link key={item.path} to={item.path} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 shrink-0 ${active ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
-                {assetName ? <UIAsset name={assetName} className="h-5 w-5" /> : <Icon className="w-5 h-5" />}
+            <Link key={item.path} to={item.path} className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${active ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+                {assetName ? <UIAsset name={assetName} className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
                 <span className="text-[10px] font-display font-bold">{item.label.split(" ")[0]}</span>
               </Link>
             );
           })}
-          {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2.5 py-1 ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
-            <MoreHorizontal className="h-5 w-5" />
+          {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+            <MoreHorizontal className="h-6 w-6" />
             <span className="text-[10px] font-display font-bold">More</span>
           </button>}
         </div>

@@ -11,16 +11,15 @@ import { supabase } from '@/api/supabaseClient';
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
-import { Flame, Star, Trophy, Users, Megaphone, ArrowRight } from "lucide-react";
+import { Flame, Star, Trophy, Users, Megaphone, ArrowRight, Target, CalendarCheck, ClipboardCheck, HandCoins, ShieldCheck } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
-import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
-import UserAvatar from "@/components/visual/UserAvatar";
-import { NovaAsset } from "@/components/visual/UIAsset";
+import UserAvatar, { DEFAULT_STUDENT_AVATAR } from "@/components/visual/UserAvatar";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
+import { getDailyMotivationQuote } from "@/lib/dailyQuote";
 
 let studentDashboardCache = null;
 const STUDENT_DASHBOARD_CACHE_MS = 30_000;
@@ -120,11 +119,12 @@ export default function StudentDashboard() {
       ]).then(([attendance, scores, activities, logs, avatarResult]) => {
         if (!active || avatarResult.error) return;
         const avatarKeys = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.avatar_key]));
+        const nameEffects = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.name_effect || "opaque-ink"]));
         const memberCards = members.map((member) => {
           const streak = computeAttendanceStreak(member.id, attendance, classroom?.class_days);
           const act = computeActivityPct(member.id, scores, activities);
           const points = computeParticipationPoints(member.id, logs);
-          return { member, streak, activityPct: act.pct, points, avatarKey: avatarKeys.get(member.id) };
+          return { member, streak, activityPct: act.pct, points, avatarKey: avatarKeys.get(member.id), nameEffect: nameEffects.get(member.id) };
         });
         const indLeaderboard = members
           .map((member) => ({ member, points: computeParticipationPoints(member.id, logs), avatarKey: avatarKeys.get(member.id) }))
@@ -171,10 +171,7 @@ export default function StudentDashboard() {
   if (loading) return <PanelSkeleton />;
   if (!data) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><h1 className="font-display text-xl font-extrabold">Dashboard unavailable</h1><p className="mt-2 text-sm text-ink/60">{loadError || "Please refresh and try again."}</p><ClayButton className="mt-4" onClick={() => window.location.reload()}>Try again</ClayButton></ClayCard>;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, groupLeaderboard, indLeaderboard, personalStreak, myAvatarKey, missions, announcements } = data;
-  const myGroupRank = groupLeaderboard.findIndex((g) => g.group.id === group.id) + 1;
-  const maxGroupPoints = Math.max(...groupLeaderboard.map((g) => g.points), 1);
-  const maxPoints = Math.max(...indLeaderboard.map((i) => i.points), 1);
+  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
   const myMemberId = account.group_member_id;
   const selectedPeriod = periodFor(range, anchorDate);
   const inSelectedPeriod = (record) => isDateInRange(recordDate(record), selectedPeriod.start, selectedPeriod.end);
@@ -187,35 +184,36 @@ export default function StudentDashboard() {
   const myActivityPct = computeActivityPct(myMemberId, periodScores, periodActivities).pct || 0;
   const periodMemberCards = members.map((member) => ({ member, points: computeParticipationPoints(member.id, logs.filter(inSelectedPeriod)) }));
 
-  const studentProgressAreas = [
-    { label: "Attendance", value: myAttendanceRate, color: "bg-clay-sky" },
-    { label: "Activity", value: Math.round(myActivityPct), color: "bg-clay-lime" },
-    { label: "Participation", value: periodMemberCards.length ? Math.round((periodMemberCards.filter((card) => card.points > 0).length / periodMemberCards.length) * 100) : 0, color: "bg-clay-purple" },
+  const participationRate = periodMemberCards.length ? Math.round((periodMemberCards.filter((card) => card.points > 0).length / periodMemberCards.length) * 100) : 0;
+  const progressStatus = myAttendanceRate >= 80 && myActivityPct >= 70
+    ? { label: "On Track", message: "You are building strong habits—keep your steady rhythm going.", tone: "bg-clay-lime/20 text-ink", Icon: ShieldCheck }
+    : myAttendanceRate >= 60 || myActivityPct >= 50
+      ? { label: "Developing", message: "You are making progress—one focused step today will strengthen your routine.", tone: "bg-clay-sun/25 text-ink", Icon: Target }
+      : { label: "At Risk", message: "A fresh start is always possible—choose one small task and ask for support when you need it.", tone: "bg-clay-coral/15 text-ink", Icon: Flame };
+  const progressCards = [
+    { label: "My Attendance", value: `${myAttendanceRate}%`, Icon: CalendarCheck, tone: "bg-clay-sky/15 text-clay-sky" },
+    { label: "My Activity", value: `${Math.round(myActivityPct)}%`, Icon: ClipboardCheck, tone: "bg-clay-lime/20 text-[#228954]" },
+    { label: "My Participation", value: `${participationRate}%`, Icon: HandCoins, tone: "bg-clay-purple/15 text-clay-purple" },
   ];
+  const dailyQuote = getDailyMotivationQuote(account.id || user?.id, new Date(`${getTodayManila()}T12:00:00Z`));
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
   const nextMissionMinutes = missionEstimate(nextMission);
-  const hasChosenHero = Boolean(myAvatarKey);
+  const dashboardAvatarKey = myAvatarKey || DEFAULT_STUDENT_AVATAR;
 
   return (
-    <div className="space-y-6">
+    <div className="student-dashboard space-y-4 sm:space-y-4">
       <section className="grid items-center gap-4 lg:grid-cols-[1fr_.82fr] no-print">
         <div>
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Your learning space</p>
-          <h1 className="uc-page-title mt-1 text-4xl leading-none sm:text-5xl">Hi, {account.first_name}!</h1>
+          <h1 className="uc-page-title mt-1 text-4xl leading-none sm:text-5xl">Hi, <span className={`uc-name-effect-${user?.name_effect || "opaque-ink"}`}>{account.first_name}</span>!</h1>
           <p className="mt-3 text-sm text-ink/60 sm:text-base">One clear step at a time—your everyday effort is adding up.</p>
           <Link to={`${ROUTES.STUDENT.ONBOARDING}?add=1`} className="clay-btn mt-4 bg-white px-3 py-2 text-xs text-ink">Join another class</Link>
         </div>
-        <div className="relative flex min-h-44 overflow-hidden rounded-[26px] border border-[rgba(142,92,246,.1)] bg-[linear-gradient(135deg,#F3EFFF_0%,#EAE5FF_100%)] p-5 shadow-[var(--uc-shadow-sm)] items-center">
-          {hasChosenHero ? (
-            <UserAvatar name={user?.email} avatarKey={myAvatarKey} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
-          ) : (
-            <NovaAsset pose="welcome" priority className="absolute -bottom-2 -left-1 h-36 w-36" />
-          )}
-          <div className={`relative min-w-0 ${hasChosenHero ? "ml-16" : "ml-32"}`}>
-            <p className="text-xs font-display font-bold text-[var(--uc-purple)]">{hasChosenHero ? "Your hero" : "Nova is here"}</p>
-            <h2 className="mt-1 font-display text-2xl font-extrabold leading-none text-[var(--uc-navy-950)]">{hasChosenHero ? "This is your space." : "Small steps, big progress!"}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink/65">{hasChosenHero ? "Your chosen avatar appears here and across your learner profile." : missions?.length ? `${missions.length} mission${missions.length === 1 ? " is" : "s are"} ready for your group.` : "Your effort this week is building something great."}</p>
-            <Link to={ROUTES.STUDENT.SETTINGS} className="mt-3 inline-flex text-xs font-display font-bold text-[var(--uc-purple)] underline">{hasChosenHero ? "Change avatar" : "Unlock an avatar"}</Link>
+        <div className="student-dashboard-hero relative flex min-h-36 items-center overflow-hidden rounded-[26px] p-4">
+          <UserAvatar name={user?.email} avatarKey={dashboardAvatarKey} frameKey={user?.avatar_frame} size="lg" className="ml-1 scale-[1.55]" />
+          <div className="relative ml-16 min-w-0">
+            <p className="font-display text-xl font-extrabold leading-snug text-[var(--uc-navy-950)] sm:text-2xl">“{dailyQuote}”</p>
+            <p className="mt-2 text-xs font-semibold text-[var(--uc-purple)]">Keep showing up, keep growing.</p>
           </div>
         </div>
       </section>
@@ -228,24 +226,11 @@ export default function StudentDashboard() {
 
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 font-mono text-xl font-extrabold">1</div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15" aria-hidden="true"><Target className="h-6 w-6" /></div>
           <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
           <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : "Open scanner"}</Link>
         </div>
       </ClayCard>
-
-      <section className="no-print">
-        <div className="grid grid-cols-2 gap-3 text-center sm:gap-3">
-          <ClayCard className="p-3">
-            <div className="font-mono text-2xl font-extrabold text-clay-sky">{myAttendanceRate}%</div>
-            <p className="text-xs font-display font-bold text-ink/60">Attendance</p>
-          </ClayCard>
-          <ClayCard className="p-3">
-            <div className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(myActivityPct)}%</div>
-            <p className="text-xs font-display font-bold text-ink/60">Activity</p>
-          </ClayCard>
-        </div>
-      </section>
 
       {(missions.length > 0 || myActivityPct < 60) && (
         <ClayCard className="p-3">
@@ -273,14 +258,10 @@ export default function StudentDashboard() {
       )}
 
       <section className="no-print">
-        <div className="mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Your progress</h2><p className="text-xs text-ink/60">Building habits across categories</p></div></div>
-        <div className="space-y-3">
-          {studentProgressAreas.map((area) => (
-            <div key={area.label}>
-              <div className="mb-1 flex justify-between text-sm font-display font-bold"><span>{area.label}</span><span>{area.value}%</span></div>
-              <div className="h-4 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${area.color}`} style={{ width: `${area.value}%` }} /></div>
-            </div>
-          ))}
+        <div className="mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Your Progress</h2><p className="text-xs text-ink/60">A compact view of the habits you are building.</p></div></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {progressCards.map(({ label, value, Icon, tone }) => <ClayCard key={label} className="p-3"><div className="flex items-center gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></span><div><p className="font-display text-lg font-extrabold leading-none">{value}</p><p className="mt-1 text-xs font-display font-bold text-ink/60">{label}</p></div></div></ClayCard>)}
+          <ClayCard className="p-3"><div className="flex items-start gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${progressStatus.tone}`}><progressStatus.Icon className="h-5 w-5" /></span><div><p className="font-display text-lg font-extrabold leading-none">{progressStatus.label}</p><p className="mt-1 text-xs leading-relaxed text-ink/65">{progressStatus.message}</p></div></div></ClayCard>
         </div>
       </section>
 
@@ -295,7 +276,7 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="lg:hidden">
+      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact lg:hidden">
             {missions?.length ? (
               <>
                 <p>You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
@@ -319,12 +300,11 @@ export default function StudentDashboard() {
 
       <section>
         <div className="mb-3 flex items-center gap-2"><Users className="h-5 w-5 text-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
-      <RepresentativeRosterPanel account={account} members={members} />
       <div className="grid gap-4 sm:grid-cols-2">
-        {memberCards.map(({ member, streak, activityPct, points, avatarKey }) => (
+        {memberCards.map(({ member, streak, activityPct, points, avatarKey, nameEffect }) => (
           <ClayCard key={member.id} className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex min-w-0 items-center gap-2"><UserAvatar name={`${member.first_name} ${member.last_name}`} avatarKey={avatarKey} size="sm" /><p className="truncate font-display font-bold">{member.last_name}, {member.first_name}</p></div>
+              <div className="flex min-w-0 items-center gap-2"><UserAvatar name={`${member.first_name} ${member.last_name}`} avatarKey={avatarKey} size="sm" /><p className={`truncate font-display font-bold uc-name-effect-${nameEffect || "opaque-ink"}`}>{member.last_name}, {member.first_name}</p></div>
               {member.id === account.group_member_id && <ClayChip color="purple">You</ClayChip>}
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -349,50 +329,6 @@ export default function StudentDashboard() {
       </div>
       </section>
 
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-lg mb-3 flex items-center gap-2"><Users className="w-5 h-5" /> Group Leaderboard</h2>
-        <div className="space-y-2">
-          {groupLeaderboard.map((g, i) => {
-            const isMe = g.group.id === group.id;
-            return (
-              <div key={g.group.id} className="flex items-center gap-3">
-                <span className="font-mono font-bold w-6">{i + 1}</span>
-                <div className="flex-1">
-                  <div className="flex justify-between mb-1">
-                    <span className={`inline-flex items-center gap-1 font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {g.group.group_number} <GroupBadgeMarkers groupId={g.group.id} badges={badges} definitions={badgeDefinitions} /> {isMe && "(You)"}</span>
-                    <span className="font-mono text-sm">{Math.round(g.points)} pts</span>
-                  </div>
-                  <div className="h-6 rounded-full border-2 border-ink bg-cream overflow-hidden">
-                    <div className={`h-full rounded-full ${isMe ? "bg-clay-pink" : "bg-clay-purple"}`} style={{ width: `${(g.points / maxGroupPoints) * 100}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </ClayCard>
-
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-lg mb-3 flex items-center gap-2"><Trophy className="w-5 h-5" /> Top Points Earners</h2>
-        <div className="space-y-2">
-          {indLeaderboard.map((item, i) => (
-            <div key={item.member.id} className="flex items-center gap-3">
-              <span className="font-mono font-bold w-6">{i + 1}</span>
-              <UserAvatar name={`${item.member.first_name} ${item.member.last_name}`} avatarKey={item.avatarKey} size="sm" />
-              <div className="flex-1">
-                <div className="flex justify-between mb-1">
-                  <span className="font-display font-bold text-sm">{item.member.last_name}, {item.member.first_name[0]}.</span>
-                  <span className="font-mono text-sm">{item.points}pts</span>
-                </div>
-                <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">
-                  <div className="h-full bg-clay-sky" style={{ width: `${(item.points / maxPoints) * 100}%` }} />
-                </div>
-              </div>
-            </div>
-          ))}
-          {indLeaderboard.length === 0 && <p className="text-ink/50 text-sm">No points earned yet.</p>}
-        </div>
-      </ClayCard>
     </div>
   );
 }

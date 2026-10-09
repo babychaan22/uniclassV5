@@ -12,6 +12,7 @@ import { Trophy, Target } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { getTeacherClassroom } from '@/lib/teacherClassroom';
 import { computeParticipationPoints, signedPoints } from '@/lib/stats';
+import { supabase } from "@/api/supabaseClient";
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -32,14 +33,16 @@ export default function Leaderboard() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const [groups, members, logs, submissions, badges, badgeDefinitions] = await Promise.all([
+    const [groups, members, logs, submissions, badges, badgeDefinitions, styleResult] = await Promise.all([
       db.entities.Group.filter({ classroom_id: c.id }),
       db.entities.GroupMember.filter({ classroom_id: c.id }),
       db.entities.ParticipationLog.filter({ classroom_id: c.id }),
       db.entities.MissionSubmission.filter({ classroom_id: c.id }),
       db.entities.Badge.filter({ classroom_id: c.id }),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
+      supabase.rpc("get_classroom_student_avatars", { p_classroom_id: c.id }),
     ]);
+    const nameEffects = new Map((styleResult.data || []).map((row) => [row.group_member_id, row.name_effect || "opaque-ink"]));
     const rows = groups.map((g) => {
       const pts = logs
         .filter((l) => l.group_id === g.id)
@@ -50,7 +53,7 @@ export default function Leaderboard() {
     const students = members.map((member) => {
       const points = computeParticipationPoints(member.id, logs, member.group_id);
       const missions = submissions.filter((submission) => submission.group_member_id === member.id).length;
-      return { member, points: Math.round(points), missions };
+      return { member, points: Math.round(points), missions, nameEffect: nameEffects.get(member.id) };
     }).sort((a, b) => b.points - a.points || b.missions - a.missions);
     setRows(rows);
     setStudentRows(students);
@@ -97,7 +100,7 @@ export default function Leaderboard() {
       <div className="space-y-2">
         {studentRows.map((r, i) => {
           const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
-          return <ClayCard key={r.member.id} className={`p-4 ${i < 3 ? 'border-clay-sun' : ''}`}><div className="flex items-center gap-3"><span className="font-mono font-extrabold text-lg w-8 text-center">{medal || i + 1}</span><div className="flex-1"><div className="mb-1 flex justify-between"><span className="font-display font-bold">{r.member.last_name}, {r.member.first_name}</span><span className="font-mono text-sm">{r.points} pts</span></div><div className="h-5 overflow-hidden rounded-full border-2 border-ink bg-cream"><div className={`h-full ${i === 0 ? 'bg-clay-sun' : 'bg-clay-sky'}`} style={{ width: `${(r.points / maxStudent) * 100}%` }} /></div></div><ClayChip color="purple"><Target className="w-3 h-3" /> {r.missions}</ClayChip></div></ClayCard>;
+          return <ClayCard key={r.member.id} className={`p-4 ${i < 3 ? 'border-clay-sun' : ''}`}><div className="flex items-center gap-3"><span className="font-mono font-extrabold text-lg w-8 text-center">{medal || i + 1}</span><div className="flex-1"><div className="mb-1 flex justify-between"><span className={`font-display font-bold uc-name-effect-${r.nameEffect || "opaque-ink"}`}>{r.member.last_name}, {r.member.first_name}</span><span className="font-mono text-sm">{r.points} pts</span></div><div className="h-5 overflow-hidden rounded-full border-2 border-ink bg-cream"><div className={`h-full ${i === 0 ? 'bg-clay-sun' : 'bg-clay-sky'}`} style={{ width: `${(r.points / maxStudent) * 100}%` }} /></div></div><ClayChip color="purple"><Target className="w-3 h-3" /> {r.missions}</ClayChip></div></ClayCard>;
         })}
         {studentRows.length === 0 && <p className="text-center text-sm text-ink/50">No individual points yet.</p>}
       </div>

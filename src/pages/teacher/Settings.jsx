@@ -9,8 +9,8 @@ import { getTeacherClassroom, invalidateTeacherClassroom } from "@/lib/teacherCl
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import UserAvatar from "@/components/visual/UserAvatar";
-import { UIAsset } from "@/components/visual/UIAsset";
+import UserAvatar, { AVATAR_OPTIONS, DEFAULT_STUDENT_AVATAR } from "@/components/visual/UserAvatar";
+import { NovaAsset, UIAsset } from "@/components/visual/UIAsset";
 import { Settings as SettingsIcon, Loader2, Save, Check, User, Calendar, RefreshCw, SlidersHorizontal, Hash, Trash2, Copy } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import ClassDaySelector from "@/components/ClassDaySelector";
@@ -39,7 +39,7 @@ function genCode() {
 }
 
 export default function TeacherSettings() {
-  const { user } = useAuth();
+  const { user, checkUserAuth } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [classroom, setClassroom] = useState(null);
@@ -47,6 +47,7 @@ export default function TeacherSettings() {
   const [terms, setTerms] = useState([]);
   const [tab, setTab] = useState("account");
   const [fullName, setFullName] = useState(user?.full_name || "");
+  const [teacherAvatarKey, setTeacherAvatarKey] = useState(user?.avatar_key || DEFAULT_STUDENT_AVATAR);
   const [classForm, setClassForm] = useState(null);
   const [weights, setWeights] = useState(null);
   const [year, setYear] = useState("");
@@ -80,6 +81,20 @@ export default function TeacherSettings() {
     await db.auth.updateMe({ full_name: fullName });
     setSaving(null);
     flash(true, "Account info saved.");
+  }
+
+  async function selectTeacherAvatar(avatarKey) {
+    setSaving("avatar");
+    try {
+      await db.auth.updateMe({ avatar_key: avatarKey });
+      setTeacherAvatarKey(avatarKey);
+      await checkUserAuth();
+      flash(true, "Teacher avatar updated.");
+    } catch (error) {
+      flash(false, error.message || "Your avatar could not be updated.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function saveClass() {
@@ -169,7 +184,8 @@ export default function TeacherSettings() {
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink/60">Keep your profile, class details, grading setup, and terms organized in one friendly place.</p>
           </div>
           <div className="flex items-center gap-3 rounded-2xl bg-[var(--uc-purple-soft)] px-4 py-3 sm:min-w-[240px]">
-            <UserAvatar name={user?.email || user?.full_name} size="lg" />
+            <NovaAsset pose="profile" className="h-14 w-14 shrink-0" />
+            <UserAvatar name={user?.email || user?.full_name} avatarKey={teacherAvatarKey} size="lg" />
             <div className="min-w-0">
               <p className="truncate font-display text-lg font-extrabold text-[var(--uc-navy-950)]">{fullName || "Teacher"}</p>
               <p className="truncate text-xs text-ink/60">Teacher account</p>
@@ -201,7 +217,7 @@ export default function TeacherSettings() {
       {tab === "account" && (
         <ClayCard className="p-5 space-y-3">
           <div className="flex items-center gap-3 border-b border-ink/5 pb-4">
-            <UserAvatar name={user?.email || fullName} size="lg" />
+            <UserAvatar name={user?.email || fullName} avatarKey={teacherAvatarKey} size="lg" />
             <div>
               <h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Profile information</h2>
               <p className="text-sm text-ink/60">This name appears across your classrooms.</p>
@@ -214,6 +230,16 @@ export default function TeacherSettings() {
           <div>
             <label className="font-display font-bold text-xs mb-1 block">Display Name</label>
             <input className="clay-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div>
+            <p className="font-display font-bold text-xs">Choose your teacher avatar</p>
+            <p className="mt-1 text-xs text-ink/60">This appears in your header and teacher workspace.</p>
+            <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">
+              {AVATAR_OPTIONS.map((avatar) => {
+                const selected = teacherAvatarKey === avatar.id;
+                return <button key={avatar.id} type="button" aria-label={`Use ${avatar.label}`} aria-pressed={selected} disabled={saving === "avatar"} onClick={() => selectTeacherAvatar(avatar.id)} className={`rounded-xl border-2 p-1.5 transition ${selected ? "border-[var(--uc-purple)] bg-[var(--uc-purple-soft)]" : "border-transparent bg-[var(--uc-bg)] hover:border-[var(--uc-purple)]/35"}`}><img src={avatar.src} alt="" aria-hidden="true" className="mx-auto h-10 w-10 rounded-full border-2 border-white bg-white shadow-sm" loading="lazy" /></button>;
+              })}
+            </div>
           </div>
           <ClayButton color="purple" size="sm" onClick={saveAccount} disabled={saving === "account"}>
             {saving === "account" ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Account</>}
