@@ -71,15 +71,19 @@ export default function StudentLeaderboard() {
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Current classroom</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Class leaderboard</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">See every group in this class. Switch classes from the header to view another ranking.</p>{myRank > 0 && <span className="mt-3 inline-flex rounded-full bg-[var(--uc-purple-soft)] px-3 py-1 text-xs font-bold text-[var(--uc-navy-950)]">Your group ranks #{myRank} of {groupRows.length}</span>}</div><NovaMessage variant="achievement" tone="pink" title="Every effort counts.">Celebrate progress with your classmates and keep growing together.</NovaMessage></section>
-      <ClayCard color="purple" className="p-5 text-center">
-        <UIAsset name="analytics" className="mx-auto mb-2 h-16 w-16" />
-        <h2 className="text-2xl font-display font-extrabold text-white">Group standing</h2>
-        <p className="text-white/80 text-sm">Points update as participation is recorded.</p>
-        {myRank > 0 && (
-          <div className="mt-3 inline-flex items-center gap-2 clay-chip px-3 py-1 bg-clay-pink text-white">
-            <Crown className="w-4 h-4" /> Your group ranks #{myRank} of {groupRows.length}
-          </div>
-        )}
+      <ClayCard className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[var(--uc-blue-soft)] sm:h-14 sm:w-14">
+          <UIAsset name="analytics" className="h-9 w-9 sm:h-10 sm:w-10" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg font-extrabold text-[var(--uc-navy-950)] sm:text-xl">Group standing</h2>
+          <p className="mt-0.5 text-xs text-ink/60 sm:text-sm">Points update as participation is recorded.</p>
+          {myRank > 0 && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--uc-purple-soft)] px-2.5 py-1 text-xs font-display font-bold text-[var(--uc-purple)]">
+              <Crown className="h-3.5 w-3.5" /> Your group ranks #{myRank} of {groupRows.length}
+            </div>
+          )}
+        </div>
       </ClayCard>
 
       <div className="flex gap-2">

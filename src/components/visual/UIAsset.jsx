@@ -83,7 +83,7 @@ export function UIAsset({ name, alt = "", className = "" }) {
 
 export function NovaAsset({ pose = "welcome", alt = "", priority = false, className = "" }) {
   const src = NOVA_ASSETS[NOVA_ALIASES[pose] || pose] || NOVA_ASSETS.welcome;
-  return <img src={src} alt={alt} aria-hidden={alt ? undefined : true} loading={priority ? "eager" : "lazy"} decoding="async" className={cn("object-contain", className)} />;
+  return <img src={src} alt={alt} aria-hidden={alt ? undefined : true} loading={priority ? "eager" : "lazy"} decoding="async" className={cn("uc-nova-asset object-contain", className)} />;
 }
 
 export const UI_ASSET_NAMES = Object.freeze(Object.keys(UI_ASSETS));

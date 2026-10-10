@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 
 const TONES = {
   default: "bg-white text-ink",
-  violet: "bg-[#F1ECFF] text-[var(--uc-navy-950)]",
-  blue: "bg-[#E8F7FF] text-[var(--uc-navy-950)]",
-  green: "bg-[#EDFAE0] text-[var(--uc-navy-950)]",
+  violet: "bg-[#F0ECFF] text-[var(--uc-navy-950)]",
+  blue: "bg-[#EAF6FE] text-[var(--uc-navy-950)]",
+  green: "bg-[#EFF8E8] text-[var(--uc-navy-950)]",
   pink: "bg-[#FFF0F7] text-[var(--uc-navy-950)]",
   yellow: "bg-[#FFF9E6] text-[var(--uc-navy-950)]",
   cream: "bg-cream text-ink",

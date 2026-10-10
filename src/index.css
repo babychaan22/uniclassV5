@@ -7,65 +7,65 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 252 100% 96%;
+    --foreground: 217 31% 22%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 217 31% 22%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 247 71% 68%;
+    --popover-foreground: 217 31% 22%;
+    --primary: 250 64% 59%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 211 100% 72%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 200 78% 95%;
+    --secondary-foreground: 217 31% 22%;
+    --muted: 217 14% 96%;
+    --muted-foreground: 218 14% 48%;
+    --accent: 200 78% 59%;
+    --accent-foreground: 217 31% 22%;
     --destructive: 11 100% 67%;
     --destructive-foreground: 0 0% 98%;
     --border: 243 31% 12%;
     --input: 0 0% 89.8%;
-    --ring: 247 71% 68%;
-    --chart-1: 247 71% 68%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 340 100% 66%;
+    --ring: 250 64% 59%;
+    --chart-1: 250 64% 59%;
+    --chart-2: 200 78% 59%;
+    --chart-3: 94 53% 54%;
+    --chart-4: 217 31% 22%;
+    --chart-5: 218 14% 48%;
     --radius: 1rem;
     --font-heading: "Fredoka", system-ui, sans-serif;
     --font-body: "Fredoka", system-ui, sans-serif;
     --font-display: "Fredoka", system-ui, sans-serif;
     --font-mono: "Fredoka", system-ui, sans-serif;
-    --uc-bg: #F8F7FF;
+    --uc-bg: #F0ECFF;
     --uc-surface: #FFFFFF;
 
-    --uc-navy: #1B2753;
-    --uc-navy-950: #1B2753;
-    --uc-navy-800: #33457D;
+    --uc-navy: #26334A;
+    --uc-navy-950: #26334A;
+    --uc-navy-800: #69758A;
 
-    --uc-purple: #7C72E8;
-    --uc-purple-soft: #F0EEFF;
-    --uc-blue: #72B7FF;
-    --uc-blue-soft: #EBF5FF;
-    --uc-green: #97E6BD;
-    --uc-green-soft: #EAFBF2;
-    --uc-yellow: #FFD06C;
-    --uc-yellow-soft: #FFF7E4;
-    --uc-pink: #F58BB5;
-    --uc-pink-soft: #FFF0F6;
-    --uc-danger: #F27086;
+    --uc-purple: #6C55D9;
+    --uc-purple-soft: #F0ECFF;
+    --uc-blue: #42A9E8;
+    --uc-blue-soft: #EAF6FE;
+    --uc-green: #80C94B;
+    --uc-green-soft: #EFF8E8;
+    --uc-yellow: #F4C95D;
+    --uc-yellow-soft: #FFF8E5;
+    --uc-pink: #D97EAD;
+    --uc-pink-soft: #FBEFF6;
+    --uc-danger: #E8707C;
 
     --uc-shadow-sm: 0 2px 8px rgba(31, 42, 91, .06);
     --uc-shadow-md: 0 8px 24px rgba(31, 42, 91, .07), 0 2px 5px rgba(31, 42, 91, .04);
 
-    --clay-purple: #7C72E8;
-    --clay-pink: #F58BB5;
-    --clay-lime: #97E6BD;
-    --clay-sun: #FFD06C;
-    --clay-sky: #72B7FF;
-    --clay-coral: #F27086;
-    --ink: #1B2753;
-    --cream: #FFFDF7;
+    --clay-purple: #6C55D9;
+    --clay-pink: #D97EAD;
+    --clay-lime: #80C94B;
+    --clay-sun: #F4C95D;
+    --clay-sky: #42A9E8;
+    --clay-coral: #E8707C;
+    --ink: #26334A;
+    --cream: #FFFFFF;
   }
 
   .dark {
@@ -254,11 +254,12 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 }
 
 .uc-brand-mark {
-  position: relative;
-  display: inline-block;
-  width: 2rem;
-  height: 1.8rem;
+  display: block;
+  width: 2.1rem;
+  height: 2.1rem;
   flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(38, 51, 74, .16));
 }
 .uc-brand-mark__leaf {
   position: absolute;
@@ -269,10 +270,10 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
   transform-origin: bottom center;
   box-shadow: inset 0 1px 1px rgba(255,255,255,.45), 0 3px 7px rgba(16,32,101,.12);
 }
-.uc-brand-mark__leaf--purple { left: .2rem; background: linear-gradient(145deg, #A985FF, #7A4AE2); transform: rotate(-34deg); }
-.uc-brand-mark__leaf--blue { left: .78rem; bottom: .38rem; background: linear-gradient(145deg, #64D5FF, #258DE7); transform: rotate(-1deg); }
-.uc-brand-mark__leaf--green { right: .15rem; background: linear-gradient(145deg, #B8F264, #66BD2C); transform: rotate(34deg) scaleX(-1); }
-.uc-brand-mark__stem { position: absolute; bottom: .08rem; left: .94rem; width: .15rem; height: .55rem; border-radius: 99px; background: #2E9A53; }
+.uc-brand-mark__leaf--purple { left: .2rem; background: linear-gradient(145deg, #AFA0F1, #6C55D9); transform: rotate(-34deg); }
+.uc-brand-mark__leaf--blue { left: .78rem; bottom: .38rem; background: linear-gradient(145deg, #8DCEF3, #42A9E8); transform: rotate(-1deg); }
+.uc-brand-mark__leaf--green { right: .15rem; background: linear-gradient(145deg, #B8E69A, #80C94B); transform: rotate(34deg) scaleX(-1); }
+.uc-brand-mark__stem { position: absolute; bottom: .08rem; left: .94rem; width: .15rem; height: .55rem; border-radius: 99px; background: #4B9C55; }
 .uc-brand-mark--compact { transform: scale(.84); transform-origin: center; }
 
 /* Shared canvas artwork stays deliberately quiet in the centre, where the
@@ -280,7 +281,7 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
    visible without forcing a desktop crop onto tablets or phones. */
 .uc-app-background {
   background-color: var(--uc-bg);
-  background-image: linear-gradient(rgba(248, 247, 255, .50), rgba(248, 247, 255, .50)), url('/backgrounds/uniclass-learning-background.png');
+  background-image: linear-gradient(rgba(240, 236, 255, .58), rgba(240, 236, 255, .58)), url('/backgrounds/uniclass-learning-background.png');
   background-position: center center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -290,7 +291,7 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 @media (max-width: 1023px) {
   .uc-app-background {
     background-position: center top;
-    background-image: linear-gradient(rgba(248, 247, 255, .50), rgba(248, 247, 255, .50)), url('/backgrounds/uniclass-learning-background-portrait.png');
+    background-image: linear-gradient(rgba(240, 236, 255, .58), rgba(240, 236, 255, .58)), url('/backgrounds/uniclass-learning-background-portrait.png');
     background-size: cover;
     background-attachment: fixed;
   }
@@ -430,6 +431,11 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 .nova-mascot.nova-gacha { background: linear-gradient(145deg, #FFFDF6 0%, #FFD5E9 58%, #F45FA8 100%); }
 .nova-mascot.nova-error { background: linear-gradient(145deg, #FFFDF6 0%, #FFD8CE 58%, #FF776A 100%); }
 .nova-mascot:hover { transform: translateY(-2px) rotate(1deg); }
+.uc-nova-asset {
+  /* A gentle grade keeps all existing Nova poses in the bloom emblem's
+     lavender, sky, and fresh-green family without losing their detail. */
+  filter: saturate(.88) hue-rotate(-4deg) contrast(1.02);
+}
 .dark body, .dark .bg-cream { background-color: #201f35 !important; }
 .dark .bg-white { background-color: #302e4b !important; }
 .dark .text-ink { color: #fffdf6 !important; }
@@ -442,7 +448,7 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 /* Light utility variants and the coloured ClayCard tones need a dark surface too.
    Otherwise their headings inherit the dark-theme foreground and become white on white. */
 .dark [class*="bg-white/"], .dark [class*="bg-[rgba(255,255,255"] { background-color: #302e4b !important; }
-.dark [class~="bg-[#F1ECFF]"], .dark [class~="bg-[#E8F7FF]"], .dark [class~="bg-[#EDFAE0]"], .dark [class~="bg-[#FFF0F7]"], .dark [class~="bg-[#FFF9E6]"], .dark [class~="bg-[#eaf4ff]"], .dark [class~="bg-[#edeaff]"], .dark [class~="bg-[#eef4ff]"], .dark [class~="bg-[#f1efff]"], .dark [class~="bg-[#fff6df]"], .dark [class~="bg-[#FFF9EF]"] { background-color: #302e4b !important; }
+.dark [class~="bg-[#F0ECFF]"], .dark [class~="bg-[#EAF6FE]"], .dark [class~="bg-[#EFF8E8]"], .dark [class~="bg-[#F1ECFF]"], .dark [class~="bg-[#E8F7FF]"], .dark [class~="bg-[#EDFAE0]"], .dark [class~="bg-[#FFF0F7]"], .dark [class~="bg-[#FFF9E6]"], .dark [class~="bg-[#eaf4ff]"], .dark [class~="bg-[#edeaff]"], .dark [class~="bg-[#eef4ff]"], .dark [class~="bg-[#f1efff]"], .dark [class~="bg-[#fff6df]"], .dark [class~="bg-[#FFF9EF]"] { background-color: #302e4b !important; }
 .dark .bg-clay-sky, .dark [class*="bg-clay-sky/"], .dark .bg-clay-lime, .dark [class*="bg-clay-lime/"], .dark .bg-clay-sun, .dark [class*="bg-clay-sun/"] { background-color: #3d3963 !important; }
 
 @layer base {

@@ -32,7 +32,7 @@ export function NovaImage({ variant = "welcome", size = "md", className = "", pr
       loading={priority ? "eager" : "lazy"}
       decoding="async"
       className={cn(
-        "select-none object-contain",
+        "uc-nova-asset select-none object-contain",
         // Callers that place Nova inside a card provide exact dimensions. Do not
         // let the responsive default width override those layout constraints.
         !className && (SIZES[size] || SIZES.md),

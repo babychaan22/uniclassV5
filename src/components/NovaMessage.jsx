@@ -4,18 +4,18 @@ import { NovaAsset } from "@/components/visual/UIAsset";
 
 const TONES = {
   violet: {
-    bg: "bg-[#F1ECFF]",
-    border: "border-[rgba(142,92,246,.08)]",
+    bg: "bg-[#F0ECFF]",
+    border: "border-[rgba(108,85,217,.12)]",
     text: "text-[var(--uc-navy-950)]",
   },
   blue: {
-    bg: "bg-[#E8F7FF]",
-    border: "border-[rgba(50,169,237,.08)]",
+    bg: "bg-[#EAF6FE]",
+    border: "border-[rgba(66,169,232,.12)]",
     text: "text-[var(--uc-navy-950)]",
   },
   green: {
-    bg: "bg-[#EDFAE0]",
-    border: "border-[rgba(132,217,44,.08)]",
+    bg: "bg-[#EFF8E8]",
+    border: "border-[rgba(128,201,75,.14)]",
     text: "text-[var(--uc-navy-950)]",
   },
   pink: {
