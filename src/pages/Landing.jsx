@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Check, ClipboardCheck, QrCode, Sparkles, UsersRound } from "lucide-react";
+import { ArrowRight, Check, Sparkles, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { ROUTES } from "@/lib/routes";
 import RoleRouter from "@/pages/RoleRouter";

@@ -15,7 +15,7 @@ import { computeClassification } from "@/lib/classification";
 import {
   computeAttendanceRate, computeActivityPct, computeParticipationPoints, computeCategoryPct, signedPoints,
 } from "@/lib/stats";
-import { Printer, BarChart3, Award, CheckCircle2, ClipboardCheck, Target, QrCode, Coins } from "lucide-react";
+import { Printer } from "lucide-react";
 import { getWeekStartManila, getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import PendingApprovalBulk from "@/components/teacher/PendingApprovalBulk";
