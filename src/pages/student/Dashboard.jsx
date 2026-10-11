@@ -37,8 +37,12 @@ function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function periodFor(range, anchorDate) {
-  if (range === "term") return { start: null, end: null, label: "this term" };
+function periodFor(range, anchorDate, term) {
+  if (range === "term") {
+    if (term?.start_date && term?.end_date) return { start: term.start_date, end: term.end_date, label: term.term_label || "this term" };
+    const day = anchorDate || getTodayManila();
+    return { start: day, end: day, label: "selected day" };
+  }
   const anchor = new Date(`${anchorDate || getTodayManila()}T12:00:00Z`);
   if (range === "month") {
     const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
@@ -52,7 +56,7 @@ function periodFor(range, anchorDate) {
 }
 
 function recordDate(record) {
-  return String(record?.attendance_date || record?.created_date || "").slice(0, 10);
+  return String(record?.attendance_date || record?.auto_daily_date || record?.created_date || "").slice(0, 10);
 }
 
 export default function StudentDashboard() {
@@ -81,7 +85,7 @@ export default function StudentDashboard() {
       // skeleton while old attendance and ledger rows were downloaded.
       const immediate = {
         account, group, classroom: {}, members: [], attendance: [], scores: [], activities: [], logs: [],
-        badges: [], badgeDefinitions: [], memberCards: [],
+        badges: [], badgeDefinitions: [], terms: [], memberCards: [],
         groupLeaderboard: [{ group: { id: group.id, group_number: group.group_number }, points: 0 }],
         indLeaderboard: [], personalStreak: 0, myAvatarKey: user?.avatar_key || null,
         missions: [], announcements: [],
@@ -91,9 +95,10 @@ export default function StudentDashboard() {
       setData(immediate);
       setLoading(false);
 
-      const [classroom, members, rankResult] = await Promise.all([
+      const [classroom, members, terms, rankResult] = await Promise.all([
         db.entities.Classroom.get(classroomId),
         db.entities.GroupMember.filter({ group_id: group.id }),
+        db.entities.GradingTerm.filter({ classroom_id: classroomId }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
       ]);
       if (rankResult.error) throw rankResult.error;
@@ -102,7 +107,7 @@ export default function StudentDashboard() {
       const groupLeaderboard = (rankResult.data || []).map((row) => ({ group: { id: row.group_id, group_number: row.group_number }, points: Number(row.points || 0) }))
         .sort((a, b) => b.points - a.points);
       setData((current) => {
-        const next = { ...current, classroom, members, groupLeaderboard };
+        const next = { ...current, classroom, members, terms, groupLeaderboard };
         studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
         return next;
       });
@@ -171,9 +176,14 @@ export default function StudentDashboard() {
   if (loading) return <PanelSkeleton />;
   if (!data) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><h1 className="font-display text-xl font-extrabold">Dashboard unavailable</h1><p className="mt-2 text-sm text-ink/60">{loadError || "Please refresh and try again."}</p><ClayButton className="mt-4" onClick={() => window.location.reload()}>Try again</ClayButton></ClayCard>;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, terms, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
   const myMemberId = account.group_member_id;
-  const selectedPeriod = periodFor(range, anchorDate);
+  const selectedDate = anchorDate || getTodayManila();
+  const selectedTerm = (terms || []).find((term) => term.start_date <= selectedDate && term.end_date >= selectedDate)
+    || (terms || []).find((term) => term.is_active)
+    || (terms || [])[0]
+    || null;
+  const selectedPeriod = periodFor(range, selectedDate, selectedTerm);
   const inSelectedPeriod = (record) => isDateInRange(recordDate(record), selectedPeriod.start, selectedPeriod.end);
   const periodAttendance = attendance.filter(inSelectedPeriod);
   const periodScores = scores.filter(inSelectedPeriod);
@@ -183,7 +193,14 @@ export default function StudentDashboard() {
   const myAttendanceRate = myAttendanceEntries.length ? Math.round((myAttendanceEntries.filter((entry) => entry.status === "present").length / myAttendanceEntries.length) * 100) : 0;
   const myActivityPct = computeActivityPct(myMemberId, periodScores, periodActivities).pct || 0;
   const periodLogs = logs.filter(inSelectedPeriod);
-  const periodMemberCards = members.map((member) => ({ member, points: computeParticipationPoints(member.id, periodLogs) }));
+  const streakReferenceDate = selectedPeriod.end && selectedPeriod.end < getTodayManila() ? selectedPeriod.end : getTodayManila();
+  const periodMemberCards = members.map((member) => ({
+    member,
+    streak: computeEngagementStreak(member.id, periodAttendance, periodScores, streakReferenceDate, classroom?.class_days),
+    activityPct: computeActivityPct(member.id, periodScores, periodActivities).pct || 0,
+    points: computeParticipationPoints(member.id, periodLogs),
+  }));
+  const periodPersonalStreak = periodMemberCards.find((card) => card.member.id === myMemberId)?.streak || 0;
   const myParticipationPoints = computeParticipationPoints(myMemberId, periodLogs);
   const myQrScanPoints = periodLogs
     .filter((log) => log.group_member_id === myMemberId && log.event_type === "scan")
@@ -207,7 +224,8 @@ export default function StudentDashboard() {
     { label: "Participation", value: `${myParticipationPoints} pts`, detail: `${myQrScanPoints} QR · ${qrParticipationRate}%`, asset: "points", tone: "bg-clay-purple/15" },
   ];
   const dailyQuote = getDailyMotivationQuote(account.id || user?.id, new Date(`${getTodayManila()}T12:00:00Z`));
-  const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
+  const periodMissions = missions.filter(inSelectedPeriod);
+  const nextMission = periodMissions.find((mission) => mission.is_active && mission.approval_status === "approved") || periodMissions.find((mission) => mission.is_active);
   const nextMissionMinutes = missionEstimate(nextMission);
   const dashboardAvatarKey = myAvatarKey || DEFAULT_STUDENT_AVATAR;
 
@@ -245,11 +263,11 @@ export default function StudentDashboard() {
         </div>
       </ClayCard>
 
-      {(missions.length > 0 || myActivityPct < 60) && (
+      {(periodMissions.length > 0 || myActivityPct < 60) && (
         <ClayCard className="p-3">
           <h3 className="font-display text-xs font-bold text-ink/60 mb-2">Needs attention</h3>
           <ul className="space-y-1 text-sm">
-            {missions
+            {periodMissions
               .slice()
               .sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""))
               .filter((m) => m.deadline)
@@ -278,9 +296,9 @@ export default function StudentDashboard() {
         </div>
       </section>
 
-      {announcements?.length > 0 && (
+      {announcements.filter(inSelectedPeriod).length > 0 && (
         <div className="space-y-2">
-          {announcements.map((a) => (
+          {announcements.filter(inSelectedPeriod).map((a) => (
             <ClayCard key={a.id} color="purple" className="p-4">
               <p className="font-display font-bold text-white flex items-center gap-2"><UIAsset name="notifications" className="h-5 w-5" /> {a.title}</p>
               {a.body && <p className="text-sm text-white/80 mt-1 whitespace-pre-wrap">{a.body}</p>}
@@ -290,35 +308,37 @@ export default function StudentDashboard() {
       )}
 
       <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-3">
-      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact min-w-0 !min-h-[5.25rem] !gap-1.5 !p-2 [&>img]:!h-9 [&>img]:!w-9 sm:[&>img]:!h-11 sm:[&>img]:!w-11 [&>div>h2]:!text-lg [&>div>div]:!text-[9px] [&>div>div]:!leading-snug">
-            {missions?.length ? (
+      <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact min-w-0 flex-row-reverse !gap-2 !p-2 [&>img]:!h-14 [&>img]:!w-14 sm:[&>img]:!h-16 sm:[&>img]:!w-16 [&>div>h2]:!text-lg [&>div>div]:!text-[9px] [&>div>div]:!leading-snug">
+            {periodMissions.length ? (
               <>
-                <p>You have {missions.length} active mission{missions.length === 1 ? "" : "s"} waiting for your group.</p>
-                <p className="mt-1 text-xs text-ink/55 max-[420px]:hidden">Next up: {missions[0].title}</p>
+                <p>You have {periodMissions.length} active mission{periodMissions.length === 1 ? "" : "s"} in this period.</p>
+                <p className="mt-1 text-xs text-ink/55 max-[420px]:hidden">Next up: {periodMissions[0].title}</p>
               </>
             ) : <p>No active missions right now. Keep your group streak going.</p>}
-            {missions?.length > 0 && <Link to={ROUTES.STUDENT.MISSIONS} className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold underline">Open missions <ArrowRight className="w-3 h-3" /></Link>}
+            <Link to={ROUTES.STUDENT.MISSIONS} className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold underline">Open missions <ArrowRight className="w-3 h-3" /></Link>
       </NovaMessage>
 
-      <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center gap-1.5 p-2">
-        <div className="clay-medallion flex h-9 w-9 shrink-0 items-center justify-center bg-clay-sun">
-          <UIAsset name="streak" className="h-5 w-5" />
-        </div>
+      <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center p-2">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-3xl font-extrabold leading-none">{personalStreak}</p>
-          <p className="font-display text-[10px] font-bold">personal day{personalStreak === 1 ? "" : "s"} in a row</p>
-          <p className="mt-1 text-[9px] leading-snug text-ink/60 max-[420px]:hidden">{personalStreak > 0 ? "Attendance and activity keep it alive." : "A class-day action starts your streak."}</p>
+          <div className="flex items-center gap-2">
+            <UIAsset name="streakFire" className="h-8 w-8 shrink-0" />
+            <p className="font-mono text-3xl font-extrabold leading-none">{periodPersonalStreak}</p>
+          </div>
+          <p className="font-display text-[10px] font-bold">personal day{periodPersonalStreak === 1 ? "" : "s"} in a row</p>
+          <p className="mt-1 text-[9px] leading-snug text-ink/60 max-[420px]:hidden">{periodPersonalStreak > 0 ? "Attendance and activity keep it alive." : "A class-day action starts your streak."}</p>
         </div>
       </ClayCard>
       </div>
 
       <section>
-        <div className="mb-3 flex items-center gap-2"><UIAsset name="students" className="h-6 w-6" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
+        <div className="mb-3 flex items-center gap-2"><UIAsset name="students" className="h-6 w-6" /><div><h2 className="font-display text-lg font-extrabold">Group Progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {memberCards.map(({ member, streak, activityPct, points, avatarKey, nameEffect }) => (
+        {periodMemberCards.map(({ member, streak, activityPct, points }) => {
+          const loadedMember = memberCards.find((card) => card.member.id === member.id);
+          return (
           <ClayCard key={member.id} className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex min-w-0 items-center gap-2"><UserAvatar name={`${member.first_name} ${member.last_name}`} avatarKey={avatarKey} size="sm" /><p className={`truncate font-display font-bold uc-name-effect-${nameEffect || "opaque-ink"}`}>{member.last_name}, {member.first_name}</p></div>
+              <div className="flex min-w-0 items-center gap-2"><UserAvatar name={`${member.first_name} ${member.last_name}`} avatarKey={loadedMember?.avatarKey} size="sm" /><p className={`truncate font-display font-bold uc-name-effect-${loadedMember?.nameEffect || "opaque-ink"}`}>{member.last_name}, {member.first_name}</p></div>
               {member.id === account.group_member_id && <ClayChip color="purple">You</ClayChip>}
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -339,7 +359,8 @@ export default function StudentDashboard() {
               </div>
             </div>
           </ClayCard>
-        ))}
+        );
+        })}
       </div>
       </section>
 

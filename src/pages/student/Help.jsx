@@ -1,44 +1,81 @@
-
 import ClayCard from "@/components/ClayCard";
 import { UIAsset } from "@/components/visual/UIAsset";
 
+const guides = [
+  {
+    icon: "home",
+    title: "Start on your Dashboard",
+    steps: [
+      <>Use <b>Dashboard</b> to see your attendance, activity average, participation points, personal streak, and current status.</>,
+      <>Open <b>Group Progress</b> to see how your group is building habits together.</>,
+      <>Use the class switcher in the header before checking information for a different class.</>,
+    ],
+  },
+  {
+    icon: "attendance",
+    title: "Record attendance and activity",
+    steps: [
+      <>Open <b>Attendance</b> when your teacher asks you to record your presence.</>,
+      <>Open <b>Activity</b> to check posted work, your recorded scores, and any feedback.</>,
+      <>Your streak grows through class-day participation, so keep attendance and activities up to date.</>,
+    ],
+  },
+  {
+    icon: "missions",
+    title: "Complete missions and Daily Power-Ups",
+    steps: [
+      <>Check <b>Missions</b> for teacher or AI-made missions and the teacher-approved Daily Math Power-Up.</>,
+      <>Answer every question, review your choices, then submit once for secure grading.</>,
+      <>After submitting, open the answer review to see the method, work through the steps, and try a fresh practice version if one is available.</>,
+    ],
+  },
+  {
+    icon: "qr",
+    title: "Earn participation points",
+    steps: [
+      <>Open <b>Scan</b> to scan a code your teacher displays or enter its code manually.</>,
+      <>Points can come from scans, approved awards, mission XP conversions, and other class activities.</>,
+      <>Each code is single-use. Gacha codes may offer a multiplier before points are awarded.</>,
+    ],
+  },
+  {
+    icon: "reward",
+    title: "Use Rewards and personalize your profile",
+    steps: [
+      <>Your personal XP and your group participation points are separate.</>,
+      <>You may redeem available XP into participation points. Earning every 20 XP also makes one avatar, theme, or name-style choice available—choosing a style does not deduct XP.</>,
+      <>Group reward requests never spend your group’s points; your teacher approves eligible requests.</>,
+    ],
+  },
+  {
+    icon: "leaderboard",
+    title: "Track progress and get support",
+    steps: [
+      <>Use <b>History</b> to review your past work and <b>Class Leaderboard</b> to view group or student standings.</>,
+      <>Open <b>Badges</b> to see achievements your group can claim when eligible.</>,
+      <>If something is missing, locked, or incorrect, take a screenshot and ask your teacher for help.</>,
+    ],
+  },
+];
+
 export default function StudentHelp() {
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="mx-auto max-w-2xl space-y-5">
       <div>
-        <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><UIAsset name="help" className="h-7 w-7" /> Help Center</h1>
-        <p className="text-ink/60 text-sm">Quick guides for using UniClass as a student.</p>
+        <h1 className="mb-1 flex items-center gap-2 text-2xl font-display font-extrabold"><UIAsset name="help" className="h-7 w-7" /> Help Center</h1>
+        <p className="text-sm text-ink/60">A quick guide to the current UniClass student flow.</p>
       </div>
 
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><UIAsset name="qr" className="h-6 w-6" /> Scanning QR Codes</h2>
-        <ol className="list-decimal list-inside space-y-1 text-sm text-ink/80">
-          <li>Open the <b>Scan QR</b> page from the bottom nav.</li>
-          <li>Point your camera at the QR code your teacher displays, or type the code manually.</li>
-          <li>Standard codes add participation points instantly. Gacha codes let you spin for a multiplier — accept the risk for a chance at bonus points!</li>
-          <li>Each code can only be used once, so scan quickly when your teacher posts one.</li>
-        </ol>
-      </ClayCard>
-
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><UIAsset name="missions" className="h-6 w-6" /> Participating in Missions</h2>
-        <ol className="list-decimal list-inside space-y-1 text-sm text-ink/80">
-          <li>Check the <b>Missions</b> page for anything your teacher has posted as active.</li>
-          <li>AI missions show true/false, multiple-choice, or drag-and-drop questions — answer them and tap <b>Submit for AI Grading</b>.</li>
-          <li>Your score is graded automatically and converted into XP based on the mission's reward.</li>
-          <li>Go to the XP wallet on the Missions page and redeem XP into participation points for your group.</li>
-        </ol>
-      </ClayCard>
-
-      <ClayCard className="p-5">
-        <h2 className="font-display font-bold text-lg mb-2 flex items-center gap-2"><UIAsset name="badge" className="h-6 w-6" /> Redeeming Points &amp; Badges</h2>
-        <ol className="list-decimal list-inside space-y-1 text-sm text-ink/80">
-          <li>Earn participation points from QR scans, gacha wins, and mission XP redemptions.</li>
-          <li>On weekends, open the <b>Badges</b> page to claim weekly achievement badges your group qualified for.</li>
-          <li>Visit the <b>Rewards</b> page to spend points on items your teacher added to the shop.</li>
-        </ol>
-      </ClayCard>
+      <div className="space-y-3">
+        {guides.map((guide) => (
+          <ClayCard key={guide.title} className="p-4 sm:p-5">
+            <h2 className="mb-2 flex items-center gap-2 text-lg font-display font-bold"><UIAsset name={guide.icon} className="h-6 w-6" /> {guide.title}</h2>
+            <ol className="list-decimal list-inside space-y-1 text-sm leading-relaxed text-ink/80">
+              {guide.steps.map((step, index) => <li key={index}>{step}</li>)}
+            </ol>
+          </ClayCard>
+        ))}
+      </div>
     </div>
   );
 }
-

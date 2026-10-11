@@ -34,6 +34,7 @@ const UI_ASSETS = Object.freeze({
   points: "star-3d-icon-png-download-3307686.png",
   status: "bulb-3d-icon-png-download-3307681.png",
   streak: "rocket-3d-icon-png-download-3307661.png",
+  streakFire: "fire-streak-3d.png",
   action: "dartboard-3d-icon-png-download-3307663.png",
   attention: "megaphone-3d-icon-png-download-3307651.png",
 });
@@ -50,7 +51,7 @@ const UI_ASSET_TONES = {
   settings: "purple", notifications: "pink", search: "sky", filter: "purple",
   profile: "mint", lock: "purple", help: "sky", upload: "sky", download: "purple",
   edit: "purple", delete: "coral", reward: "sun", badge: "sun", view: "sky", menu: "purple",
-  missions: "teal", qr: "sky", scoreImport: "sky", activities: "mint", history: "teal", leaderboard: "sun", archive: "purple", points: "sun", status: "purple", streak: "teal", action: "purple", attention: "pink",
+  missions: "teal", qr: "sky", scoreImport: "sky", activities: "mint", history: "teal", leaderboard: "sun", archive: "purple", points: "sun", status: "purple", streak: "teal", streakFire: "coral", action: "purple", attention: "pink",
 };
 
 // The pose set shares one silhouette, palette, and hand-painted finish so Nova

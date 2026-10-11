@@ -412,7 +412,15 @@ export default function TeacherDashboard() {
                   <td className="py-2 px-2 font-mono">{r.perf.count ? Math.round(r.perf.pct) : "—"}</td>
                   <td className="py-2 px-2 font-mono">{r.pts}</td>
                   <td className="py-2 px-2 font-mono font-bold">{r.cls.total ?? "—"}</td>
-                  <td className="py-2 pl-2"><ClayChip color={r.cls.color}>{r.cls.tag}</ClayChip></td>
+                  <td className="py-2 pl-2">
+                    <ClayChip
+                      color={r.cls.color}
+                      className="student-progress-status"
+                      data-status={r.cls.tag.toLowerCase().replaceAll(" ", "-")}
+                    >
+                      {r.cls.tag}
+                    </ClayChip>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -33,14 +33,17 @@ function readDraft(key) {
 }
 
 function SolutionGuide({ item, correctAnswer }) {
+  const method = item.tags || item.skill || "Use the rule that matches the question.";
+  const explanation = item.explanation || "";
+  const redundantAnswer = /^The correct answer is [A-D]\. .+\. Why\? .+$/i.test(explanation.trim());
   return <div className="mt-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/85">
-    <p className="font-display font-extrabold text-ink">How to solve it</p>
+    <p className="font-display font-extrabold text-ink">A clear way to solve it</p>
     <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
-      <li>{item.correct ? "Check the rule or method you used:" : "Start with the rule or method for this question:"} {item.tags || item.skill || "Read the question and identify what it is asking."}</li>
-      <li>{item.explanation || "Use that rule to work through the choices."}</li>
-      <li>The answer is <b>{correctAnswer}</b>.</li>
+      <li><b>Use this method:</b> {method}</li>
+      <li>{redundantAnswer ? "Apply the method to the numbers in the question, one step at a time." : explanation || "Apply the method to the numbers in the question, one step at a time."}</li>
+      <li>Check your calculation. The correct answer is <b>{correctAnswer}</b>.</li>
     </ol>
-    {item.feedback && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">Remember:</span> {item.feedback}</p>}
+    {item.feedback && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">For next time:</span> {item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "")}</p>}
   </div>;
 }
 

@@ -524,6 +524,29 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 .dark [class~="bg-[#F0ECFF]"], .dark [class~="bg-[#EAF6FE]"], .dark [class~="bg-[#EFF8E8]"], .dark [class~="bg-[#F1ECFF]"], .dark [class~="bg-[#E8F7FF]"], .dark [class~="bg-[#EDFAE0]"], .dark [class~="bg-[#FFF0F7]"], .dark [class~="bg-[#FFF9E6]"], .dark [class~="bg-[#eaf4ff]"], .dark [class~="bg-[#edeaff]"], .dark [class~="bg-[#eef4ff]"], .dark [class~="bg-[#f1efff]"], .dark [class~="bg-[#fff6df]"], .dark [class~="bg-[#FFF9EF]"] { background-color: #302e4b !important; }
 .dark .bg-clay-sky, .dark [class*="bg-clay-sky/"], .dark .bg-clay-lime, .dark [class*="bg-clay-lime/"], .dark .bg-clay-sun, .dark [class*="bg-clay-sun/"] { background-color: #3d3963 !important; }
 
+/* Keep the Student Progress Report's statuses meaningful in dark mode instead
+   of flattening them into the shared purple clay surface. */
+.dark .student-progress-status[data-status="on-track"] {
+  background-color: #245d32 !important;
+  border-color: #62b578 !important;
+  color: #d5ffd0 !important;
+}
+.dark .student-progress-status[data-status="developing"] {
+  background-color: #6a5111 !important;
+  border-color: #d8af3b !important;
+  color: #fff0ae !important;
+}
+.dark .student-progress-status[data-status="at-risk"] {
+  background-color: #6b2f3c !important;
+  border-color: #e87b90 !important;
+  color: #ffd7df !important;
+}
+.dark .student-progress-status[data-status="not-enough-data"] {
+  background-color: #244b68 !important;
+  border-color: #65b7e9 !important;
+  color: #d1f0ff !important;
+}
+
 @layer base {
   * {
     @apply border-border;
