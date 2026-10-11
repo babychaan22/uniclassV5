@@ -39,7 +39,7 @@ export default function TeacherStudentManagement() {
     const ds = await getClassroomDataset(c.id, ['groups','groupAccounts']);
     const accounts = ds.groupAccounts;
     setGroups(ds.groups);
-    setPending(accounts.filter((a) => !a.is_approved));
+    setPending(accounts.filter((a) => !a.is_approved && !a.transferred_at));
     const approvedAccounts = accounts.filter((a) => a.is_approved);
     setApproved(approvedAccounts);
     setApprovedCount(approvedAccounts.length);

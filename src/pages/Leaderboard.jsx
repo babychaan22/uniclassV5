@@ -35,7 +35,7 @@ export default function Leaderboard() {
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const [groups, members, logs, submissions, badges, badgeDefinitions, styleResult] = await Promise.all([
       db.entities.Group.filter({ classroom_id: c.id }),
-      db.entities.GroupMember.filter({ classroom_id: c.id }),
+      db.entities.GroupMember.filter({ classroom_id: c.id, is_transferred: false }),
       db.entities.ParticipationLog.filter({ classroom_id: c.id }),
       db.entities.MissionSubmission.filter({ classroom_id: c.id }),
       db.entities.Badge.filter({ classroom_id: c.id }),

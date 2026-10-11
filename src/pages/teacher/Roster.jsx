@@ -47,7 +47,7 @@ export default function Roster() {
     setClassroom(c);
     const [g, m, acc, badgeRows, definitions, transfers] = await Promise.all([
       getClassroomGroups(c.id),
-      getClassroomMembers(c.id),
+      getClassroomMembers(c.id, { includeTransferred: true }),
       db.entities.GroupAccount.filter({ classroom_id: c.id }),
       db.entities.Badge.filter({ classroom_id: c.id }),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
@@ -115,7 +115,7 @@ export default function Roster() {
     const ok = window.confirm(
       `Move the record of ${from.last_name}, ${from.first_name} onto ${to.last_name}, ${to.first_name}?\n\n`
       + `Points, attendance, activity scores, badges, missions and rewards move across. `
-      + `${from.last_name}, ${from.first_name} is then removed from the roster. This cannot be undone.`,
+      + `${from.last_name}, ${from.first_name}'s old class account will be blocked, while its transfer history remains available for audit. This cannot be undone.`,
     );
     if (!ok) return;
 
@@ -145,12 +145,11 @@ export default function Roster() {
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  // Everyone the record could move onto. A student who is already signed in
-  // cannot be a target: the database refuses that merge, so they are listed but
-  // disabled rather than failing after the teacher has committed to it.
+  // Any active roster member can receive a transfer, whether they already have
+  // a login or are waiting to create one.
   const candidates = transfer
     ? members
-        .filter((m) => m.id !== transfer.id)
+        .filter((m) => m.id !== transfer.id && !m.is_transferred)
         .map((m) => ({ ...m, account: accounts.find((a) => a.group_member_id === m.id) }))
     : [];
 
@@ -178,7 +177,7 @@ export default function Roster() {
       }} />
 
       {groups.map((g) => {
-        const gm = members.filter((m) => m.group_id === g.id);
+        const gm = members.filter((m) => m.group_id === g.id && !m.is_transferred);
         if (gm.length === 0) return null;
         return (
           <ClayCard key={g.id} className="p-4 sm:p-5">
@@ -242,7 +241,7 @@ export default function Roster() {
         {transferHistory.length === 0 ? <p className="rounded-xl bg-cream px-3 py-2 text-sm text-ink/60">No student records have been transferred in this class.</p> : <div className="space-y-2">
           {transferHistory.map((entry) => <div key={entry.id} className="rounded-xl border border-ink/10 bg-[var(--uc-bg)] p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-display font-bold">Record transfer completed</span><span className="text-xs text-ink/55">{entry.created_at ? new Date(entry.created_at).toLocaleString() : ''}</span></div>
-            <p className="mt-1 text-xs text-ink/65">{entry.moved_logs || 0} point entries · {entry.moved_attendance || 0} attendance marks · {entry.moved_scores || 0} scores · {entry.moved_submissions || 0} missions moved</p>
+            <p className="mt-1 text-xs text-ink/65">{entry.source_member_name && entry.target_member_name ? `${entry.source_member_name} → ${entry.target_member_name} · ` : ''}{entry.moved_logs || 0} point entries · {entry.moved_attendance || 0} attendance marks · {entry.moved_scores || 0} scores · {entry.moved_submissions || 0} missions moved</p>
             {entry.note && <p className="mt-1 text-xs text-ink/55">Note: {entry.note}</p>}
           </div>)}
         </div>}
@@ -264,8 +263,8 @@ export default function Roster() {
               Move {transfer.last_name}, {transfer.first_name}&rsquo;s record onto&hellip;
             </h3>
             <p className="text-[11px] text-ink/60 mb-3">
-              Their points, attendance, activity scores, badges, missions and rewards move across,
-              and {transfer.last_name}, {transfer.first_name} is then removed from the roster.
+              Their records move to the selected student. The old profile is kept in the audit trail,
+              but is immediately blocked from this class.
             </p>
 
             {candidates.length === 0 ? (
@@ -280,20 +279,16 @@ export default function Roster() {
                 <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border-2 border-ink/10 p-2">
                   {candidates.map((option) => {
                     const g = groups.find((gg) => gg.id === option.group_id);
-                    const taken = Boolean(option.account);
                     const chosen = transferTo === option.id;
                     return (
                       <button
                         key={option.id}
                         type="button"
-                        disabled={taken}
                         onClick={() => setTransferTo(option.id)}
                         className={`flex w-full items-center justify-between gap-2 rounded-lg border-2 px-3 py-2 text-left text-sm ${
                           chosen
                             ? "border-clay-purple bg-clay-purple/10"
-                            : taken
-                              ? "cursor-not-allowed border-ink/5 bg-cream/40 text-ink/40"
-                              : "border-ink/10 bg-white hover:border-clay-purple/50"
+                            : "border-ink/10 bg-white hover:border-clay-purple/50"
                         }`}
                       >
                         <span className="font-display font-bold">
@@ -301,7 +296,7 @@ export default function Roster() {
                         </span>
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide">
                           {g ? `Group ${g.group_number}` : "Unassigned"}
-                          {taken ? " · already signed in" : ""}
+                          {option.account?.is_approved ? " · active account" : " · no active account"}
                         </span>
                       </button>
                     );

@@ -48,7 +48,7 @@ export default function StudentScan() {
       const a = await getActiveStudentAccount(user.id);
       if (!a) return;
       setAccount(a);
-      const mem = await db.entities.GroupMember.filter({ group_id: a.group_id });
+      const mem = await db.entities.GroupMember.filter({ group_id: a.group_id, is_transferred: false });
       setMembers(mem);
       const me = mem.find((m) => m.id === a.group_member_id) || mem.find((m) => m.is_account_holder) || mem[0];
       setMemberId(me?.id);
@@ -86,7 +86,7 @@ export default function StudentScan() {
       const classroomId = account.classroom_id;
       const weekStart = getWeekStartManila();
       const [allMembers, allLogs] = await Promise.all([
-        db.entities.GroupMember.filter({ classroom_id: classroomId }),
+        db.entities.GroupMember.filter({ classroom_id: classroomId, is_transferred: false }),
         db.entities.ParticipationLog.filter({ classroom_id: classroomId }),
       ]);
       const weekEnd = new Date(weekStart + "T00:00:00");

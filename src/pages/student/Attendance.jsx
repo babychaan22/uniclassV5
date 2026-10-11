@@ -34,7 +34,7 @@ export default function StudentAttendance() {
       setAccount(a);
       const [classroomRecord, mem] = await Promise.all([
         db.entities.Classroom.get(a.classroom_id),
-        db.entities.GroupMember.filter({ group_id: a.group_id }),
+        db.entities.GroupMember.filter({ group_id: a.group_id, is_transferred: false }),
       ]);
       setClassroom(classroomRecord);
       setMembers(mem);

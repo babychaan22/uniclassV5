@@ -32,7 +32,7 @@ export default function TeacherActivities() {
       const [activities, classGroups, classMembers, activityScores] = await Promise.all([
         db.entities.Activity.filter({ classroom_id: c.id }, { orderBy: 'activity_number' }),
         db.entities.Group.filter({ classroom_id: c.id }, { orderBy: 'group_number' }),
-        db.entities.GroupMember.filter({ classroom_id: c.id }),
+        db.entities.GroupMember.filter({ classroom_id: c.id, is_transferred: false }),
         db.entities.ActivityScore.filter({ classroom_id: c.id }),
       ]);
       setItems(activities);

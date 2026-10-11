@@ -97,7 +97,7 @@ export default function StudentDashboard() {
 
       const [classroom, members, terms, rankResult] = await Promise.all([
         db.entities.Classroom.get(classroomId),
-        db.entities.GroupMember.filter({ group_id: group.id }),
+        db.entities.GroupMember.filter({ group_id: group.id, is_transferred: false }),
         db.entities.GradingTerm.filter({ classroom_id: classroomId }),
         supabase.rpc('get_classroom_group_leaderboard', { p_classroom_id: classroomId }),
       ]);

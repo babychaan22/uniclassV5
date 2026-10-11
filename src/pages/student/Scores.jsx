@@ -44,7 +44,7 @@ export default function StudentScores() {
       if (!a) return;
       setAccount(a);
       const [mem, allScores, activities] = await Promise.all([
-        db.entities.GroupMember.filter({ group_id: a.group_id }),
+        db.entities.GroupMember.filter({ group_id: a.group_id, is_transferred: false }),
         db.entities.ActivityScore.filter({ group_id: a.group_id }),
         db.entities.Activity.filter({ classroom_id: a.classroom_id }),
       ]);
