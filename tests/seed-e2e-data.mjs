@@ -44,6 +44,13 @@ async function insert(table, row) {
 const teacher = await ensureUser(teacherEmail, 'teacher');
 const student = await ensureUser(studentEmail, 'student');
 
+// A dedicated test account can accumulate memberships from older runs or a
+// manually tested class. Clear only its account links before recreating the
+// isolated E2E classes, otherwise the student app can restore an unrelated
+// classroom and never see these fixtures.
+const staleAccounts = await admin.from('group_accounts').delete().eq('user_id', student.id);
+if (staleAccounts.error) throw staleAccounts.error;
+
 const old = await admin.from('classrooms').select('id').eq('teacher_id', teacher.id).like('section', 'E2E-%');
 if (old.error) throw old.error;
 if (old.data.length) {
