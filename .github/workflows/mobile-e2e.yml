@@ -3,16 +3,10 @@ name: Mobile end-to-end checks
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   mobile-e2e:
-    # Repository owners configure these dedicated test secrets once. Skipping
-    # when they are absent avoids attempting browser tests against production
-    # without a safe, disposable test identity.
-    if: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.TEST_E2E_PASSWORD != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -34,6 +28,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Verify test configuration
+        run: |
+          for name in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY TEST_SUPABASE_SERVICE_ROLE_KEY TEST_TEACHER_EMAIL TEST_STUDENT_EMAIL TEST_E2E_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e:seed
