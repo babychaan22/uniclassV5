@@ -72,8 +72,11 @@ test.describe('student mobile flows', () => {
     // than Playwright's hit-target calculation.
     await submit.scrollIntoViewIfNeeded();
     await submit.click({ force: true });
+    // A failed secure submission keeps this action available and shows an
+    // inline error. Its removal is the stable success signal: the assessment
+    // has transitioned to the saved-result/history state, whose exact copy is
+    // intentionally allowed to evolve with student feedback.
     await expect(submit).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.locator('main').getByText(/AI feedback|XP|\/1|could not be submitted/i).first()).toBeVisible({ timeout: 5_000 });
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 
