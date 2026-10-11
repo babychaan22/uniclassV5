@@ -18,6 +18,7 @@ import { UIAsset } from "@/components/visual/UIAsset";
 import { Save, Loader2, UserCog, Trash2, Crown, ArrowRightLeft } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import RepresentativeRosterRequests from '@/components/teacher/RepresentativeRosterRequests';
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 
 export default function Roster() {
   const { user } = useAuth();
@@ -37,6 +38,7 @@ export default function Roster() {
   const [transferring, setTransferring] = useState(false);
   const [transferSummary, setTransferSummary] = useState("");
   const [transferHistory, setTransferHistory] = useState([]);
+  const [confirmation, setConfirmation] = useState(null);
 
   useEffect(() => { load(); }, [user]);
 
@@ -77,7 +79,6 @@ export default function Roster() {
   }
 
   async function removeMember(mem) {
-    if (!window.confirm(`Remove ${mem.last_name}, ${mem.first_name} from this roster? Their class data and activity proof will be removed.`)) return;
     setSaving(mem.id); setActionError("");
     try {
       const result = await removeRosterMember(mem.id);
@@ -93,7 +94,6 @@ export default function Roster() {
   }
 
   async function makeRepresentative(account) {
-    if (!window.confirm(`Make ${account.last_name}, ${account.first_name} this group's representative? The current representative will become a regular member.`)) return;
     setSaving(account.group_member_id); setActionError("");
     try {
       await setGroupRepresentative(account.id);
@@ -112,13 +112,6 @@ export default function Roster() {
     const from = members.find((m) => m.id === transfer.id);
     const to = members.find((m) => m.id === transferTo);
     if (!from || !to) return;
-    const ok = window.confirm(
-      `Move the record of ${from.last_name}, ${from.first_name} onto ${to.last_name}, ${to.first_name}?\n\n`
-      + `Points, attendance, activity scores, badges, missions and rewards move across. `
-      + `${from.last_name}, ${from.first_name}'s old class account will be blocked, while its transfer history remains available for audit. This cannot be undone.`,
-    );
-    if (!ok) return;
-
     setTransferring(true);
     setActionError("");
     try {
@@ -219,8 +212,8 @@ export default function Roster() {
                         >
                           <ArrowRightLeft className="w-4 h-4" /> Move record
                         </ClayButton>
-                        {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => makeRepresentative(memberAccount)} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
-                        <ClayButton size="sm" color="coral" onClick={() => removeMember(mem)} disabled={saving === mem.id} title="Delete this student and their class-only record">
+                        {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "representative", account: memberAccount })} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
+                        <ClayButton size="sm" color="coral" onClick={() => setConfirmation({ type: "remove", member: mem })} disabled={saving === mem.id} title="Delete this student and their class-only record">
                           {saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete student
                         </ClayButton>
                       </>
@@ -319,7 +312,7 @@ export default function Roster() {
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <ClayButton size="sm" color="purple" onClick={runTransfer} disabled={!transferTo || transferring}>
+              <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "transfer" })} disabled={!transferTo || transferring}>
                 {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
                 {transferTo ? `Move to ${selectedName}` : "Move record"}
               </ClayButton>
@@ -328,6 +321,25 @@ export default function Roster() {
           </ClayCard>
         </div>
       )}
+      <ClayConfirmDialog
+        open={Boolean(confirmation)}
+        onOpenChange={(open) => { if (!open) setConfirmation(null); }}
+        busy={busy || transferring}
+        title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move this student record?"}
+        description={confirmation?.type === "remove"
+          ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s class data and activity proof will be removed. Their login and other classrooms stay intact.`
+          : confirmation?.type === "representative"
+            ? `Make ${confirmation.account.last_name}, ${confirmation.account.first_name} the representative? The current representative becomes a regular member.`
+            : transfer && chosen ? `Move ${transfer.last_name}, ${transfer.first_name}'s records to ${chosen.last_name}, ${chosen.first_name}. The old class account will be blocked and kept in the transfer audit.` : ""}
+        confirmLabel={confirmation?.type === "remove" ? "Remove student" : confirmation?.type === "representative" ? "Make representative" : "Move record"}
+        onConfirm={async () => {
+          const next = confirmation;
+          setConfirmation(null);
+          if (next?.type === "remove") await removeMember(next.member);
+          else if (next?.type === "representative") await makeRepresentative(next.account);
+          else if (next?.type === "transfer") await runTransfer();
+        }}
+      />
     </div>
   );
 }
