@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/supabaseClient";
-import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { ACTIVE_TEACHER_CLASSROOM_KEY, getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -38,7 +38,8 @@ const membersWithoutRecord = (rows, recordedMemberIds) => rows.filter((row) => !
 export default function TeacherDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const initialCache = teacherDashboardCache?.userId === user?.id && Date.now() - teacherDashboardCache.savedAt < TEACHER_DASHBOARD_CACHE_MS ? teacherDashboardCache.data : null;
+  const activeClassroomId = typeof window !== "undefined" ? window.localStorage.getItem(ACTIVE_TEACHER_CLASSROOM_KEY) : null;
+  const initialCache = activeClassroomId && teacherDashboardCache?.userId === user?.id && teacherDashboardCache.classroomId === activeClassroomId && Date.now() - teacherDashboardCache.savedAt < TEACHER_DASHBOARD_CACHE_MS ? teacherDashboardCache.data : null;
   const [data, setData] = useState(initialCache);
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(!initialCache);
@@ -121,7 +122,7 @@ export default function TeacherDashboard() {
       if (!active) return;
       setPending(pendingAccounts);
       const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, missions: missions || [], submissions: submissions || [], logs, badges: ds.badges || [], badgeDefinitions, scoreEdits: scoreEditsResult.data || [], attentionByClass: [] };
-      teacherDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
+      teacherDashboardCache = { userId: user.id, classroomId: classroom.id, data: snapshot, savedAt: Date.now() };
       setData(snapshot);
       setLoading(false);
 
@@ -140,7 +141,7 @@ export default function TeacherDashboard() {
         if (!active) return;
         setData((current) => {
           const next = current && ({ ...current, attentionByClass });
-          if (next) teacherDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          if (next) teacherDashboardCache = { userId: user.id, classroomId: classroom.id, data: next, savedAt: Date.now() };
           return next;
         });
         setAttentionLoading(false);
@@ -170,13 +171,13 @@ export default function TeacherDashboard() {
     .slice().sort((a, b) => `${a.member.last_name || ''} ${a.member.first_name || ''}`.localeCompare(`${b.member.last_name || ''} ${b.member.first_name || ''}`));
   const todayStr = getTodayManila();
   const selectedDate = anchorDate || todayStr;
-  const monthStart = new Date(`${selectedDate}T00:00:00Z`);
-  monthStart.setUTCDate(monthStart.getUTCDate() - 29);
+  const selectedMonth = new Date(`${selectedDate}T12:00:00Z`);
+  const monthStart = new Date(Date.UTC(selectedMonth.getUTCFullYear(), selectedMonth.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(selectedMonth.getUTCFullYear(), selectedMonth.getUTCMonth() + 1, 0));
   const rangeStart = chartRange === "term" ? (term?.start_date || null) : chartRange === "month" ? monthStart.toISOString().slice(0, 10) : getWeekStartManila(new Date(`${selectedDate}T12:00:00+08:00`));
   const rangeEndDate = new Date(`${rangeStart || selectedDate}T00:00:00Z`);
   if (chartRange === "week") rangeEndDate.setUTCDate(rangeEndDate.getUTCDate() + 6);
-  else if (chartRange === "month") rangeEndDate.setUTCDate(rangeEndDate.getUTCDate() + 29);
-  const rangeEnd = chartRange === "term" ? (term?.end_date || selectedDate) : rangeEndDate.toISOString().slice(0, 10);
+  const rangeEnd = chartRange === "term" ? (term?.end_date || selectedDate) : chartRange === "month" ? monthEnd.toISOString().slice(0, 10) : rangeEndDate.toISOString().slice(0, 10);
   const rangeLabel = chartRange === "term" ? "this term" : chartRange === "month" ? "this month" : "this week";
   const isInRange = (value) => {
     const day = String(value || "").slice(0, 10);

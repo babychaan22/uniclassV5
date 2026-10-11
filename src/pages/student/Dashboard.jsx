@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { getActiveStudentAccount } from "@/lib/studentContext";
+import { ACTIVE_CLASSROOM_KEY, getActiveStudentAccount } from "@/lib/studentContext";
 import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
@@ -62,7 +62,8 @@ function recordDate(record) {
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const initialCache = studentDashboardCache?.userId === user?.id && Date.now() - studentDashboardCache.savedAt < STUDENT_DASHBOARD_CACHE_MS ? studentDashboardCache.data : null;
+  const activeClassroomId = typeof window !== "undefined" ? window.localStorage.getItem(ACTIVE_CLASSROOM_KEY) : null;
+  const initialCache = activeClassroomId && studentDashboardCache?.userId === user?.id && studentDashboardCache.classroomId === activeClassroomId && Date.now() - studentDashboardCache.savedAt < STUDENT_DASHBOARD_CACHE_MS ? studentDashboardCache.data : null;
   const [data, setData] = useState(initialCache);
   const [loading, setLoading] = useState(!initialCache);
   const [loadError, setLoadError] = useState("");
@@ -90,7 +91,7 @@ export default function StudentDashboard() {
         indLeaderboard: [], personalStreak: 0, myAvatarKey: user?.avatar_key || null,
         missions: [], announcements: [],
       };
-      studentDashboardCache = { userId: user.id, data: immediate, savedAt: Date.now() };
+      studentDashboardCache = { userId: user.id, classroomId, data: immediate, savedAt: Date.now() };
       if (!active) return;
       setData(immediate);
       setLoading(false);
@@ -108,7 +109,7 @@ export default function StudentDashboard() {
         .sort((a, b) => b.points - a.points);
       setData((current) => {
         const next = { ...current, classroom, members, terms, groupLeaderboard };
-        studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+        studentDashboardCache = { userId: user.id, classroomId, data: next, savedAt: Date.now() };
         return next;
       });
 
@@ -138,7 +139,7 @@ export default function StudentDashboard() {
         const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
         setData((current) => {
           const next = current && { ...current, attendance, scores, activities, logs, memberCards, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null };
-          if (next) studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          if (next) studentDashboardCache = { userId: user.id, classroomId, data: next, savedAt: Date.now() };
           return next;
         });
       }).catch((error) => console.warn('Dashboard progress data could not be loaded', error));
@@ -158,7 +159,7 @@ export default function StudentDashboard() {
           missions: missions.data || [],
           announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")),
           });
-          if (next) studentDashboardCache = { userId: user.id, data: next, savedAt: Date.now() };
+          if (next) studentDashboardCache = { userId: user.id, classroomId, data: next, savedAt: Date.now() };
           return next;
         });
       }).catch((error) => console.warn("Dashboard extras could not be loaded", error));
