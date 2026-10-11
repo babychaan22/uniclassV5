@@ -1,0 +1,40 @@
+name: Mobile end-to-end checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mobile-e2e:
+    # Repository owners configure these dedicated test secrets once. Skipping
+    # when they are absent avoids attempting browser tests against production
+    # without a safe, disposable test identity.
+    if: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.TEST_E2E_PASSWORD != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_TEACHER_EMAIL: ${{ secrets.TEST_TEACHER_EMAIL }}
+      TEST_STUDENT_EMAIL: ${{ secrets.TEST_STUDENT_EMAIL }}
+      TEST_E2E_PASSWORD: ${{ secrets.TEST_E2E_PASSWORD }}
+      TEST_TEACHER_PASSWORD: ${{ secrets.TEST_E2E_PASSWORD }}
+      TEST_STUDENT_PASSWORD: ${{ secrets.TEST_E2E_PASSWORD }}
+      TEST_E2E_SEED: '1'
+      TEST_E2E_STRICT: '1'
+      TEST_STUDENT_HAS_MULTIPLE_CLASSES: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:seed
+      - run: npm run test:e2e

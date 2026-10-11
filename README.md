@@ -83,6 +83,26 @@ npm run build
 npm run preview
 ```
 
+## Mobile end-to-end checks
+
+The mobile test suite covers student mission submission, evidence upload, QR
+fallback, class switching, teacher activity logs, evidence review, and PDF
+export. It uses two disposable `@example.test` accounts and a small isolated
+classroom dataset.
+
+For a local run, set the test variables listed in `.env.example`, then seed and
+run the suite:
+
+```bash
+npm run test:e2e:seed
+npm run test:e2e
+```
+
+GitHub Actions runs the same sequence when its dedicated test secrets are
+configured. Keep `TEST_SUPABASE_SERVICE_ROLE_KEY` in GitHub Secrets only; it
+must never be added to `.env.local` used by the browser or to deployment
+variables.
+
 ## Deploy to Vercel
 
 1. Push your repository to GitHub/GitLab/Bitbucket.
