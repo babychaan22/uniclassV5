@@ -51,7 +51,11 @@ if (old.data.length) {
   if (error) throw error;
 }
 
-for (const [index, code] of ['E2E01A', 'E2E02B'].entries()) {
+// Join codes are globally unique. Tie the disposable classrooms to their
+// dedicated teacher identity so another test environment cannot collide with
+// this seed's previous fixed E2E01A/E2E02B codes.
+const joinCodePrefix = teacher.id.replace(/-/g, '').slice(0, 8).toUpperCase();
+for (const index of [0, 1]) {
   const classroom = await insert('classrooms', {
     teacher_id: teacher.id,
     grade_level: 'Grade 8',
@@ -60,7 +64,7 @@ for (const [index, code] of ['E2E01A', 'E2E02B'].entries()) {
     school_year: '2026-2027',
     num_groups: 1,
     uses_groups: true,
-    join_code: code,
+    join_code: `E2E${joinCodePrefix}${index + 1}`,
   });
   const group = await insert('groups', { classroom_id: classroom.id, group_number: 1, group_name: 'E2E Group 1' });
   const member = await insert('group_members', {
