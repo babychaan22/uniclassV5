@@ -50,14 +50,18 @@ test.describe('student mobile flows', () => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/missions');
     await expect(page.getByRole('heading', { name: /Missions/i }).first()).toBeVisible();
-    const submit = page.getByRole('button', { name: /Submit for AI Grading/i }).first();
-    if (skipScenario(test, await submit.count() === 0, 'No active mission is available in the test classroom.')) return;
-    await expect(submit).toBeVisible();
     const trueAnswer = page.getByRole('button', { name: 'True', exact: true }).first();
     const falseAnswer = page.getByRole('button', { name: 'False', exact: true }).first();
+    if (skipScenario(test, await trueAnswer.count() === 0 && await falseAnswer.count() === 0, 'No active mission is available in the test classroom.')) return;
     if (await trueAnswer.count()) await trueAnswer.click();
-    else if (await falseAnswer.count()) await falseAnswer.click();
-    else throw new Error('The active mission rendered without an answer control.');
+    else await falseAnswer.click();
+
+    const reviewAnswers = page.getByRole('button', { name: 'Review answers', exact: true }).first();
+    await expect(reviewAnswers).toBeEnabled();
+    await reviewAnswers.click();
+
+    const submit = page.getByRole('button', { name: /Submit for secure grading/i }).first();
+    await expect(submit).toBeVisible();
     await expect(submit).toBeEnabled();
     // The mobile bottom navigation can overlap the transformed clay card by a
     // few pixels even when the button is visibly enabled. Force the click on
@@ -74,7 +78,7 @@ test.describe('student mobile flows', () => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/scores');
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
-    const fileInput = page.locator('label').filter({ hasText: 'Upload image' }).locator('input[type="file"]');
+    const fileInput = page.locator('label').filter({ hasText: 'Upload proof' }).locator('input[type="file"]').first();
     if (skipScenario(test, await fileInput.count() === 0, 'No editable activity is available in the test classroom.')) return;
     await fileInput.setInputFiles(await createProofFixture(testInfo));
     await expect(page.getByText(/Proof uploaded and compressed|Proof upload failed/i)).toBeVisible({ timeout: 20_000 });
