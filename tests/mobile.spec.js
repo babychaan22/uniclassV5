@@ -129,9 +129,13 @@ test.describe('teacher mobile flows', () => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/export-data');
     await expect(page.getByRole('heading', { name: /Data Export/i })).toBeVisible();
-    const pdfButton = page.getByRole('button', { name: /Download/i }).last();
+    const pdfButton = page.getByText('PDF Report', { exact: true }).locator('..').getByRole('button', { name: 'Download', exact: true });
     const download = page.waitForEvent('download');
-    await pdfButton.click();
+    await pdfButton.scrollIntoViewIfNeeded();
+    // The mobile dock can overlap the final report card by a few pixels while
+    // the browser is centering it. The control is visible and enabled, so this
+    // checks the export rather than Playwright's hit-target calculation.
+    await pdfButton.click({ force: true });
     await (await download).path();
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });

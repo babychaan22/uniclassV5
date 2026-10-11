@@ -87,21 +87,31 @@ for (const index of [0, 1]) {
   });
   await insert('class_settings', { classroom_id: classroom.id });
 
-  if (index === 0) {
-    await insert('activities', { classroom_id: classroom.id, activity_number: 1, title: 'E2E Activity', max_score: 10 });
-    await insert('missions', {
-      classroom_id: classroom.id,
-      title: 'E2E Mission',
-      description: 'Answer this test mission.',
-      xp_reward: 100,
-      max_score: 1,
-      is_active: true,
-      created_by: teacher.id,
-      formative_type: 'true_false',
-      ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is blue.' }] }),
-      answer_key: JSON.stringify([true]),
-    });
-  }
+  // Both classrooms receive the same minimal, publishable fixtures. The
+  // student class selector may restore either approved classroom, so putting
+  // test work in only one made the mobile tests depend on account ordering.
+  await insert('activities', {
+    classroom_id: classroom.id,
+    activity_number: 1,
+    title: 'E2E Activity',
+    max_score: 10,
+    is_published: true,
+  });
+  await insert('missions', {
+    classroom_id: classroom.id,
+    title: 'E2E Mission',
+    description: 'Answer this test mission.',
+    xp_reward: 100,
+    max_score: 1,
+    is_active: true,
+    approval_status: 'approved',
+    applies_to_all_classes: false,
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'],
+    created_by: teacher.id,
+    formative_type: 'true_false',
+    ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is blue.' }] }),
+    answer_key: JSON.stringify([true]),
+  });
 }
 
 console.log(`Seeded two approved classes for ${studentEmail} and teacher ${teacherEmail}.`);
