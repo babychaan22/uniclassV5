@@ -12,7 +12,7 @@ import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Sparkles, Crown, Medal, Flame, Users } from "lucide-react";
+import { Crown, Medal } from "lucide-react";
 import { supabase } from '@/api/supabaseClient';
 import { ROUTES } from '@/lib/routes';
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from '@/lib/studentContext';
@@ -66,14 +66,18 @@ export default function StudentLeaderboard() {
   const podium = groupRows.slice(0, 3);
   const podiumOrder = [1, 0, 2]; // visual order: 2nd, 1st, 3rd
   const medal = ["🥇", "🥈", "🥉"];
-  const podiumColor = ["bg-clay-sun", "bg-clay-purple text-white", "bg-clay-coral text-white"];
+  const podiumColor = [
+    "bg-[linear-gradient(145deg,#F4E0A6,#E9BC4D)] text-[var(--uc-navy-950)]",
+    "bg-[linear-gradient(145deg,#8E7BF0,#6C55D9)] text-white",
+    "bg-[linear-gradient(145deg,#9DD9F6,#42A9E8)] text-[var(--uc-navy-950)]",
+  ];
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       <section className="grid gap-4 lg:grid-cols-[1fr_minmax(290px,.75fr)] lg:items-center"><div><p className="text-sm font-semibold text-[var(--uc-purple)]">Current classroom</p><h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Class leaderboard</h1><p className="mt-1 text-sm leading-relaxed text-ink/60">See every group in this class. Switch classes from the header to view another ranking.</p>{myRank > 0 && <span className="mt-3 inline-flex rounded-full bg-[var(--uc-purple-soft)] px-3 py-1 text-xs font-bold text-[var(--uc-navy-950)]">Your group ranks #{myRank} of {groupRows.length}</span>}</div><NovaMessage variant="achievement" tone="pink" title="Every effort counts.">Celebrate progress with your classmates and keep growing together.</NovaMessage></section>
       <ClayCard className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[var(--uc-blue-soft)] sm:h-14 sm:w-14">
-          <UIAsset name="analytics" className="h-9 w-9 sm:h-10 sm:w-10" />
+          <UIAsset name="leaderboard" className="h-9 w-9 sm:h-10 sm:w-10" />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg font-extrabold text-[var(--uc-navy-950)] sm:text-xl">Group standing</h2>
@@ -87,14 +91,14 @@ export default function StudentLeaderboard() {
       </ClayCard>
 
       <div className="flex gap-2">
-        <button onClick={() => setTab("groups")} className={`clay-btn px-4 py-2 text-sm ${tab === "groups" ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}><Users className="w-4 h-4" /> Groups</button>
-        <button onClick={() => setTab("individuals")} className={`clay-btn px-4 py-2 text-sm ${tab === "individuals" ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}><Flame className="w-4 h-4" /> Top Students</button>
+        <button onClick={() => setTab("groups")} className={`clay-btn px-4 py-2 text-sm ${tab === "groups" ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}><UIAsset name="students" className="h-5 w-5" /> Groups</button>
+        <button onClick={() => setTab("individuals")} className={`clay-btn px-4 py-2 text-sm ${tab === "individuals" ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}><UIAsset name="leaderboard" className="h-5 w-5" /> Top Students</button>
       </div>
 
       {tab === "groups" && (
         <>
           {podium.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 items-end">
+            <div className="grid grid-cols-3 items-end gap-3 rounded-[1.5rem] border border-[var(--uc-purple)]/10 bg-[linear-gradient(145deg,rgba(240,236,255,.82),rgba(234,246,254,.58))] p-3 shadow-[inset_0_2px_5px_rgba(255,255,255,.92),0_10px_22px_rgba(38,51,74,.07)] sm:p-4">
               {podiumOrder.map((idx) => {
                 const r = podium[idx];
                 if (!r) return <div key={idx} />;
@@ -104,7 +108,7 @@ export default function StudentLeaderboard() {
                 return (
                   <div key={r.group.id} className="text-center">
                     <div className="text-3xl mb-1">{medal[place]}</div>
-                    <div className={`${podiumColor[place]} ${heights[place]} rounded-t-2xl border-[3px] border-ink flex flex-col items-center justify-center shadow-[3px_3px_0_#17162B]`}>
+                    <div className={`${podiumColor[place]} ${heights[place]} flex flex-col items-center justify-center rounded-t-[1.25rem] border border-white/70 shadow-[inset_0_2px_4px_rgba(255,255,255,.46),inset_0_-5px_9px_rgba(38,51,74,.12),0_7px_13px_rgba(38,51,74,.14)]`}>
                       <p className="inline-flex items-center gap-1 font-display font-extrabold">G{r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
                       <p className="font-mono font-bold text-lg">{r.pts}</p>
                       <p className="text-[10px] font-display opacity-80">pts</p>
@@ -115,8 +119,8 @@ export default function StudentLeaderboard() {
             </div>
           )}
 
-          <ClayCard className="p-4">
-            <h2 className="font-display font-bold text-sm mb-3">All Groups</h2>
+          <ClayCard className="p-4 sm:p-5">
+            <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-[var(--uc-green-soft)]"><UIAsset name="leaderboard" className="h-7 w-7" /></span>All Groups</h2>
             <div className="space-y-2">
               {groupRows.map((r, i) => {
                 const isMe = r.group.id === group.id;
@@ -128,8 +132,8 @@ export default function StudentLeaderboard() {
                         <span className={`inline-flex items-center gap-1 font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /> {isMe && "· You"}</span>
                         <span className="font-mono text-sm">{r.pts} pts</span>
                       </div>
-                      <div className="h-5 rounded-full border-2 border-ink bg-cream overflow-hidden">
-                        <div className={`h-full rounded-full ${isMe ? "bg-clay-pink" : "bg-clay-purple"}`} style={{ width: `${(r.pts / maxPts) * 100}%` }} />
+                      <div className="h-5 overflow-hidden rounded-full border border-[var(--uc-purple)]/12 bg-[linear-gradient(180deg,#F0ECFF,#EAF6FE)] p-0.5 shadow-[inset_0_2px_4px_rgba(38,51,74,.10),inset_0_1px_1px_rgba(255,255,255,.9)]">
+                        <div className={`h-full rounded-full border border-white/65 shadow-[inset_0_1px_2px_rgba(255,255,255,.48),0_2px_4px_rgba(38,51,74,.14)] ${isMe ? "bg-[linear-gradient(90deg,#8E7BF0,#6C55D9)]" : "bg-[linear-gradient(90deg,#70C3EE,#42A9E8)]"}`} style={{ width: `${(r.pts / maxPts) * 100}%` }} />
                       </div>
                     </div>
                     {r.missionsDone > 0 && <ClayChip color="sun"><Medal className="w-3 h-3" /> {r.missionsDone}</ClayChip>}
@@ -142,8 +146,8 @@ export default function StudentLeaderboard() {
       )}
 
       {tab === "individuals" && (
-        <ClayCard className="p-4">
-          <h2 className="font-display font-bold text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4" /> Top Students in This Class</h2>
+          <ClayCard className="p-4 sm:p-5">
+          <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-[var(--uc-blue-soft)]"><UIAsset name="leaderboard" className="h-7 w-7" /></span>Top Students in This Class</h2>
           <div className="space-y-2">
             {indRows.map((r, i) => {
               const isMe = r.member.id === myMemberId;
@@ -155,8 +159,8 @@ export default function StudentLeaderboard() {
                       <span className={`font-display font-bold text-sm ${isMe ? "text-clay-pink" : ""}`}>{r.member.last_name}, {r.member.first_name[0]}. {isMe && "· You"}</span>
                       <span className="font-mono text-sm">{r.points} pts</span>
                     </div>
-                    <div className="h-4 rounded-full border-2 border-ink bg-cream overflow-hidden">
-                      <div className={`h-full ${isMe ? "bg-clay-pink" : "bg-clay-sky"}`} style={{ width: `${(r.points / maxInd) * 100}%` }} />
+                    <div className="h-4 overflow-hidden rounded-full border border-[var(--uc-purple)]/12 bg-[linear-gradient(180deg,#F0ECFF,#EAF6FE)] p-0.5 shadow-[inset_0_2px_4px_rgba(38,51,74,.10),inset_0_1px_1px_rgba(255,255,255,.9)]">
+                      <div className={`h-full rounded-full border border-white/65 shadow-[inset_0_1px_2px_rgba(255,255,255,.48),0_2px_4px_rgba(38,51,74,.14)] ${isMe ? "bg-[linear-gradient(90deg,#8E7BF0,#6C55D9)]" : "bg-[linear-gradient(90deg,#8EDB93,#80C94B)]"}`} style={{ width: `${(r.points / maxInd) * 100}%` }} />
                     </div>
                   </div>
                 </div>

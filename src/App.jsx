@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -55,14 +55,17 @@ const Leaderboard = lazy(() => import('./pages/Leaderboard'));
 const StudentLeaderboard = lazy(() => import('./pages/student/Leaderboard'));
 
 const PageLoader = () => <div className="min-h-screen bg-cream px-5 py-8"><PanelSkeleton cards={3} /></div>;
+const PUBLIC_PATHS = new Set([ROUTES.HOME, ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD, ROUTES.RESET_PASSWORD, ROUTES.CHECK_EMAIL, ROUTES.AUTH_CALLBACK]);
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const location = useLocation();
+  const canRenderWithoutSession = PUBLIC_PATHS.has(location.pathname);
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  if ((isLoadingPublicSettings || isLoadingAuth) && !canRenderWithoutSession) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-cream">
-        <div className="w-8 h-8 border-4 border-clay-purple/30 border-t-clay-purple rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[var(--uc-bg)] px-4 py-6 sm:px-6">
+        <PanelSkeleton cards={2} />
       </div>
     );
   }

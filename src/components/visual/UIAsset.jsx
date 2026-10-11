@@ -1,49 +1,56 @@
 import { cn } from "@/lib/utils";
-import NovaIcon from "@/components/visual/NovaIcon";
 
 const UI_ASSETS = Object.freeze({
-  home: "/ui-kit/free-icons/Building_perspective_matte_s.svg",
-  classes: "/ui-kit/free-icons/Books_perspective_matte_s.svg",
-  students: "/ui-kit/free-icons/User_perspective_matte_s.svg",
-  assessment: "/ui-kit/free-icons/Clipboard_perspective_matte_s.svg",
-  attendance: "/ui-kit/free-icons/Calendar_perspective_matte_s.svg",
-  resources: "/ui-kit/free-icons/PDF_perspective_matte_s.svg",
-  ai: "/ui-kit/free-icons/Light_bulb_perspective_matte_s.svg",
-  analytics: "/ui-kit/free-icons/Chart_perspective_matte_s.svg",
-  settings: "/ui-kit/free-icons/Tools_perspective_matte_s.svg",
-  notifications: "/ui-kit/free-icons/Bell_perspective_matte_s.svg",
-  search: "/ui-kit/free-icons/Magnifier_perspective_matte_s.svg",
-  filter: "/ui-kit/free-icons/Diagram_perspective_matte_s.svg",
-  profile: "/ui-kit/free-icons/Contact_perspective_matte_s.svg",
-  help: "/ui-kit/free-icons/FAQ_perspective_matte_s.svg",
-  upload: "/ui-kit/free-icons/Cloud_perspective_matte_s.svg",
-  download: "/ui-kit/free-icons/Save_perspective_matte_s.svg",
-  edit: "/ui-kit/free-icons/Pencil_perspective_matte_s.svg",
-  delete: "/ui-kit/free-icons/Delete_perspective_matte_s.svg",
-  reward: "/ui-kit/free-icons/Trophy_perspective_matte_s.svg",
-  badge: "/ui-kit/free-icons/Crown_perspective_matte_s.svg",
-  view: "/ui-kit/free-icons/Image_perspective_matte_s.svg",
-  menu: "/ui-kit/free-icons/List_perspective_matte_s.svg",
-  missions: "/ui-kit/free-icons/Target_perspective_matte_s.svg",
-  qr: "/ui-kit/free-icons/QR%20code_perspective_matte_s.svg",
-  scoreImport: "/ui-kit/free-icons/Exchange_perspective_matte_s.svg",
-  activities: "/ui-kit/free-icons/Check_perspective_matte_s.svg",
-  history: "/ui-kit/free-icons/Clock_perspective_matte_s.svg",
-  leaderboard: "/ui-kit/free-icons/Star_perspective_matte_s.svg",
-  archive: "/ui-kit/free-icons/Box_perspective_matte_s.svg",
+  home: "home-3d-icon-png-download-3307683.png",
+  classes: "open-book-3d-icon-png-download-3307676.png",
+  students: "chatting-3d-icon-png-download-3307680.png",
+  assessment: "calculator-3d-icon-png-download-3307646.png",
+  attendance: "calendar-3d-icon-png-download-3307654.png",
+  resources: "folder-3d-icon-png-download-3307660.png",
+  ai: "desk-lamp-3d-icon-png-download-3307652.png",
+  analytics: "telescope-3d-icon-png-download-3307649.png",
+  settings: "setting-3d-icon-png-download-3307685.png",
+  notifications: "notification-3d-icon-png-download-3307642.png",
+  search: "binoculars-3d-icon-png-download-3307645.png",
+  filter: "compass-3d-icon-png-download-3307659.png",
+  profile: "camera-3d-icon-png-download-3307667.png",
+  lock: "padlock-3d-icon-png-download-3307658.png",
+  help: "like-3d-icon-png-download-3307679.png",
+  upload: "upload-arrow-3d-icon-png-download-3307666.png",
+  download: "download-3d-icon-png-download-3307653.png",
+  edit: "click-3d-icon-png-download-3307664.png",
+  delete: "trash-3d-icon-png-download-3307673.png",
+  reward: "gift-box-3d-icon-png-download-3307684.png",
+  badge: "certificate-3d-icon-png-download-3307644.png",
+  view: "video-camera-3d-icon-png-download-3307640.png",
+  menu: "play-3d-icon-png-download-3307677.png",
+  missions: "rocket-3d-icon-png-download-3307661.png",
+  qr: "magnifying-glass-3d-icon-png-download-3307638.png",
+  scoreImport: "computer-3d-icon-png-download-3307655.png",
+  activities: "writing-notes-3d-icon-png-download-3307639.png",
+  history: "open-envelope-3d-icon-png-download-3307674.png",
+  leaderboard: "trophy-3d-icon-png-download-3307665.png",
+  archive: "empty-basket-3d-icon-png-download-3307643.png",
+  points: "star-3d-icon-png-download-3307686.png",
+  status: "bulb-3d-icon-png-download-3307681.png",
+  streak: "rocket-3d-icon-png-download-3307661.png",
+  action: "dartboard-3d-icon-png-download-3307663.png",
+  attention: "megaphone-3d-icon-png-download-3307651.png",
 });
 
-if (new Set(Object.values(UI_ASSETS)).size !== Object.keys(UI_ASSETS).length) {
-  throw new Error("Each UniClass UI asset must use a unique icon file.");
+const SHARED_PROGRESS_ASSETS = new Set(["rocket-3d-icon-png-download-3307661.png"]);
+const duplicateAssets = Object.values(UI_ASSETS).filter((file, index, files) => files.indexOf(file) !== index && !SHARED_PROGRESS_ASSETS.has(file));
+if (duplicateAssets.length) {
+  throw new Error("Each unrelated UniClass UI role must use a unique icon file.");
 }
 
 const UI_ASSET_TONES = {
   home: "sky", classes: "sky", students: "mint", assessment: "purple",
   attendance: "sky", resources: "purple", ai: "purple", analytics: "sky",
   settings: "purple", notifications: "pink", search: "sky", filter: "purple",
-  profile: "mint", help: "sky", upload: "sky", download: "purple",
+  profile: "mint", lock: "purple", help: "sky", upload: "sky", download: "purple",
   edit: "purple", delete: "coral", reward: "sun", badge: "sun", view: "sky", menu: "purple",
-  missions: "teal", qr: "sky", scoreImport: "sky", activities: "mint", history: "teal", leaderboard: "sun", archive: "purple",
+  missions: "teal", qr: "sky", scoreImport: "sky", activities: "mint", history: "teal", leaderboard: "sun", archive: "purple", points: "sun", status: "purple", streak: "teal", action: "purple", attention: "pink",
 };
 
 // The pose set shares one silhouette, palette, and hand-painted finish so Nova
@@ -77,8 +84,9 @@ const NOVA_ASSETS = {
 const NOVA_ALIASES = { idea: "ai", tablet: "ai", quest: "assessment" };
 
 export function UIAsset({ name, alt = "", className = "" }) {
-  if (!UI_ASSETS[name]) return null;
-  return <NovaIcon name={name} title={alt} data-ui-tone={UI_ASSET_TONES[name] || "purple"} className={cn("uc-icon-3d object-contain", className)} />;
+  const file = UI_ASSETS[name];
+  if (!file) return null;
+  return <img src={`/brand/icons/${file}`} alt={alt} aria-hidden={alt ? undefined : true} loading="lazy" decoding="async" data-ui-tone={UI_ASSET_TONES[name] || "purple"} className={cn("uc-icon-3d select-none object-contain", className)} />;
 }
 
 export function NovaAsset({ pose = "welcome", alt = "", priority = false, className = "" }) {

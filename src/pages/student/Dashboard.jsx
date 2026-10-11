@@ -10,12 +10,13 @@ import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { Flame, Star, Trophy, Users, Megaphone, ArrowRight, Target, CalendarCheck, ClipboardCheck, HandCoins, ShieldCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar, { DEFAULT_STUDENT_AVATAR } from "@/components/visual/UserAvatar";
+import { UIAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
 import { getDailyMotivationQuote } from "@/lib/dailyQuote";
@@ -196,14 +197,14 @@ export default function StudentDashboard() {
     myActivityPct < 60 && "submit work",
   ].filter(Boolean).slice(0, 2).join(" + ") || "Keep going";
   const progressStatus = myAttendanceRate >= 80 && myActivityPct >= 70
-    ? { label: "On Track", message: "You are building strong habits—keep your steady rhythm going.", compactMessage: "My status: On track", tone: "bg-clay-lime/20 text-ink", valueTone: "text-[#228954] dark:text-[var(--uc-green)]", Icon: ShieldCheck }
+    ? { label: "On Track", message: "You are building strong habits—keep your steady rhythm going.", compactMessage: "My status: On track", tone: "bg-clay-lime/20 text-ink", valueTone: "text-[#228954] dark:text-[var(--uc-green)]", asset: "status" }
     : myAttendanceRate >= 60 || myActivityPct >= 50
-      ? { label: "Developing", message: "You are making progress—one focused step today will strengthen your routine.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-sun/25 text-ink", valueTone: "text-[#b7791f] dark:text-[var(--uc-yellow)]", Icon: Target }
-      : { label: "At Risk", message: "A fresh start is always possible—choose one small task and ask for support when you need it.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-coral/15 text-ink", valueTone: "text-[#d94b60] dark:text-[var(--uc-danger)]", Icon: Flame };
+      ? { label: "Developing", message: "You are making progress—one focused step today will strengthen your routine.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-sun/25 text-ink", valueTone: "text-[#b7791f] dark:text-[var(--uc-yellow)]", asset: "status" }
+      : { label: "At Risk", message: "A fresh start is always possible—choose one small task and ask for support when you need it.", compactMessage: `My status: ${statusAction}`, tone: "bg-clay-coral/15 text-ink", valueTone: "text-[#d94b60] dark:text-[var(--uc-danger)]", asset: "status" };
   const progressCards = [
-    { label: "My Attendance", value: `${myAttendanceRate}%`, Icon: CalendarCheck, tone: "bg-clay-sky/15 text-clay-sky" },
-    { label: "My Activity", value: `${Math.round(myActivityPct)}%`, Icon: ClipboardCheck, tone: "bg-clay-lime/20 text-[#228954]" },
-    { label: "Participation", value: `${myParticipationPoints} pts`, detail: `${myQrScanPoints} QR · ${qrParticipationRate}%`, Icon: HandCoins, tone: "bg-clay-purple/15 text-clay-purple" },
+    { label: "My Attendance", value: `${myAttendanceRate}%`, asset: "attendance", tone: "bg-clay-sky/15" },
+    { label: "My Activity", value: `${Math.round(myActivityPct)}%`, asset: "activities", tone: "bg-clay-lime/20" },
+    { label: "Participation", value: `${myParticipationPoints} pts`, detail: `${myQrScanPoints} QR · ${qrParticipationRate}%`, asset: "points", tone: "bg-clay-purple/15" },
   ];
   const dailyQuote = getDailyMotivationQuote(account.id || user?.id, new Date(`${getTodayManila()}T12:00:00Z`));
   const nextMission = missions.find((mission) => mission.is_active && mission.approval_status === "approved") || missions.find((mission) => mission.is_active);
@@ -238,7 +239,7 @@ export default function StudentDashboard() {
 
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15" aria-hidden="true"><Target className="h-6 w-6" /></div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15" aria-hidden="true"><UIAsset name="missions" className="h-8 w-8" /></div>
           <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
           <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : "Open scanner"}</Link>
         </div>
@@ -272,8 +273,8 @@ export default function StudentDashboard() {
       <section className="no-print">
         <div className="mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Your Progress</h2><p className="text-xs text-ink/60">A compact view of the habits you are building.</p></div></div>
         <div className="grid w-full grid-cols-4 gap-2 sm:gap-3">
-          {progressCards.map(({ label, value, detail, Icon, tone }) => <ClayCard key={label} className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={detail ? `${label}: ${value}. ${detail}` : `${label}: ${value}`}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="font-display text-lg font-extrabold leading-none text-[#228954] dark:text-[var(--uc-green)]">{value}</p><p className="mt-1 text-[9px] font-display font-bold leading-tight text-ink/60">{label}</p>{detail && <p className="mt-1 text-[9px] leading-tight text-ink/55">{detail}</p>}</div></div></ClayCard>)}
-          <ClayCard className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={progressStatus.message}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${progressStatus.tone}`}><progressStatus.Icon className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className={`font-display text-lg font-extrabold leading-none ${progressStatus.valueTone}`} >{progressStatus.label}</p><p className="mt-1 text-[9px] leading-tight text-ink/65">{progressStatus.compactMessage}</p></div></div></ClayCard>
+          {progressCards.map(({ label, value, detail, asset, tone }) => <ClayCard key={label} className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={detail ? `${label}: ${value}. ${detail}` : `${label}: ${value}`}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><UIAsset name={asset} className="h-5 w-5" /></span><div className="min-w-0 flex-1"><p className="font-display text-lg font-extrabold leading-none text-[#228954] dark:text-[var(--uc-green)]">{value}</p><p className="mt-1 text-[9px] font-display font-bold leading-tight text-ink/60">{label}</p>{detail && <p className="mt-1 text-[9px] leading-tight text-ink/55">{detail}</p>}</div></div></ClayCard>)}
+          <ClayCard className="flex min-h-[5.5rem] items-center p-2 sm:p-3" title={progressStatus.message}><div className="flex w-full min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${progressStatus.tone}`}><UIAsset name={progressStatus.asset} className="h-5 w-5" /></span><div className="min-w-0 flex-1"><p className={`font-display text-lg font-extrabold leading-none ${progressStatus.valueTone}`} >{progressStatus.label}</p><p className="mt-1 text-[9px] leading-tight text-ink/65">{progressStatus.compactMessage}</p></div></div></ClayCard>
         </div>
       </section>
 
@@ -281,7 +282,7 @@ export default function StudentDashboard() {
         <div className="space-y-2">
           {announcements.map((a) => (
             <ClayCard key={a.id} color="purple" className="p-4">
-              <p className="font-display font-bold text-white flex items-center gap-2"><Megaphone className="w-4 h-4" /> {a.title}</p>
+              <p className="font-display font-bold text-white flex items-center gap-2"><UIAsset name="notifications" className="h-5 w-5" /> {a.title}</p>
               {a.body && <p className="text-sm text-white/80 mt-1 whitespace-pre-wrap">{a.body}</p>}
             </ClayCard>
           ))}
@@ -301,7 +302,7 @@ export default function StudentDashboard() {
 
       <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center gap-1.5 p-2">
         <div className="clay-medallion flex h-9 w-9 shrink-0 items-center justify-center bg-clay-sun">
-          <Flame className="h-4 w-4 text-clay-coral" />
+          <UIAsset name="streak" className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-mono text-3xl font-extrabold leading-none">{personalStreak}</p>
@@ -312,7 +313,7 @@ export default function StudentDashboard() {
       </div>
 
       <section>
-        <div className="mb-3 flex items-center gap-2"><Users className="h-5 w-5 text-clay-purple" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
+        <div className="mb-3 flex items-center gap-2"><UIAsset name="students" className="h-6 w-6" /><div><h2 className="font-display text-lg font-extrabold">Group progress</h2><p className="text-xs text-ink/60">How your group is building habits together</p></div></div>
       <div className="grid gap-4 sm:grid-cols-2">
         {memberCards.map(({ member, streak, activityPct, points, avatarKey, nameEffect }) => (
           <ClayCard key={member.id} className="p-4">
@@ -322,17 +323,17 @@ export default function StudentDashboard() {
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl border-2 border-ink/15 bg-clay-sun/20 p-2">
-                <Flame className="w-4 h-4 mx-auto text-clay-coral" />
+                <UIAsset name="streak" className="mx-auto h-5 w-5" />
                 <p className="font-mono font-bold text-lg">{streak}</p>
                 <p className="text-[10px] font-display">Streak</p>
               </div>
               <div className="rounded-xl border-2 border-ink/15 bg-clay-lime/20 p-2">
-                <Star className="w-4 h-4 mx-auto text-clay-lime" />
+                <UIAsset name="activities" className="mx-auto h-5 w-5" />
                 <p className="font-mono font-bold text-lg">{Math.round(activityPct)}%</p>
                 <p className="text-[10px] font-display">Activity</p>
               </div>
               <div className="rounded-xl border-2 border-ink/15 bg-clay-pink/20 p-2">
-                <Trophy className="w-4 h-4 mx-auto text-clay-pink" />
+                <UIAsset name="points" className="mx-auto h-5 w-5" />
                 <p className="font-mono font-bold text-lg">{points}</p>
                 <p className="text-[10px] font-display">Points</p>
               </div>

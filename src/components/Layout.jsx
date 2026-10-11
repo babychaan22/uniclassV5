@@ -8,8 +8,8 @@ import { supabase } from "@/api/supabaseClient";
 
 import {
   Home, Settings, FileText, QrCode, Award, ClipboardCheck,
-  LogOut, Menu, X, Target, Gift, User,
-  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image, History, MoreHorizontal,
+  LogOut, X, Target, Gift, User,
+  Megaphone, BarChart3, UserCheck, HelpCircle, Users, ClipboardList, Archive, Trophy, Upload, Download, ChevronDown, Image, History,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import StudentClassSwitcher from "@/components/StudentClassSwitcher";
@@ -22,6 +22,10 @@ import { UIAsset } from "@/components/visual/UIAsset";
 import { GroupBadgeProvider } from "@/components/GroupBadgeContext";
 
 const NAV_ASSET_BY_LABEL = {
+  Home: "home",
+  Class: "students",
+  Learning: "missions",
+  Reports: "analytics",
   Dashboard: "home",
   Analytics: "analytics",
   Missions: "missions",
@@ -161,29 +165,30 @@ export default function Layout() {
 
   const handleLogout = async () => { await logout(true); };
 
-  const NavItem = ({ item }) => {
+  const NavItem = ({ item, hideIcon = false }) => {
     const Icon = item.icon;
     const assetName = NAV_ASSET_BY_LABEL[item.label];
     const active = location.pathname === item.path;
     return (
       <Link key={item.path} to={item.path} onClick={() => setOpen(false)} className={`flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-display font-bold transition-colors ${active ? "bg-clay-purple text-white shadow-[0_4px_10px_rgba(142,92,246,.22)]" : "text-ink/70 hover:bg-clay-purple/10 hover:text-ink"}`}>
-        {assetName ? <UIAsset name={assetName} className="h-4 w-4" /> : <Icon className="w-4 h-4" />}
+        {!hideIcon && (assetName ? <UIAsset name={assetName} className="h-5 w-5" /> : <Icon className="w-5 h-5" />)}
         {item.label}
       </Link>
     );
   };
 
-  const SectionMenu = ({ section }) => {
+  const SectionMenu = ({ section, hideIcon = false }) => {
     const Icon = section.icon;
+    const assetName = NAV_ASSET_BY_LABEL[section.label];
     const expanded = openSection === section.label;
     return (
       <div>
         <button type="button" onClick={() => setOpenSection(expanded ? "" : section.label)} aria-expanded={expanded} className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-display font-extrabold ${expanded ? "bg-clay-purple text-white" : "text-ink/70 hover:bg-clay-purple/10"}`}>
-          <Icon className="w-4 h-4" />
+          {!hideIcon && (assetName ? <UIAsset name={assetName} className="h-5 w-5" /> : <Icon className="w-5 h-5" />)}
           <span className="flex-1 text-left">{section.label}</span>
           <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>
-        {expanded && <div className="mt-1 ml-2 pl-2 border-l-2 border-ink/10 flex flex-col gap-1">{section.items.map((item) => <NavItem key={item.path} item={item} />)}</div>}
+        {expanded && <div className="mt-1 ml-2 pl-2 border-l-2 border-ink/10 flex flex-col gap-1">{section.items.map((item) => <NavItem key={item.path} item={item} hideIcon={hideIcon} />)}</div>}
       </div>
     );
   };
@@ -205,7 +210,7 @@ export default function Layout() {
             <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={isTeacher ? user?.avatar_key : studentAvatarKey || user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
             <ThemeToggle />
             <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
-              {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {open ? <X className="w-6 h-6" /> : <UIAsset name="menu" className="h-6 w-6" />}
             </button>
           </div>
         </div>
@@ -231,9 +236,9 @@ export default function Layout() {
           <div className="fixed inset-0 top-16 z-30 bg-[var(--uc-bg)]/95 backdrop-blur lg:hidden no-print" onClick={() => setOpen(false)}>
             <nav className="mx-auto flex max-h-[calc(100vh-4rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
               {isTeacher ? (
-                TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
+                TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} hideIcon />)
               ) : (
-                STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} />)
+                STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} hideIcon />)
               )}
               <button onClick={handleLogout} className="mt-4 flex min-h-11 items-center gap-2 rounded-xl bg-clay-coral px-4 py-3 text-sm font-display font-bold text-white">
                 <LogOut className="w-5 h-5" /> Log out
@@ -255,13 +260,13 @@ export default function Layout() {
             const active = location.pathname === item.path;
             return (
             <Link key={item.path} to={item.path} className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${active ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
-                {assetName ? <UIAsset name={assetName} className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
+                {assetName ? <UIAsset name={assetName} className="h-7 w-7" /> : <Icon className="h-7 w-7" />}
                 <span className="text-[10px] font-display font-bold">{item.label.split(" ")[0]}</span>
               </Link>
             );
           })}
           {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
-            <MoreHorizontal className="h-6 w-6" />
+            <UIAsset name="menu" className="h-7 w-7" />
             <span className="text-[10px] font-display font-bold">More</span>
           </button>}
         </div>

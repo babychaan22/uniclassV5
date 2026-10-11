@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/api/supabaseClient";
-import { Bell, BellOff, Check } from "lucide-react";
+import { BellOff, Check } from "lucide-react";
+import { UIAsset } from "@/components/visual/UIAsset";
 
 const KINDS = {
   announcement: { color: "sky", label: "Announcement" },
@@ -152,7 +153,7 @@ export default function NotificationBell({ teacher = false }) {
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         className="relative rounded-xl p-2 text-[var(--uc-navy-800)] transition-colors hover:bg-clay-purple/10"
       >
-        <Bell className="h-5 w-5" />
+        <UIAsset name="notifications" className="h-5 w-5" />
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-clay-coral px-1 text-[9px] font-bold text-white">
             {unread > 9 ? "9+" : unread}

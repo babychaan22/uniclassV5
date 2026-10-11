@@ -69,7 +69,10 @@ export const AuthProvider = ({ children }) => {
 
   /** Re-check the current session (called by App.jsx's checkUserAuth). */
   const checkUserAuth = async () => {
-    setIsLoadingAuth(true);
+    // A background profile refresh should not blank an already-visible
+    // workspace. Only show the initial auth gate when there is no session yet.
+    const needsInitialGate = !isAuthenticated;
+    if (needsInitialGate) setIsLoadingAuth(true);
     try {
       const { data: { user: u }, error } = await supabase.auth.getUser();
       if (error || !u) throw error ?? new Error('Not authenticated');
@@ -81,7 +84,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setAuthError({ type: 'auth_required', message: 'Authentication required' });
     } finally {
-      setIsLoadingAuth(false);
+      if (needsInitialGate) setIsLoadingAuth(false);
       setAuthChecked(true);
     }
   };

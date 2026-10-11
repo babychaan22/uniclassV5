@@ -26,7 +26,14 @@ import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
 
 let teacherDashboardCache = null;
-const TEACHER_DASHBOARD_CACHE_MS = 30_000;
+const TEACHER_DASHBOARD_CACHE_MS = 120_000;
+const activityStatus = (rate) => rate >= 80 ? "On Track" : rate >= 60 ? "Developing" : "At Risk";
+const ACTIVITY_STATUS_STYLE = {
+  "On Track": "bg-[var(--uc-green-soft)] text-[#4d8c29]",
+  Developing: "bg-[#FFF7DF] text-[#9A7012]",
+  "At Risk": "bg-[#FFF0F3] text-[#B94B63]",
+};
+const membersWithoutRecord = (rows, recordedMemberIds) => rows.filter((row) => !recordedMemberIds.has(row.member.id));
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -52,12 +59,12 @@ export default function TeacherDashboard() {
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
       const [ds, teacherClasses, badgeDefinitions, scoreEditsResult] = await Promise.all([
-        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges']),
+        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges','missions','submissions']),
         getTeacherClassrooms(user.id),
         db.entities.BadgeDefinition.filter({ classroom_id: classroom.id }),
         supabase.from('activity_score_edit_requests').select('*').eq('classroom_id', classroom.id).eq('status', 'pending'),
       ]);
-      const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts } = ds;
+      const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts, missions, submissions } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved);
       const term = terms.find((t) => t.is_active) || terms[0] || null;
       const weights = settings[0] || {};
@@ -105,14 +112,15 @@ export default function TeacherDashboard() {
 
       const groupActivity = groups.map((g) => {
         const gm = members.filter((m) => m.group_id === g.id);
-        const breakdown = gm.map((member) => ({ name: memberNames[member.id], rate: Math.round(computeActivityPct(member.id, scores, activities).pct) }));
+        const breakdown = gm.map((member) => ({ name: memberNames[member.id], lastName: member.last_name || member.first_name || "Student", rate: Math.round(computeActivityPct(member.id, scores, activities).pct) }));
         const avg = breakdown.length > 0 ? breakdown.reduce((sum, member) => sum + member.rate, 0) / breakdown.length : 0;
-        return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown };
+        const studentsByStatus = ["On Track", "Developing", "At Risk"].map((status) => ({ status, students: breakdown.filter((member) => activityStatus(member.rate) === status) }));
+        return { name: `G${g.group_number}`, avg: Math.round(avg), breakdown, studentsByStatus };
       });
 
       if (!active) return;
       setPending(pendingAccounts);
-      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges: ds.badges || [], badgeDefinitions, scoreEdits: scoreEditsResult.data || [], attentionByClass: [] };
+      const snapshot = { classroom, term, weights, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, missions: missions || [], submissions: submissions || [], logs, badges: ds.badges || [], badgeDefinitions, scoreEdits: scoreEditsResult.data || [], attentionByClass: [] };
       teacherDashboardCache = { userId: user.id, data: snapshot, savedAt: Date.now() };
       setData(snapshot);
       setLoading(false);
@@ -151,7 +159,8 @@ export default function TeacherDashboard() {
   if (loading) return <PanelSkeleton cards={4} />;
   if (!data) return null;
 
-  const { classroom, term, memberRows, groupRows, trend, groupActivity, groups, attendance, scores, activities, logs, badges, badgeDefinitions, scoreEdits = [], attentionByClass } = data;
+  const { classroom, term, memberRows, trend, groups, attendance, scores, activities, missions = [], submissions = [], logs, badges, badgeDefinitions, scoreEdits = [], attentionByClass } = data;
+  const members = memberRows.map((row) => row.member);
   const onTrack = memberRows.filter((r) => r.cls.tag === "On Track").length;
   const developing = memberRows.filter((r) => r.cls.tag === "Developing").length;
   const atRiskRows = memberRows.filter((r) => r.cls.tag === "At Risk")
@@ -164,37 +173,94 @@ export default function TeacherDashboard() {
   const monthStart = new Date(`${selectedDate}T00:00:00Z`);
   monthStart.setUTCDate(monthStart.getUTCDate() - 29);
   const rangeStart = chartRange === "term" ? (term?.start_date || null) : chartRange === "month" ? monthStart.toISOString().slice(0, 10) : getWeekStartManila(new Date(`${selectedDate}T12:00:00+08:00`));
+  const rangeEndDate = new Date(`${rangeStart || selectedDate}T00:00:00Z`);
+  if (chartRange === "week") rangeEndDate.setUTCDate(rangeEndDate.getUTCDate() + 6);
+  else if (chartRange === "month") rangeEndDate.setUTCDate(rangeEndDate.getUTCDate() + 29);
+  const rangeEnd = chartRange === "term" ? (term?.end_date || selectedDate) : rangeEndDate.toISOString().slice(0, 10);
   const rangeLabel = chartRange === "term" ? "this term" : chartRange === "month" ? "this month" : "this week";
-  const isInRange = (value) => !rangeStart || String(value || "").slice(0, 10) >= rangeStart;
+  const isInRange = (value) => {
+    const day = String(value || "").slice(0, 10);
+    return !!day && (!rangeStart || day >= rangeStart) && (!rangeEnd || day <= rangeEnd);
+  };
   const visibleTrend = trend.filter((item) => isInRange(item.date));
   const rangeAttendance = attendance.filter((record) => isInRange(record.attendance_date));
   const attendanceRate = rangeAttendance.length ? Math.round((rangeAttendance.filter((record) => record.status === "present").length / rangeAttendance.length) * 100) : 0;
   const activityById = new Map(activities.map((activity) => [activity.id, activity]));
   // Older score records may not carry a timestamp. Keep those included rather
   // than hiding valid grades when the date selector is changed.
-  const rangeScores = scores.filter((score) => !score.created_date || isInRange(score.created_date));
+  const rangeScores = scores.filter((score) => isInRange(score.created_date) || (!score.created_date && isInRange(activityById.get(score.activity_id)?.created_date)));
   const activityAverage = rangeScores.length
     ? Math.round((rangeScores.reduce((sum, score) => sum + (Number(score.score || 0) / Math.max(1, Number(activityById.get(score.activity_id)?.max_score || 1))) * 100, 0) / rangeScores.length))
     : 0;
   const classProgress = Math.round((attendanceRate + activityAverage) / (attendanceRate > 0 || activityAverage > 0 ? 2 : 1)) || 0;
-  const scoredActivityIds = new Set(scores.map((s) => s.activity_id));
-  const toGradeCount = activities.filter((a) => !scoredActivityIds.has(a.id)).length;
-  const groupParticipation = groups.map((group) => {
-    const membersInGroup = memberRows.filter((row) => row.group?.id === group.id);
-    const total = membersInGroup.reduce((sum, row) => sum + Number(row.pts || 0), 0);
-    return { label: `G${group.group_number}`, total };
+  const rangeActivities = activities.filter((activity) => isInRange(activity.created_date));
+  const rangeActivityIds = new Set(rangeActivities.map((activity) => activity.id));
+  const scoredActivityIds = new Set(rangeScores.map((score) => score.activity_id));
+  const toGradeCount = rangeActivities.filter((activity) => !scoredActivityIds.has(activity.id)).length;
+  const rangeAttendanceByMember = new Set(rangeAttendance.map((record) => record.group_member_id));
+  const rangeSchoolDays = [];
+  for (let day = new Date(`${rangeStart || selectedDate}T00:00:00Z`); day <= new Date(`${rangeEnd || selectedDate}T00:00:00Z`); day.setUTCDate(day.getUTCDate() + 1)) {
+    if (!hasClassDays(classroom.class_days) || isScheduledClassDay(day, classroom.class_days)) rangeSchoolDays.push(day.toISOString().slice(0, 10));
+  }
+  const noAttendanceInRange = rangeSchoolDays.length ? membersWithoutRecord(memberRows, rangeAttendanceByMember) : [];
+  const scoredRangeActivityMembers = new Set(rangeScores.filter((score) => rangeActivityIds.has(score.activity_id)).map((score) => score.group_member_id));
+  const noRangeActivity = rangeActivities.length ? membersWithoutRecord(memberRows, scoredRangeActivityMembers) : [];
+  const rangeMissions = missions.filter((mission) => isInRange(mission.created_date));
+  const submittedMissionMembers = new Set();
+  for (const submission of submissions) {
+    if (!rangeMissions.some((mission) => mission.id === submission.mission_id)) continue;
+    if (submission.group_member_id) submittedMissionMembers.add(submission.group_member_id);
+    else if (submission.group_id) members.filter((member) => member.group_id === submission.group_id).forEach((member) => submittedMissionMembers.add(member.id));
+  }
+  const noRangeMission = rangeMissions.length ? membersWithoutRecord(memberRows, submittedMissionMembers) : [];
+  // This is the classroom's earned-points ledger, not the personal-points
+  // classification metric. It intentionally includes QR scans, mission XP
+  // redemptions, manual awards, and every other positive participation event.
+  const participationTotals = groups.map((group) => ({
+    id: group.id,
+    label: `G${group.group_number}`,
+    total: logs.filter((log) => log.group_id === group.id && isInRange(log.created_date)).reduce((sum, log) => sum + Math.max(0, signedPoints(log)), 0),
+  }));
+  const highestGroupParticipation = Math.max(...participationTotals.map((item) => item.total), 1);
+  const groupParticipation = participationTotals.map((item) => {
+    const rate = Math.round((item.total / highestGroupParticipation) * 100);
+    return { ...item, rate, status: activityStatus(rate) };
   });
-  const highestGroupParticipation = Math.max(...groupParticipation.map((item) => item.total), 1);
-  const recentAchievements = logs.slice().sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")).slice(0, 3);
-  const lowAttendanceRows = memberRows.filter((row) => row.att.count > 0 && row.att.rate < 60);
-  const lowActivityRows = memberRows.filter((row) => row.act.count > 0 && row.act.pct < 60);
-  const averagePoints = memberRows.length ? memberRows.reduce((sum, row) => sum + Number(row.pts || 0), 0) / memberRows.length : 0;
-  const lowParticipationRows = averagePoints > 0 ? memberRows.filter((row) => Number(row.pts || 0) < averagePoints) : [];
+  const participationColumns = [
+    groupParticipation.slice(0, Math.ceil(groupParticipation.length / 2)),
+    groupParticipation.slice(Math.ceil(groupParticipation.length / 2)),
+  ];
+  const rangeAttendanceStats = new Map(memberRows.map((row) => [row.member.id, { present: 0, total: 0 }]));
+  for (const record of rangeAttendance) {
+    const stats = rangeAttendanceStats.get(record.group_member_id);
+    if (stats) { stats.total += 1; if (record.status === "present") stats.present += 1; }
+  }
+  const rangeActivityStats = new Map(memberRows.map((row) => [row.member.id, { earned: 0, max: 0 }]));
+  for (const score of rangeScores) {
+    const stats = rangeActivityStats.get(score.group_member_id);
+    const max = Number(activityById.get(score.activity_id)?.max_score) || 0;
+    if (stats && max) { stats.earned += Number(score.score) || 0; stats.max += max; }
+  }
+  const rangeLogs = logs.filter((log) => isInRange(log.created_date));
+  const rangePointsByMember = new Map(memberRows.map((row) => [row.member.id, 0]));
+  for (const log of rangeLogs) if (log.group_member_id) rangePointsByMember.set(log.group_member_id, (rangePointsByMember.get(log.group_member_id) || 0) + signedPoints(log));
+  const lowAttendanceRows = memberRows.filter((row) => { const stats = rangeAttendanceStats.get(row.member.id); return stats.total > 0 && (stats.present / stats.total) * 100 < 60; });
+  const lowActivityRows = memberRows.filter((row) => { const stats = rangeActivityStats.get(row.member.id); return stats.max > 0 && (stats.earned / stats.max) * 100 < 60; });
+  const averagePoints = memberRows.length ? [...rangePointsByMember.values()].reduce((sum, points) => sum + points, 0) / memberRows.length : 0;
+  const lowParticipationRows = averagePoints > 0 ? memberRows.filter((row) => (rangePointsByMember.get(row.member.id) || 0) < averagePoints) : [];
+  const groupActivityForRange = groups.map((group) => {
+    const breakdown = memberRows.filter((row) => row.group?.id === group.id).map((row) => {
+      const stats = rangeActivityStats.get(row.member.id) || { earned: 0, max: 0 };
+      return { lastName: row.member.last_name || row.member.first_name || "Student", rate: stats.max ? Math.round((stats.earned / stats.max) * 100) : 0, hasRecord: stats.max > 0 };
+    });
+    const avg = breakdown.length ? Math.round(breakdown.reduce((sum, student) => sum + student.rate, 0) / breakdown.length) : 0;
+    return { name: `G${group.group_number}`, avg, status: activityStatus(avg), noRecordStudents: breakdown.filter((student) => !student.hasRecord) };
+  });
   const memberLabel = (row) => `${row.member.last_name}, ${row.member.first_name}`;
   const attentionCategories = [
-    { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => `${Math.round(row.att.rate)}%` },
-    { label: "Low activity average", rows: lowActivityRows, detail: (row) => `${Math.round(row.act.pct)}%` },
-    { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${row.pts} pts` },
+    { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => { const stats = rangeAttendanceStats.get(row.member.id); return `${Math.round((stats.present / stats.total) * 100)}%`; } },
+    { label: "Low activity average", rows: lowActivityRows, detail: (row) => { const stats = rangeActivityStats.get(row.member.id); return `${Math.round((stats.earned / stats.max) * 100)}%`; } },
+    { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${rangePointsByMember.get(row.member.id) || 0} pts` },
     { label: "Join approvals", rows: pending, detail: () => "Awaiting approval", account: true },
     { label: "Score edit approvals", rows: scoreEdits, detail: () => "Review score edit", edit: true },
   ].filter((category) => category.rows.length);
@@ -227,8 +293,6 @@ export default function TeacherDashboard() {
         variant="welcome"
         title="Your class is making progress!"
         subtitle={`Here's a quick snapshot of participation, attendance, and learning progress for ${classroom.section}.`}
-        greeting="Hi, Teacher!"
-        greetingSubtext="Here's what needs your attention today."
         className="no-print"
       />
 
@@ -243,7 +307,7 @@ export default function TeacherDashboard() {
           {[
             { label: "Attendance", path: ROUTES.TEACHER.ATTENDANCE, icon: "attendance", tone: "bg-clay-sky/15" },
             { label: "Mission", path: ROUTES.TEACHER.MISSIONS, icon: "missions", tone: "bg-clay-purple/15" },
-            { label: "Points", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: "reward", tone: "bg-clay-lime/20" },
+            { label: "Points", path: ROUTES.TEACHER.ACTIVITY_LOGS, icon: "points", tone: "bg-clay-lime/20" },
             { label: "QR code", path: ROUTES.TEACHER.QR_GENERATOR, icon: "qr", tone: "bg-clay-sun/20" },
           ].map((action) => {
             return <Link key={action.label} to={action.path} className="group flex min-h-14 items-center gap-2 rounded-xl border border-ink/10 bg-white px-2.5 py-2 shadow-[var(--uc-shadow-sm)] transition-transform hover:-translate-y-0.5 hover:border-[var(--uc-purple)]/25 focus:outline-none focus:ring-2 focus:ring-[var(--uc-purple)]/30"><span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.tone}`}><UIAsset name={action.icon} className="h-5 w-5" /></span><p className="min-w-0 font-display text-xs font-extrabold text-[var(--uc-navy-950)] sm:text-sm">{action.label}</p></Link>;
@@ -278,25 +342,24 @@ export default function TeacherDashboard() {
         </div>
       </section>
 
-      <section className="grid gap-4 no-print lg:grid-cols-[1.1fr_.9fr]">
+      <section className="space-y-4 no-print">
         <ClayCard className="p-4">
-          <h3 className="font-display text-sm font-bold text-ink/60">Needs Action</h3>
-          <p className="mb-3 text-xs text-ink/50">Daily and all-time reminders for records that still need attention.</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[{ label: "Attendance", value: memberRows.filter((row) => row.att.count === 0).length, path: ROUTES.TEACHER.ATTENDANCE }, { label: "Activities", value: toGradeCount, path: ROUTES.TEACHER.ACTIVITIES }, { label: "Participation", value: lowParticipationRows.length, path: ROUTES.TEACHER.ACTIVITY_LOGS }, { label: "Missions", value: scoreEdits.length, path: ROUTES.TEACHER.EVIDENCE }].map((item) => <Link key={item.label} to={item.path} className="rounded-xl bg-[var(--uc-bg)] px-2.5 py-2 text-center"><p className="font-mono text-lg font-extrabold text-[var(--uc-navy-950)]">{item.value}</p><p className="text-[10px] font-display font-bold text-ink/55">{item.label}</p></Link>)}
+          <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink/60"><UIAsset name="action" className="h-7 w-7" /> Needs Action · {rangeLabel}</h3>
+          <p className="mb-3 text-xs text-ink/50">Attendance, activity, and mission records for the selected period that still need attention.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[{ label: rangeSchoolDays.length ? `No attendance record ${rangeLabel}` : "No class days in this period", value: noAttendanceInRange.length, path: ROUTES.TEACHER.ATTENDANCE, card: "Attendance" }, { label: rangeActivities.length ? `No record for posted activity ${rangeLabel}` : `No Activity posted ${rangeLabel}`, value: noRangeActivity.length, path: ROUTES.TEACHER.ACTIVITIES, card: "Activities" }, { label: rangeMissions.length ? `No submission for posted mission ${rangeLabel}` : `No Mission posted ${rangeLabel}`, value: noRangeMission.length, path: ROUTES.TEACHER.MISSIONS, card: "Missions" }].map((item) => <Link key={item.card} to={item.path} className="rounded-xl bg-[var(--uc-bg)] px-2.5 py-2 text-center"><p className="font-mono text-lg font-extrabold text-[var(--uc-navy-950)]">{item.value}</p><p className="text-[10px] font-display font-bold text-ink/55">{item.card}</p><p className="mt-0.5 text-[9px] leading-tight text-ink/45">{item.label}</p></Link>)}
           </div>
         </ClayCard>
         <ClayCard className="p-4">
-          <h3 className="font-display text-sm font-bold text-ink/60">Needs Attention</h3>
-          <p className="mb-3 text-xs text-ink/50">Learners and approvals that need a quick teacher decision.</p>
-          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="flex flex-wrap gap-1">{category.rows.slice(0, 3).map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : ROUTES.TEACHER.ROSTER} className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div></div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
+          <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink/60"><UIAsset name="attention" className="h-7 w-7" /> Needs Attention · {rangeLabel}</h3>
+          <p className="mb-3 text-xs text-ink/50">Learners’ quick snapshot for the selected period, plus approvals that need teacher decisions.</p>
+          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="uc-compact-scroll flex max-h-28 flex-wrap content-start gap-1 overflow-y-auto pr-1">{category.rows.map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : ROUTES.TEACHER.ROSTER} className="max-w-full shrink-0 truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div></div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
         </ClayCard>
       </section>
 
-      <section className="grid gap-4 no-print sm:grid-cols-2 lg:grid-cols-3">
-        <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-purple/12"><UIAsset name="students" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Group participation</h3><p className="text-xs text-ink/60">Total participation points by group</p></div></div><div className="mt-4 space-y-2.5">{groupParticipation.map((item, index) => <div key={item.label} className="grid grid-cols-[2.25rem_1fr_3.25rem] items-center gap-2 text-xs"><span className="font-display font-extrabold text-[var(--uc-navy-950)]">{item.label}</span><div className="h-3 overflow-hidden rounded-full bg-[var(--uc-purple-soft)]"><div className="h-full rounded-full" style={{ width: `${Math.max(item.total ? 8 : 0, (item.total / highestGroupParticipation) * 100)}%`, backgroundColor: ["#8E5CF6", "#56B4F4", "#C5A4FF", "#FFD75F"][index % 4] }} /></div><span className="text-right font-mono font-bold text-ink/65">{item.total} pts</span></div>)}</div></ClayCard>
-        <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-sky/15"><UIAsset name="attendance" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Attendance</h3><p className="text-xs text-ink/60">Students present</p></div></div><div className="mx-auto mt-4 flex h-32 w-32 items-center justify-center rounded-full" style={{ background: `conic-gradient(#32A9ED ${attendanceRate}%, #E8EDF5 0)` }}><div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white"><strong className="font-mono text-3xl">{attendanceRate}%</strong><span className="text-xs text-ink/60">present</span></div></div></ClayCard>
-        <ClayCard className="p-4 sm:col-span-2 lg:col-span-1"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-pink/12"><UIAsset name="assessment" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Activity completion</h3><p className="text-xs text-ink/60">Average by group</p></div></div><div className="mt-4 grid grid-cols-2 gap-2">{groupActivity.map((item) => <div key={item.name} className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-center"><p className="text-[10px] font-display font-bold text-ink/55">{item.name}</p><p className="font-mono text-xl font-extrabold text-[var(--uc-navy-950)]">{item.avg}%</p></div>)}</div></ClayCard>
+      <section className="space-y-4 no-print">
+        <ClayCard className="p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-clay-purple/12"><UIAsset name="status" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Group Participation</h3><p className="text-xs text-ink/60">All earned points for {rangeLabel}: scans, missions, awards, and more</p></div></div><div className="mt-3 grid grid-cols-2 gap-x-3">{participationColumns.map((column, index) => <div key={index} className="space-y-1.5">{column.map((item) => { const color = item.status === "On Track" ? "#80C94B" : item.status === "Developing" ? "#F4C95D" : "#E76C82"; return <div key={item.label} className="grid grid-cols-[1.5rem_1fr_2.7rem] items-center gap-1.5 text-[10px]"><span className="font-display font-extrabold text-[var(--uc-navy-950)]">{item.label}</span><div className="h-2.5 overflow-hidden rounded-full bg-[var(--uc-purple-soft)]"><div className="h-full rounded-full" style={{ width: `${Math.max(item.total ? 8 : 0, item.rate)}%`, backgroundColor: color }} /></div><span className="text-right font-mono font-bold text-ink/65">{item.total} pts</span></div>; })}</div>)}</div></ClayCard>
+        <ClayCard className="bg-white p-4"><div className="flex items-start gap-3"><span className="uc-icon-tile bg-[var(--uc-blue-soft)]"><UIAsset name="activities" className="h-9 w-9" /></span><div><h3 className="font-display text-lg font-extrabold">Activity Completion</h3><p className="text-xs text-ink/60">Activity-average status by group · {rangeLabel}</p></div></div><div className="mt-3 grid grid-cols-2 gap-2">{groupActivityForRange.map((item) => <div key={item.name} className="rounded-xl border border-ink/10 bg-white px-2 py-2 sm:px-3"><div className="flex items-baseline justify-between gap-2"><p className="text-[10px] font-display font-bold text-ink/55">{item.name}</p><p className="font-mono text-lg font-extrabold text-[var(--uc-navy-950)] sm:text-xl">{item.avg}%</p></div><div className={`mt-1 rounded-lg px-1.5 py-1 text-[9px] leading-tight ${ACTIVITY_STATUS_STYLE[item.status]}`}><span className="font-display font-extrabold">Average status: </span>{item.status}</div><p className="mt-1.5 text-[9px] leading-tight text-ink/60"><span className="font-display font-extrabold">No activity record: </span>{item.noRecordStudents.length ? item.noRecordStudents.map((student) => student.lastName).join(", ") : "None"}</p></div>)}</div></ClayCard>
       </section>
 
       {pending.length > 0 && (
@@ -310,25 +373,8 @@ export default function TeacherDashboard() {
       </ClayCard>
 
       <ClayCard className="p-4">
-        <h2 className="font-display font-bold text-lg mb-3">Group Status</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {groupRows.map((r) => (
-            <div key={r.group.id} className="clay-tile p-2.5 text-center">
-              <p className="inline-flex items-center justify-center gap-1 text-sm font-display font-bold">Group {r.group.group_number} <GroupBadgeMarkers groupId={r.group.id} badges={badges} definitions={badgeDefinitions} /></p>
-              {(() => {
-                const status = r.avgTotal === null ? "Developing" : r.avgTotal >= 80 ? "On Track" : r.avgTotal >= 60 ? "Developing" : "At Risk";
-                const color = status === "On Track" ? "lime" : status === "At Risk" ? "coral" : "sun";
-                const reason = r.avgTotal === null ? "Needs attendance and activity records to establish a baseline." : status === "On Track" ? `Average performance is ${Math.round(r.avgTotal)}%, meeting the class target.` : status === "At Risk" ? `Average performance is ${Math.round(r.avgTotal)}%; attendance or scores need support.` : `Average performance is ${Math.round(r.avgTotal)}%; more consistent progress will move it on track.`;
-                return <><div className="mt-1"><ClayChip color={color}>{status}</ClayChip></div><p className="mt-1 text-[11px] leading-snug text-ink/60">{reason}</p></>;
-              })()}
-            </div>
-          ))}
-        </div>
-      </ClayCard>
-
-      <ClayCard className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="font-display font-bold text-lg">Student Classification Report</h2>
+          <h2 className="font-display font-bold text-lg">Student Progress Report</h2>
           <div className="flex flex-wrap gap-2">
             {["all", "Not enough data", "At Risk", "Developing", "On Track"].map((f) => (
               <button key={f} onClick={() => setFilter(f)}
@@ -338,7 +384,7 @@ export default function TeacherDashboard() {
             ))}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[30rem] overflow-auto pr-1">
           <table className="w-full text-sm font-body">
             <thead>
               <tr className="border-b-2 border-ink text-left">

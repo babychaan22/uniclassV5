@@ -122,11 +122,13 @@ export default function TrendCharts({ classroomId, members, currentMemberId, att
           {learningBars.map((item) => <div key={item.name}><div className="mb-1 flex justify-between text-xs font-display font-bold"><span>{item.name}</span><span>{Math.round(item.value)}%</span></div><div className="uc-progress-track"><div className="uc-progress-fill" style={{ width: `${Math.min(item.value, 100)}%`, backgroundColor: item.color }} /></div></div>)}
         </div>
       </ClayCard>
-      <ClayCard className="p-4 sm:col-span-2 sm:p-5 lg:col-span-1">
+      <ClayCard className="overflow-hidden p-4 sm:col-span-2 sm:p-5 lg:col-span-1">
         <p className="flex items-center gap-2 font-display text-sm font-bold"><span className="uc-icon-tile h-9 w-9 rounded-xl bg-clay-pink/12"><UIAsset name="reward" className="h-8 w-8" /></span>Points earned</p>
-        <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={weeklyPoints} margin={{ top: 14, right: 0, left: -28, bottom: 0 }}><XAxis dataKey="week" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="points" fill="#FF5FA8" radius={[8, 8, 0, 0]} /></BarChart>
-        </ResponsiveContainer>
+        <div className="uc-chart-shell mt-3 px-2 pt-1">
+          <ResponsiveContainer width="100%" height={156}>
+            <BarChart className="uc-chart" data={weeklyPoints} margin={{ top: 14, right: 4, left: -22, bottom: 0 }}><XAxis dataKey="week" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: 14, borderColor: "rgba(108,85,217,.18)", background: "rgba(255,255,255,.96)" }} cursor={{ fill: "rgba(108,85,217,.10)" }} /><Bar dataKey="points" fill="#6C55D9" radius={[9, 9, 2, 2]} /></BarChart>
+          </ResponsiveContainer>
+        </div>
       </ClayCard>
       <p className="sm:col-span-2 lg:col-span-3 text-xs text-ink/60">{term ? `${term.term_label} · ` : ""}Progress reflects the selected period.</p>
     </section>

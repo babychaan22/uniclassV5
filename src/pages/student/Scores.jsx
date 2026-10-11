@@ -222,7 +222,7 @@ export default function StudentScores() {
       )}
 
       <ClayCard className="p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-3"><UIAsset name="assessment" className="h-11 w-11" /><div><label className="block font-display text-lg font-extrabold text-[var(--uc-navy-950)]">Choose an activity</label><p className="text-xs text-ink/60">The newest activities appear first.</p></div></div>
+        <div className="mb-3 flex items-center gap-3"><UIAsset name="activities" className="h-11 w-11" /><div><label className="block font-display text-lg font-extrabold text-[var(--uc-navy-950)]">Choose an activity</label><p className="text-xs text-ink/60">The newest activities appear first.</p></div></div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {assignedActivities.map((assigned) => { const n = assigned.activity_number;
             const isLocked = lockedActivities[n];

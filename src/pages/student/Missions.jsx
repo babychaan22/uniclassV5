@@ -131,7 +131,7 @@ export default function StudentMissions() {
 
       <ClayCard color="purple" className="p-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="assessment" className="h-14 w-14" /></div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15"><UIAsset name="missions" className="h-14 w-14" /></div>
           <div className="flex-1 text-white">
             <p className="font-mono font-extrabold text-4xl leading-none">{available}</p>
             <p className="font-display font-bold text-sm">XP available to redeem</p>

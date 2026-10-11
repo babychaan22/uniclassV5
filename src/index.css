@@ -226,15 +226,88 @@
 /* A small depth treatment makes the illustrated asset set feel like one family
    with Nova instead of a mix of flat navigation glyphs. */
 .uc-icon-3d {
-  filter: drop-shadow(0 2px 0 rgba(35, 50, 112, .14)) drop-shadow(0 5px 7px rgba(35, 50, 112, .14));
-  transform: translateZ(0);
+  filter: saturate(1.12) contrast(1.04) drop-shadow(0 2px 0 rgba(35, 50, 112, .16)) drop-shadow(0 5px 8px rgba(35, 50, 112, .17));
+  transform: translateZ(0) scale(1.08);
+  transform-origin: center;
   transition: transform .18s ease, filter .18s ease;
 }
+/* Icons are the visual anchors for actions. The modest resting scale makes the
+   3D set legible in compact controls without changing the button's layout. */
+a .uc-icon-3d, button .uc-icon-3d, [role="button"] .uc-icon-3d {
+  filter: saturate(1.18) contrast(1.06) drop-shadow(0 2px 0 rgba(35, 50, 112, .18)) drop-shadow(0 6px 9px rgba(35, 50, 112, .19));
+  transform: translateZ(0) scale(1.16);
+}
 a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
-  filter: drop-shadow(0 3px 0 rgba(35, 50, 112, .14)) drop-shadow(0 8px 10px rgba(35, 50, 112, .16));
-  transform: translateY(-2px) scale(1.045);
+  filter: saturate(1.24) contrast(1.08) drop-shadow(0 3px 0 rgba(35, 50, 112, .18)) drop-shadow(0 9px 12px rgba(35, 50, 112, .22));
+  transform: translateY(-2px) scale(1.24);
 }
 .uc-icon-tile:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 14px rgba(44, 55, 116, .16); }
+
+/* Shared chart language: soft classroom surfaces, readable ink labels, and
+   raised data marks echo the app's clay cards and illustrated icon system. */
+.uc-chart-shell {
+  overflow: hidden;
+  border: 1px solid rgba(108, 85, 217, .10);
+  border-radius: 1.25rem;
+  background: radial-gradient(circle at 12% 8%, rgba(255,255,255,.96), transparent 35%), linear-gradient(145deg, rgba(240, 236, 255, .88), rgba(234, 246, 254, .62));
+  box-shadow: inset 0 2px 5px rgba(255,255,255,.92), inset 0 -4px 10px rgba(108,85,217,.05);
+}
+.clay-card .recharts-wrapper:not(.uc-chart-shell .recharts-wrapper) {
+  margin-top: .7rem;
+  overflow: hidden;
+  border: 1px solid rgba(108, 85, 217, .10);
+  border-radius: 1.25rem;
+  background: radial-gradient(circle at 12% 8%, rgba(255,255,255,.96), transparent 35%), linear-gradient(145deg, rgba(240, 236, 255, .82), rgba(234, 246, 254, .55));
+  box-shadow: inset 0 2px 5px rgba(255,255,255,.92), inset 0 -4px 10px rgba(108,85,217,.05);
+}
+.uc-chart-shell .recharts-wrapper {
+  margin-top: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.uc-chart .recharts-cartesian-grid-horizontal line {
+  stroke: rgba(105, 117, 138, .18);
+  stroke-dasharray: 3 5;
+}
+.clay-card .recharts-cartesian-grid-horizontal line {
+  stroke: rgba(105, 117, 138, .18);
+  stroke-dasharray: 3 5;
+}
+.clay-card .recharts-cartesian-axis-line,
+.clay-card .recharts-cartesian-axis-tick-line { stroke: transparent; }
+.clay-card .recharts-cartesian-axis-tick-value {
+  fill: var(--uc-muted) !important;
+  font-family: var(--font-display, ui-rounded, system-ui, sans-serif);
+  font-weight: 700;
+}
+.clay-card .recharts-bar-rectangle path {
+  stroke: rgba(255,255,255,.72);
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 3px 2px rgba(38, 51, 74, .12)) drop-shadow(0 6px 7px rgba(38, 51, 74, .09));
+}
+.uc-chart .recharts-cartesian-axis-line,
+.uc-chart .recharts-cartesian-axis-tick-line { stroke: transparent; }
+.uc-chart .recharts-cartesian-axis-tick-value {
+  fill: var(--uc-muted) !important;
+  font-family: var(--font-display, ui-rounded, system-ui, sans-serif);
+  font-weight: 700;
+}
+.uc-chart .recharts-bar-rectangle path {
+  stroke: rgba(255,255,255,.72);
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 3px 2px rgba(38, 51, 74, .12)) drop-shadow(0 6px 7px rgba(38, 51, 74, .09));
+}
+.uc-chart .recharts-tooltip-cursor { fill: rgba(108, 85, 217, .10); }
+.uc-chart-tooltip {
+  border: 1px solid rgba(108, 85, 217, .18) !important;
+  border-radius: .8rem !important;
+  background: rgba(255,255,255,.96) !important;
+  box-shadow: 0 10px 24px rgba(38, 51, 74, .14) !important;
+  color: var(--uc-navy-950) !important;
+  font-family: var(--font-display, ui-rounded, system-ui, sans-serif);
+}
 
 @keyframes uc-panel-in {
   from { opacity: 0; transform: translateY(10px) scale(.985); }
@@ -572,5 +645,10 @@ a:hover .uc-icon-3d, button:hover .uc-icon-3d, .uc-icon-tile:hover .uc-icon-3d {
 /* Make touch controls respond immediately without changing any data flow. */
 button, a, select, input, textarea { touch-action: manipulation; }
 button, a { -webkit-tap-highlight-color: transparent; }
+.uc-compact-scroll { scrollbar-width: thin; scrollbar-color: rgba(108, 85, 217, .55) transparent; }
+.uc-compact-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.uc-compact-scroll::-webkit-scrollbar-track { background: transparent; }
+.uc-compact-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(108, 85, 217, .55); }
+.uc-compact-scroll::-webkit-scrollbar-thumb:hover { background: rgba(108, 85, 217, .8); }
 .clay-btn { transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease; }
 .clay-btn:enabled:active { transform: translateY(1px) scale(.985); filter: brightness(.98); }

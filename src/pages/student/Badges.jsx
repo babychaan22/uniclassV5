@@ -15,12 +15,13 @@ import { getWeekStartManila, isEndOfWeekManila } from "@/lib/week";
 import { Check, Loader2 } from "lucide-react";
 import NovaMessage from "@/components/NovaMessage";
 import { notifyGroupBadgesUpdated } from "@/components/GroupBadgeContext";
+import { UIAsset } from "@/components/visual/UIAsset";
 
 const BADGE_INFO = {
-  weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, icon: "🎯" },
-  weekly_full_attendance: { label: "Perfect Attendance", desc: "Every member present all week", points: 10, icon: "📅" },
-  weekly_top_group_points: { label: "Top Group Points", desc: "Highest group participation this week", points: 10, icon: "🏆" },
-  weekly_top_individual_points: { label: "Top Point Earner", desc: "Highest individual points in the whole class this week", points: 10, icon: "⭐" },
+  weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, asset: "badge" },
+  weekly_full_attendance: { label: "Perfect Attendance", desc: "Every member present all week", points: 10, asset: "attendance" },
+  weekly_top_group_points: { label: "Top Group Points", desc: "Highest group participation this week", points: 10, asset: "leaderboard" },
+  weekly_top_individual_points: { label: "Top Point Earner", desc: "Highest individual points in the whole class this week", points: 10, asset: "points" },
 };
 
 export default function StudentBadges() {
@@ -145,7 +146,7 @@ export default function StudentBadges() {
           return (
             <ClayCard key={type} className="p-5">
               <div className="flex items-center gap-3 mb-3">
-                <div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center text-2xl shrink-0">{info.icon}</div>
+                <div className="clay-medallion bg-cream w-14 h-14 flex items-center justify-center shrink-0"><UIAsset name={info.asset} className="h-9 w-9" /></div>
                 <div>
                   <p className="font-display font-bold text-sm leading-tight">{info.label}</p>
                   <p className="text-xs text-ink/50">{info.desc}</p>
