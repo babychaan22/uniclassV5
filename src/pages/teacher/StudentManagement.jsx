@@ -16,6 +16,7 @@ import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { Check, X, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 
 export default function TeacherStudentManagement() {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ export default function TeacherStudentManagement() {
   const [groups, setGroups] = useState([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [removeTarget, setRemoveTarget] = useState(null);
 
   useEffect(() => { load(); }, [user]);
 
@@ -69,7 +71,6 @@ export default function TeacherStudentManagement() {
   }
 
   async function removeStudent(account) {
-    if (!window.confirm(`Remove ${account.last_name}, ${account.first_name} from this class? Their roster record, class scores, attendance, evidence, and personal activity history will be deleted. Their login and other class memberships stay intact.`)) return;
     setBusy(true);
     setActionError("");
     try {
@@ -146,12 +147,21 @@ export default function TeacherStudentManagement() {
                   <p className="font-display font-bold">{a.last_name}, {a.first_name}</p>
                   <p className="text-xs text-ink/60 font-mono">Group {gnum(a)} · {a.is_representative ? "Representative" : "Member"}{a.email ? ` · ${a.email}` : ""}</p>
                 </div></div>
-                <ClayButton size="sm" color="coral" onClick={() => removeStudent(a)} disabled={busy}><X className="w-4 h-4" /> Remove</ClayButton>
+                <ClayButton size="sm" color="coral" onClick={() => setRemoveTarget(a)} disabled={busy}><X className="w-4 h-4" /> Remove</ClayButton>
               </div>
             ))}
           </div>
         </ClayCard>
       )}
+      <ClayConfirmDialog
+        open={Boolean(removeTarget)}
+        onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
+        busy={busy}
+        title="Remove this student?"
+        description={removeTarget ? `${removeTarget.last_name}, ${removeTarget.first_name}'s roster record, scores, attendance, evidence, and class activity history will be removed. Their login and other classrooms stay intact.` : ""}
+        confirmLabel="Remove student"
+        onConfirm={async () => { const target = removeTarget; setRemoveTarget(null); if (target) await removeStudent(target); }}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClassDaySelector from "@/components/ClassDaySelector";
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 import { hasClassDays } from "@/lib/classDays";
 import { Users, Check, X, Plus, Calendar, Hash, BookOpen, ChevronRight, Copy } from "lucide-react";
 
@@ -36,6 +37,7 @@ export default function TeacherOnboarding() {
   const [selectedClassDays, setSelectedClassDays] = useState([]);
   const [savingClassDays, setSavingClassDays] = useState(false);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   function withTimeout(promise, label, ms = 20000) {
     let timer;
@@ -124,7 +126,6 @@ export default function TeacherOnboarding() {
   }
 
   async function removeClass(classroom) {
-    if (!window.confirm(`Delete ${classroom.grade_level} · ${classroom.section}? This removes its class data and cannot be undone.`)) return;
     setError("");
     try {
       await deleteClassroom(classroom.id);
@@ -232,7 +233,7 @@ export default function TeacherOnboarding() {
                       <span className="font-mono text-xs">{c.join_code}</span>
                       <span className="flex items-center gap-2">
                         {sel && <ChevronRight className="w-4 h-4" />}
-                        <span role="button" tabIndex={0} className="text-xs underline text-clay-coral" onClick={(event) => { event.stopPropagation(); removeClass(c); }} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); removeClass(c); } }}>Delete</span>
+                        <span role="button" tabIndex={0} className="text-xs underline text-clay-coral" onClick={(event) => { event.stopPropagation(); setDeleteTarget(c); }} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); setDeleteTarget(c); } }}>Delete</span>
                       </span>
                     </span>
                   </div>
@@ -321,6 +322,14 @@ export default function TeacherOnboarding() {
           </ClayCard>
         </>
       )}
+      <ClayConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete this class?"
+        description={deleteTarget ? `${deleteTarget.grade_level} · ${deleteTarget.section} and its class data will be permanently removed.` : ""}
+        confirmLabel="Delete class"
+        onConfirm={async () => { const target = deleteTarget; setDeleteTarget(null); if (target) await removeClass(target); }}
+      />
     </div>
   );
 }

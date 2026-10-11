@@ -14,6 +14,7 @@ import { Gift, Plus, Trash2, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import { reviewRewardRedemption } from '@/lib/secureActions';
 import PanelSkeleton from "@/components/PanelSkeleton";
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 
 const GROUP_GOAL_TEMPLATES = [
   { title: "Brain Break", description: "A short class game or movement break.", emoji: "🧠", cost_points: 50 },
@@ -31,6 +32,7 @@ export default function TeacherRewards() {
   const [requests, setRequests] = useState([]);
   const [groups, setGroups] = useState([]);
   const [reviewing, setReviewing] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
 
   useEffect(() => { load(); }, [user]);
 
@@ -72,7 +74,6 @@ export default function TeacherRewards() {
   }
 
   async function removeReward(id) {
-    if (!window.confirm("Archive this group goal? Students will no longer be able to request it, but its past requests will stay in your records.")) return;
     await db.entities.Reward.update(id, { is_active: false });
     invalidateClassroomDataset();
     load();
@@ -152,11 +153,19 @@ export default function TeacherRewards() {
                 <span className="text-xs font-display font-bold">{r.is_active ? "On" : "Off"}</span>
                 <Switch checked={r.is_active} onCheckedChange={() => toggleActive(r)} />
               </div>
-              <button onClick={() => removeReward(r.id)} className="clay-btn bg-clay-coral text-white px-2 py-2"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => setArchiveTarget(r)} className="clay-btn bg-clay-coral text-white px-2 py-2" aria-label={`Archive ${r.title}`}><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>
         </ClayCard>
       ))}
+      <ClayConfirmDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => { if (!open) setArchiveTarget(null); }}
+        title="Archive this group goal?"
+        description="Students will no longer be able to request it, but past requests stay in your records."
+        confirmLabel="Archive goal"
+        onConfirm={async () => { const target = archiveTarget; setArchiveTarget(null); if (target) await removeReward(target.id); }}
+      />
     </div>
   );
 }
