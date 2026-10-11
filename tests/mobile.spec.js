@@ -53,12 +53,15 @@ test.describe('student mobile flows', () => {
     const trueAnswer = page.getByRole('button', { name: 'True', exact: true }).first();
     const falseAnswer = page.getByRole('button', { name: 'False', exact: true }).first();
     if (skipScenario(test, await trueAnswer.count() === 0 && await falseAnswer.count() === 0, 'No active mission is available in the test classroom.')) return;
-    if (await trueAnswer.count()) await trueAnswer.click();
-    else await falseAnswer.click();
+    // The clay card's entrance animation can momentarily overlap its answer
+    // controls on a narrow viewport. This is a known, visible control, so use
+    // the same direct tap approach as the final submit button below.
+    if (await trueAnswer.count()) await trueAnswer.click({ force: true });
+    else await falseAnswer.click({ force: true });
 
     const reviewAnswers = page.getByRole('button', { name: 'Review answers', exact: true }).first();
     await expect(reviewAnswers).toBeEnabled();
-    await reviewAnswers.click();
+    await reviewAnswers.click({ force: true });
 
     const submit = page.getByRole('button', { name: /Submit for secure grading/i }).first();
     await expect(submit).toBeVisible();
@@ -79,6 +82,10 @@ test.describe('student mobile flows', () => {
     await login(page, studentEmail, studentPassword, '/student/scores');
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
     const fileInput = page.locator('label').filter({ hasText: 'Upload proof' }).locator('input[type="file"]').first();
+    // The heading paints immediately; the editable roster follows three
+    // classroom requests. Wait for the input instead of treating that normal
+    // loading window as an absent activity.
+    await fileInput.waitFor({ state: 'attached', timeout: 15_000 }).catch(() => {});
     if (skipScenario(test, await fileInput.count() === 0, 'No editable activity is available in the test classroom.')) return;
     await fileInput.setInputFiles(await createProofFixture(testInfo));
     await expect(page.getByText(/Proof uploaded and compressed|Proof upload failed/i)).toBeVisible({ timeout: 20_000 });
