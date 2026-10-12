@@ -324,7 +324,7 @@ export default function Roster() {
       <ClayConfirmDialog
         open={Boolean(confirmation)}
         onOpenChange={(open) => { if (!open) setConfirmation(null); }}
-        busy={busy || transferring}
+        busy={Boolean(saving) || transferring}
         title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move this student record?"}
         description={confirmation?.type === "remove"
           ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s class data and activity proof will be removed. Their login and other classrooms stay intact.`
