@@ -99,6 +99,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
+    <PageErrorBoundary resetKey={location.pathname}>
     <Suspense fallback={<PageLoader />}><Routes>
       <Route path={ROUTES.LOGIN} element={<Login />} />
       <Route path={ROUTES.REGISTER} element={<Register />} />
@@ -151,6 +152,7 @@ const AuthenticatedApp = () => {
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes></Suspense>
+    </PageErrorBoundary>
   );
 };
 
