@@ -41,7 +41,7 @@ const ENTITY_TABLE_MAP = {
 const READ_CACHE_TTL = 15 * 1000;
 const readCache = new Map();
 
-function clearReadCache(tableName) {
+export function invalidateReadCache(tableName) {
   if (!tableName) {
     readCache.clear();
     return;
@@ -55,7 +55,7 @@ function readCacheKey(tableName, conditions, options) {
   return `${tableName}:${JSON.stringify({ conditions, options })}`;
 }
 
-supabase.auth.onAuthStateChange(() => clearReadCache());
+supabase.auth.onAuthStateChange(() => invalidateReadCache());
 
 // -------------------------------------------------------------------
 // Generic entity helper — mirrors the Base44 SDK CRUD surface exactly:
@@ -119,7 +119,7 @@ function createEntityHelper(tableName) {
         .select()
         .single();
       if (error) throw error;
-      clearReadCache(tableName);
+      invalidateReadCache(tableName);
       return data;
     },
 
@@ -132,7 +132,7 @@ function createEntityHelper(tableName) {
         .select()
         .single();
       if (error) throw error;
-      clearReadCache(tableName);
+      invalidateReadCache(tableName);
       return data;
     },
 
@@ -143,7 +143,7 @@ function createEntityHelper(tableName) {
         .delete()
         .eq('id', id);
       if (error) throw error;
-      clearReadCache(tableName);
+      invalidateReadCache(tableName);
     },
 
     /** Insert multiple rows and return them. */
@@ -154,7 +154,7 @@ function createEntityHelper(tableName) {
         .insert(items)
         .select();
       if (error) throw error;
-      clearReadCache(tableName);
+      invalidateReadCache(tableName);
       return data ?? [];
     },
 
@@ -177,7 +177,7 @@ function createEntityHelper(tableName) {
       );
       const firstError = results.find((r) => r.error);
       if (firstError) throw firstError.error;
-      clearReadCache(tableName);
+      invalidateReadCache(tableName);
       return results.map((r) => r.data);
     },
 
@@ -293,7 +293,7 @@ export const db = { entities, auth };
 
 export function invalidateEntityCache(entityName) {
   const tableName = ENTITY_TABLE_MAP[entityName];
-  if (tableName) clearReadCache(tableName);
+  if (tableName) invalidateReadCache(tableName);
 }
 
 // Make available globally so all pages using the pattern

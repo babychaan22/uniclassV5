@@ -1,5 +1,5 @@
 // Only the import line changes — the entire caching logic is identical.
-import { db as base44 } from "@/api/supabaseClient";
+import { db as base44, invalidateReadCache } from "@/api/supabaseClient";
 
 // Module-level cache for the current teacher's classroom record.
 let cache = null; // { userId, promise, ts }
@@ -41,6 +41,10 @@ export function setActiveTeacherClassroom(classroomId) {
   if (typeof window === 'undefined') return;
   if (classroomId) window.localStorage.setItem(ACTIVE_TEACHER_CLASSROOM_KEY, classroomId);
   else window.localStorage.removeItem(ACTIVE_TEACHER_CLASSROOM_KEY);
+  invalidateTeacherClassroom();
+  invalidateClassroomContext();
+  invalidateClassroomDataset();
+  invalidateReadCache();
   window.dispatchEvent(new CustomEvent('uniclass-teacher-class-changed', { detail: { classroomId } }));
 }
 

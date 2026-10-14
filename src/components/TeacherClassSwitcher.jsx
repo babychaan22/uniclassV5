@@ -28,7 +28,6 @@ export default function TeacherClassSwitcher({ user }) {
     const classroomId = event.target.value;
     setActiveId(classroomId);
     setActiveTeacherClassroom(classroomId);
-    window.location.reload();
   }
 
   return (

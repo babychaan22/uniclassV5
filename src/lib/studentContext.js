@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-const db = globalThis.__B44_DB__;
+import { db, invalidateReadCache } from '@/api/supabaseClient';
 
 export const ACTIVE_CLASSROOM_KEY = 'uniclass.activeClassroomId';
 export const ACTIVE_CLASS_CHANGED_EVENT = 'uniclass-active-class-changed';
@@ -41,6 +41,7 @@ export function setActiveStudentClass(classroomId) {
   if (typeof window === 'undefined') return;
   if (classroomId) window.localStorage.setItem(ACTIVE_CLASSROOM_KEY, classroomId);
   else window.localStorage.removeItem(ACTIVE_CLASSROOM_KEY);
+  invalidateReadCache();
   window.dispatchEvent(new CustomEvent(ACTIVE_CLASS_CHANGED_EVENT, { detail: { classroomId } }));
 }
 

@@ -24,7 +24,6 @@ export default function StudentClassSwitcher({ user }) {
     const classroomId = event.target.value;
     setActiveId(classroomId);
     setActiveStudentClass(classroomId);
-    window.location.reload();
   };
 
   return (

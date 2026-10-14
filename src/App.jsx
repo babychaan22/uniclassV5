@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -11,6 +11,8 @@ import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from '@/components/PanelSkeleton';
+import PageErrorBoundary from '@/components/PageErrorBoundary';
+import { ACTIVE_CLASS_CHANGED_EVENT } from '@/lib/studentContext';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -57,6 +59,23 @@ const StudentLeaderboard = lazy(() => import('./pages/student/Leaderboard'));
 const PageLoader = () => <div className="min-h-screen bg-cream px-5 py-8"><PanelSkeleton cards={3} /></div>;
 const PUBLIC_PATHS = new Set([ROUTES.HOME, ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD, ROUTES.RESET_PASSWORD, ROUTES.CHECK_EMAIL, ROUTES.AUTH_CALLBACK]);
 
+function ResilientLayout() {
+  const location = useLocation();
+  const [classVersion, setClassVersion] = useState(0);
+
+  useEffect(() => {
+    const refreshClassData = () => setClassVersion((current) => current + 1);
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refreshClassData);
+    window.addEventListener('uniclass-teacher-class-changed', refreshClassData);
+    return () => {
+      window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refreshClassData);
+      window.removeEventListener('uniclass-teacher-class-changed', refreshClassData);
+    };
+  }, []);
+
+  return <PageErrorBoundary resetKey={`${location.pathname}:${classVersion}`}><Layout key={classVersion} /></PageErrorBoundary>;
+}
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
@@ -94,7 +113,7 @@ const AuthenticatedApp = () => {
 
       {/* Protected routes — require authentication */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to={ROUTES.LOGIN} replace />} />}>
-        <Route element={<Layout />}>
+        <Route element={<ResilientLayout />}>
           <Route path={ROUTES.WAITING_APPROVAL} element={<WaitingApproval />} />
           <Route path={ROUTES.TEACHER.ONBOARDING} element={<TeacherOnboarding />} />
           <Route path={ROUTES.TEACHER.DASHBOARD} element={<TeacherDashboard />} />

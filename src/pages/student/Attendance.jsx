@@ -9,7 +9,8 @@ import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
 import { getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
-import { getActiveStudentAccount } from "@/lib/studentContext";
+import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
+import { supabase } from "@/api/supabaseClient";
 import { Check, X, ClipboardCheck, Lock, CalendarDays, TrendingUp } from "lucide-react";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
 
@@ -24,34 +25,51 @@ export default function StudentAttendance() {
   const [history, setHistory] = useState([]);
   const [historyRange, setHistoryRange] = useState("30");
   const [classroom, setClassroom] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [loadVersion, setLoadVersion] = useState(0);
   const today = getTodayManila();
 
   useEffect(() => {
     async function load() {
-      if (!user) return;
-      const a = await getActiveStudentAccount(user.id);
-      if (!a) return;
-      setAccount(a);
-      const [classroomRecord, mem] = await Promise.all([
-        db.entities.Classroom.get(a.classroom_id),
-        db.entities.GroupMember.filter({ group_id: a.group_id, is_transferred: false }),
-      ]);
-      setClassroom(classroomRecord);
-      setMembers(mem);
-      const [att, personalHistory] = await Promise.all([
-        db.entities.Attendance.filter({ group_id: a.group_id, attendance_date: today }),
-        db.entities.Attendance.filter({ classroom_id: a.classroom_id, group_member_id: a.group_member_id }, { orderBy: 'attendance_date', ascending: false }),
-      ]);
-      const map = {};
-      for (const r of att) map[r.group_member_id] = r;
-      setExisting(map);
-      const init = {};
-      for (const m of mem) init[m.id] = map[m.id]?.status || "present";
-      setStatuses(init);
-      setHistory(personalHistory || []);
+      if (!user) { setLoading(false); return; }
+      setLoading(true);
+      setLoadError("");
+      try {
+        const a = await getActiveStudentAccount(user.id);
+        if (!a) { setAccount(null); return; }
+        const [classroomRecord, mem] = await Promise.all([
+          db.entities.Classroom.get(a.classroom_id),
+          db.entities.GroupMember.filter({ group_id: a.group_id, is_transferred: false }),
+        ]);
+        const [att, personalHistory] = await Promise.all([
+          db.entities.Attendance.filter({ group_id: a.group_id, attendance_date: today }),
+          db.entities.Attendance.filter({ classroom_id: a.classroom_id, group_member_id: a.group_member_id }, { orderBy: 'attendance_date', ascending: false }),
+        ]);
+        const map = {};
+        for (const r of att) map[r.group_member_id] = r;
+        const init = {};
+        for (const m of mem) init[m.id] = map[m.id]?.status || "present";
+        setAccount(a);
+        setClassroom(classroomRecord);
+        setMembers(mem);
+        setExisting(map);
+        setStatuses(init);
+        setHistory(personalHistory || []);
+      } catch (error) {
+        console.error('[StudentAttendance] load failed', error);
+        setAccount(null);
+        setLoadError('We could not load attendance right now. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
     load();
-  }, [user]);
+    const refresh = () => setLoadVersion((current) => current + 1);
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+  }, [user, loadVersion, today]);
 
   const hasSchedule = hasClassDays(classroom?.class_days);
   const todayIsClassDay = !hasSchedule || isScheduledClassDay(new Date(`${today}T00:00:00Z`), classroom?.class_days);
@@ -65,24 +83,28 @@ export default function StudentAttendance() {
   async function save() {
     if (!canEdit) return;
     setSaving(true);
-    for (const m of members) {
-      const status = statuses[m.id];
-      const ex = existing[m.id];
-      if (ex) {
-        if (ex.status !== status) {
-          await db.entities.Attendance.update(ex.id, { status, marked_by: user.id });
-        }
-      } else {
-        await db.entities.Attendance.create({
-          group_member_id: m.id, group_id: account.group_id, classroom_id: account.classroom_id,
-          attendance_date: today, status, marked_by: user.id,
-        });
-      }
+    setSaveError("");
+    try {
+      const { error } = await supabase.rpc('submit_group_attendance', {
+        p_group_id: account.group_id,
+        p_attendance_date: today,
+        p_statuses: statuses,
+      });
+      if (error) throw error;
+      setLoadVersion((current) => current + 1);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error('[StudentAttendance] save failed', error);
+      setSaveError(error?.message || 'Attendance could not be saved. Nothing was recorded—please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   }
+
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (loadError) return <div className="mx-auto max-w-lg py-8"><ClayCard color="coral" className="p-5 text-center"><p className="font-display text-lg font-extrabold">Attendance could not load</p><p className="mt-2 text-sm text-ink/70">{loadError}</p><ClayButton type="button" color="purple" className="mt-4" onClick={() => setLoadVersion((current) => current + 1)}>Try again</ClayButton></ClayCard></div>;
 
   if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -142,6 +164,7 @@ export default function StudentAttendance() {
           {saving ? "Saving..." : saved ? "Saved!" : "Save Attendance"}
         </ClayButton>
       )}
+      {saveError && <p role="alert" className="rounded-xl border-2 border-clay-coral/35 bg-clay-coral/10 p-3 text-sm font-semibold text-clay-coral">{saveError}</p>}
 
       <RepresentativeRosterPanel account={account} members={members} />
 
