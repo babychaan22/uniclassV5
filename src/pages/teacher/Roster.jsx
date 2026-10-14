@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomContext } from "@/lib/teacherClassroom";
-import { removeRosterMember, setGroupRepresentative, transferStudentRecord } from "@/lib/secureActions";
+import { removeRosterMember, setGroupRepresentative, transferStudentRecords } from "@/lib/secureActions";
 import { supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
@@ -15,7 +15,7 @@ import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Save, Loader2, UserCog, Trash2, Crown, ArrowRightLeft } from "lucide-react";
+import { Save, Loader2, UserCog, Trash2, Crown, ArrowRightLeft, Check, Search } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import RepresentativeRosterRequests from '@/components/teacher/RepresentativeRosterRequests';
 import ClayConfirmDialog from "@/components/ClayConfirmDialog";
@@ -32,8 +32,9 @@ export default function Roster() {
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
   const [actionError, setActionError] = useState("");
-  const [transfer, setTransfer] = useState(null);
-  const [transferTo, setTransferTo] = useState("");
+  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferSourceIds, setTransferSourceIds] = useState([]);
+  const [transferSearch, setTransferSearch] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [transferSummary, setTransferSummary] = useState("");
@@ -106,27 +107,29 @@ export default function Roster() {
 
   // A student who forgot to pick their name during onboarding ends up with an
   // empty second account while their points, attendance and badges sit on the
-  // old one. This puts the record where it belongs and removes the duplicate.
+  // old one. A teacher can merge several duplicates into the same correct
+  // learner without losing the individual audit records.
   async function runTransfer() {
-    if (!transferTo) return;
-    const from = members.find((m) => m.id === transfer.id);
-    const to = members.find((m) => m.id === transferTo);
-    if (!from || !to) return;
+    if (!transferTarget || transferSourceIds.length === 0) return;
+    const to = members.find((m) => m.id === transferTarget.id);
+    const sources = members.filter((m) => transferSourceIds.includes(m.id));
+    if (!to || sources.length === 0) return;
     setTransferring(true);
     setActionError("");
     try {
-      const result = await transferStudentRecord(transfer.id, transferTo, transferNote.trim() || null);
+      const totals = await transferStudentRecords(sources.map((source) => source.id), to.id, transferNote.trim() || null);
       invalidateClassroomContext();
-      setTransfer(null);
-      setTransferTo("");
+      setTransferTarget(null);
+      setTransferSourceIds([]);
+      setTransferSearch("");
       setTransferNote("");
       setActionError("");
       setTransferSummary(
-        `Moved ${result.moved_logs} points entr${result.moved_logs === 1 ? 'y' : 'ies'}, `
-        + `${result.moved_attendance} attendance mark${result.moved_attendance === 1 ? '' : 's'}, `
-        + `${result.moved_badges} badge${result.moved_badges === 1 ? '' : 's'} and `
-        + `${result.moved_submissions} mission submission${result.moved_submissions === 1 ? '' : 's'} `
-        + `onto ${to.last_name}, ${to.first_name}.`,
+        `Merged ${sources.length} record${sources.length === 1 ? '' : 's'} into ${to.last_name}, ${to.first_name}: `
+        + `${totals.moved_logs} point entr${totals.moved_logs === 1 ? 'y' : 'ies'}, `
+        + `${totals.moved_attendance} attendance mark${totals.moved_attendance === 1 ? '' : 's'}, `
+        + `${totals.moved_badges} badge${totals.moved_badges === 1 ? '' : 's'} and `
+        + `${totals.moved_submissions} mission submission${totals.moved_submissions === 1 ? '' : 's'}.`,
       );
       await load();
     } catch (err) {
@@ -140,14 +143,30 @@ export default function Roster() {
 
   // Any active roster member can receive a transfer, whether they already have
   // a login or are waiting to create one.
-  const candidates = transfer
+  const candidates = transferTarget
     ? members
-        .filter((m) => m.id !== transfer.id && !m.is_transferred)
+        .filter((m) => m.id !== transferTarget.id && !m.is_transferred)
         .map((m) => ({ ...m, account: accounts.find((a) => a.group_member_id === m.id) }))
     : [];
+  const matchingCandidates = candidates.filter((member) => {
+    const query = transferSearch.trim().toLowerCase();
+    return !query || `${member.last_name} ${member.first_name}`.toLowerCase().includes(query);
+  });
+  const selectedSources = candidates.filter((member) => transferSourceIds.includes(member.id));
+  const transferTargetName = transferTarget ? `${transferTarget.last_name}, ${transferTarget.first_name}` : "";
 
-  const chosen = candidates.find((m) => m.id === transferTo);
-  const selectedName = chosen ? `${chosen.last_name}, ${chosen.first_name}` : "";
+  function openTransfer(target) {
+    setTransferTarget(target);
+    setTransferSourceIds([]);
+    setTransferSearch("");
+    setTransferNote("");
+  }
+
+  function toggleTransferSource(memberId) {
+    setTransferSourceIds((current) => current.includes(memberId)
+      ? current.filter((id) => id !== memberId)
+      : [...current, memberId]);
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
@@ -207,10 +226,10 @@ export default function Roster() {
                         <ClayButton
                           size="sm"
                           color="purple"
-                          onClick={() => { setTransfer(transfer?.id === mem.id ? null : mem); setTransferTo(""); setTransferNote(""); }}
-                          title="This is a duplicate account: move its points, attendance and badges onto the right student"
+                          onClick={() => openTransfer(mem)}
+                          title="Choose duplicate records to merge into this student's account"
                         >
-                          <ArrowRightLeft className="w-4 h-4" /> Move record
+                          <ArrowRightLeft className="w-4 h-4" /> Move records here
                         </ClayButton>
                         {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "representative", account: memberAccount })} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
                         <ClayButton size="sm" color="coral" onClick={() => setConfirmation({ type: "remove", member: mem })} disabled={saving === mem.id} title="Delete this student and their class-only record">
@@ -240,53 +259,63 @@ export default function Roster() {
         </div>}
       </ClayCard>
 
-      {transfer && (
-        /* A dialog, not a panel at the foot of the page: the button sits on a
-           student row near the top, and a panel below every group card looked
-           like nothing had happened. */
+      {transferTarget && (
+        /* This fixed dialog keeps the destination and selections visible while
+           the teacher searches through a long roster. */
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
           <button
             type="button"
             aria-label="Close"
             className="absolute inset-0 cursor-default bg-ink/40"
-            onClick={() => setTransfer(null)}
+            onClick={() => setTransferTarget(null)}
           />
-          <ClayCard className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto p-5">
-            <h3 className="font-display font-bold text-sm mb-1">
-              Move {transfer.last_name}, {transfer.first_name}&rsquo;s record onto&hellip;
-            </h3>
-            <p className="text-[11px] text-ink/60 mb-3">
-              Their records move to the selected student. The old profile is kept in the audit trail,
-              but is immediately blocked from this class.
-            </p>
+          <ClayCard role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" className="relative flex w-full max-w-lg max-h-[85vh] flex-col p-0 overflow-hidden">
+            <div className="shrink-0 border-b border-ink/10 bg-[var(--uc-bg)] p-5 pb-4">
+              <h3 id="transfer-dialog-title" className="font-display font-extrabold text-lg">Move records into</h3>
+              <div className="mt-3 flex items-center gap-3 rounded-2xl border-2 border-clay-purple bg-clay-purple/10 p-3">
+                <UserAvatar name={`${transferTarget.last_name}-${transferTarget.first_name}`} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display font-extrabold text-sm text-[var(--uc-navy-950)]">{transferTargetName}</p>
+                  <p className="text-xs text-ink/65">This is the account that stays active.</p>
+                </div>
+                <ClayChip color="purple">Destination</ClayChip>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink/65">
+                Select every duplicate student record below. Each old account is blocked, preserved in the audit trail, and its eligible class records are merged into this student.
+              </p>
+            </div>
 
             {candidates.length === 0 ? (
-              <p className="rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-xs font-bold text-ink/55">
+              <p className="m-5 rounded-xl border-2 border-ink/10 bg-cream/50 px-3 py-2 text-xs font-bold text-ink/55">
                 There is no other student in this class to move the record onto.
               </p>
             ) : (
-              <>
-                <p className="font-display font-bold text-xs mb-1" id="transfer-target-label">
-                  Choose the correct student
-                </p>
-                <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border-2 border-ink/10 p-2">
-                  {candidates.map((option) => {
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 pt-4">
+                <div className="sticky top-0 z-10 -mx-1 bg-[var(--uc-bg)] px-1 pb-3">
+                  <label htmlFor="transfer-search" className="font-display font-bold text-xs">Select duplicate records</label>
+                  <div className="relative mt-1.5">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/45" />
+                    <input id="transfer-search" className="clay-input w-full pl-9 text-sm" value={transferSearch} onChange={(event) => setTransferSearch(event.target.value)} placeholder="Find a student" />
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-clay-purple">{selectedSources.length} selected</p>
+                </div>
+                <div className="space-y-1.5">
+                  {matchingCandidates.map((option) => {
                     const g = groups.find((gg) => gg.id === option.group_id);
-                    const chosen = transferTo === option.id;
+                    const selected = transferSourceIds.includes(option.id);
                     return (
                       <button
                         key={option.id}
                         type="button"
-                        onClick={() => setTransferTo(option.id)}
+                        onClick={() => toggleTransferSource(option.id)}
+                        aria-pressed={selected}
                         className={`flex w-full items-center justify-between gap-2 rounded-lg border-2 px-3 py-2 text-left text-sm ${
-                          chosen
+                          selected
                             ? "border-clay-purple bg-clay-purple/10"
                             : "border-ink/10 bg-white hover:border-clay-purple/50"
                         }`}
                       >
-                        <span className="font-display font-bold">
-                          {option.last_name}, {option.first_name}
-                        </span>
+                        <span className="flex min-w-0 items-center gap-2"><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 ${selected ? "border-clay-purple bg-clay-purple text-white" : "border-ink/25 bg-white"}`}>{selected && <Check className="h-3.5 w-3.5" />}</span><span className="font-display font-bold truncate">{option.last_name}, {option.first_name}</span></span>
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide">
                           {g ? `Group ${g.group_number}` : "Unassigned"}
                           {option.account?.is_approved ? " · active account" : " · no active account"}
@@ -294,11 +323,12 @@ export default function Roster() {
                       </button>
                     );
                   })}
+                  {matchingCandidates.length === 0 && <p className="rounded-xl bg-cream px-3 py-3 text-sm text-ink/60">No active student matches that name.</p>}
                 </div>
-              </>
+              </div>
             )}
 
-            <div className="mt-3">
+            <div className="shrink-0 border-t border-ink/10 bg-[var(--uc-bg)] p-5 pt-3">
               <label htmlFor="transfer-note" className="font-display font-bold text-xs mb-1 block">
                 Note
               </label>
@@ -309,14 +339,13 @@ export default function Roster() {
                 onChange={(e) => setTransferNote(e.target.value)}
                 placeholder="Forgot to select own name"
               />
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "transfer" })} disabled={!transferTo || transferring}>
-                {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
-                {transferTo ? `Move to ${selectedName}` : "Move record"}
-              </ClayButton>
-              <ClayButton size="sm" color="cream" onClick={() => setTransfer(null)}>Cancel</ClayButton>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "transfer" })} disabled={transferSourceIds.length === 0 || transferring}>
+                  {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                  {transferSourceIds.length > 0 ? `Move ${transferSourceIds.length} record${transferSourceIds.length === 1 ? '' : 's'}` : "Select records to move"}
+                </ClayButton>
+                <ClayButton size="sm" color="cream" onClick={() => setTransferTarget(null)}>Cancel</ClayButton>
+              </div>
             </div>
           </ClayCard>
         </div>
@@ -325,13 +354,13 @@ export default function Roster() {
         open={Boolean(confirmation)}
         onOpenChange={(open) => { if (!open) setConfirmation(null); }}
         busy={Boolean(saving) || transferring}
-        title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move this student record?"}
+        title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move selected student records?"}
         description={confirmation?.type === "remove"
           ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s class data and activity proof will be removed. Their login and other classrooms stay intact.`
           : confirmation?.type === "representative"
             ? `Make ${confirmation.account.last_name}, ${confirmation.account.first_name} the representative? The current representative becomes a regular member.`
-            : transfer && chosen ? `Move ${transfer.last_name}, ${transfer.first_name}'s records to ${chosen.last_name}, ${chosen.first_name}. The old class account will be blocked and kept in the transfer audit.` : ""}
-        confirmLabel={confirmation?.type === "remove" ? "Remove student" : confirmation?.type === "representative" ? "Make representative" : "Move record"}
+            : transferTarget && selectedSources.length > 0 ? `Move ${selectedSources.length} student record${selectedSources.length === 1 ? '' : 's'} to ${transferTargetName}. Each old class account will be blocked and kept in the transfer audit.` : ""}
+        confirmLabel={confirmation?.type === "remove" ? "Remove student" : confirmation?.type === "representative" ? "Make representative" : "Move records"}
         onConfirm={async () => {
           const next = confirmation;
           setConfirmation(null);

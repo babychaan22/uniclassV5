@@ -282,6 +282,19 @@ export async function transferStudentRecord(sourceMemberId, targetMemberId, note
   return data;
 }
 
+// Runs several duplicate-record merges as one database transaction. If any
+// selected source is no longer eligible, nothing is moved and the teacher can
+// correct the selection instead of ending up with a partial merge.
+export async function transferStudentRecords(sourceMemberIds, targetMemberId, note = null) {
+  const { data, error } = await supabase.rpc('transfer_student_records', {
+    p_source_member_ids: sourceMemberIds,
+    p_target_member_id: targetMemberId,
+    p_note: note,
+  });
+  if (error) throw error;
+  return data;
+}
+
 // Filing a mission away is not deleting it: the row, its submissions and its
 // feedback all stay, and unarchiving brings the mission straight back.
 export async function archiveMission(missionId, archived = true) {

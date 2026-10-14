@@ -18,6 +18,20 @@ import { getWeekStartManila } from "@/lib/week";
 import { signedPoints } from "@/lib/stats";
 import { QrCode as QrIcon, Camera, Keyboard, VolumeX, Volume2, Loader2, History, Star, Trophy } from "lucide-react";
 
+const QR_SCAN_EVENTS = new Set(["scan", "gacha_win", "gacha_loss", "gacha_even"]);
+
+function formatScanDate(value) {
+  if (!value) return "Date unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
 export default function StudentScan() {
   const { user } = useAuth();
   const [account, setAccount] = useState(null);
@@ -53,7 +67,7 @@ export default function StudentScan() {
       const me = mem.find((m) => m.id === a.group_member_id) || mem.find((m) => m.is_account_holder) || mem[0];
       setMemberId(me?.id);
       const logs = await db.entities.ParticipationLog.filter({ group_id: a.group_id });
-      setHistory(logs.sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")).slice(0, 15));
+      setHistory(logs.filter((log) => log.qr_code_id || QR_SCAN_EVENTS.has(log.event_type)).sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")).slice(0, 15));
     }
     load();
   }, [user]);
@@ -154,7 +168,7 @@ export default function StudentScan() {
   function refreshHistory() {
     async function load() {
       const logs = await db.entities.ParticipationLog.filter({ group_id: account.group_id });
-      setHistory(logs.sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")).slice(0, 15));
+      setHistory(logs.filter((log) => log.qr_code_id || QR_SCAN_EVENTS.has(log.event_type)).sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")).slice(0, 15));
     }
     if (account) load();
   }
@@ -373,8 +387,8 @@ export default function StudentScan() {
                 ? "Whole Group"
                 : m ? `${m.last_name}, ${m.first_name[0]}.` : "Student";
               return (
-                <div key={log.id} className="flex items-center justify-between text-sm border-b border-ink/10 pb-1.5">
-                  <span className="font-body truncate">{label ? `${label}: ${recipient}` : recipient}</span>
+                <div key={log.id} className="flex items-center justify-between gap-2 text-sm border-b border-ink/10 pb-1.5">
+                  <span className="min-w-0"><span className="block font-body truncate">{label ? `${label}: ${recipient}` : recipient}</span><span className="block text-[11px] text-ink/55">Scanned {formatScanDate(log.created_date)}</span></span>
                   <ClayChip color={color}>{points}</ClayChip>
                 </div>
               );
