@@ -141,12 +141,7 @@ export default function Layout() {
         { label: "Missions", path: ROUTES.TEACHER.MISSIONS, icon: Target },
         { label: "QR", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       ]
-    : [
-        STUDENT_NAV[0], // Dashboard
-        STUDENT_NAV[5], // Missions
-        STUDENT_NAV[3], // Scan QR
-        STUDENT_NAV[6], // Rewards
-      ];
+    : STUDENT_NAV;
   const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
   const canvasTheme = learnerTheme || "uc-app-background";
 
@@ -258,7 +253,7 @@ export default function Layout() {
       </div>
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(29,38,88,.08)] backdrop-blur no-print">
-        <div className="flex h-16 items-center justify-around gap-1 px-2">
+        <div className="flex h-16 items-center justify-start gap-1 overflow-x-auto px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" style={{ justifyContent: "flex-start" }}>
           {mobileNav.map((item) => {
             const Icon = item.icon;
             const assetName = NAV_ASSET_BY_LABEL[item.label];
@@ -270,10 +265,10 @@ export default function Layout() {
               </Link>
             );
           })}
-          <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+          {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
             <UIAsset name="menu" className="h-7 w-7" />
             <span className="text-[10px] font-display font-bold">More</span>
-          </button>
+          </button>}
         </div>
       </nav>
     </div>
