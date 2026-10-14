@@ -2,7 +2,7 @@
 const db = globalThis.__B44_DB__;
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getTeacherClassrooms, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
@@ -69,6 +69,7 @@ function questionStats(mission, submissions) {
 export default function TeacherMissions() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [classroom, setClassroom] = useState(null);
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [missions, setMissions] = useState([]);
@@ -97,6 +98,13 @@ export default function TeacherMissions() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  useEffect(() => {
+    const intervention = location.state?.intervention;
+    if (!intervention) return;
+    setForm((current) => ({ ...current, ...intervention, formative_type: current.formative_type === "manual" ? "multiple_choice" : current.formative_type }));
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     load();

@@ -63,14 +63,14 @@ function MissionSourceFilters({ value, onChange }) {
   </div>;
 }
 
-function QuestionMasteryInsights({ questions = [] }) {
+function QuestionMasteryInsights({ questions = [], onReteach }) {
   const measured = questions.filter((question) => question.total > 0);
   if (!measured.length) return <p className="mt-2 text-xs text-ink/55">Question-level mastery is available after answer details are submitted.</p>;
   const most = measured.reduce((best, question) => question.pct > best.pct ? question : best);
   const least = measured.reduce((worst, question) => question.pct < worst.pct ? question : worst);
   return <div className="mt-2 grid gap-2 sm:grid-cols-2">
     <div className="rounded-lg bg-[var(--uc-green-soft)] px-2 py-1.5 text-xs text-[#477f28]"><span className="font-display font-extrabold">Most mastered · {most.pct}%</span><p className="mt-0.5 line-clamp-2">{most.prompt}</p></div>
-    <div className="rounded-lg bg-[#FFF0F3] px-2 py-1.5 text-xs text-[#B94B63]"><span className="font-display font-extrabold">Least mastered · {least.pct}%</span><p className="mt-0.5 line-clamp-2">{least.prompt}</p></div>
+    <div className="rounded-lg bg-[#FFF0F3] px-2 py-1.5 text-xs text-[#B94B63]"><span className="font-display font-extrabold">Least mastered · {least.pct}%</span><p className="mt-0.5 line-clamp-2">{least.prompt}</p>{onReteach && <button type="button" className="mt-1 text-[10px] font-display font-extrabold underline" onClick={() => onReteach(least)}>Create reteach mission</button>}</div>
   </div>;
 }
 
@@ -83,6 +83,20 @@ export default function TeacherAnalytics() {
   const [hovered, setHovered] = useState({ attendance: null, activities: null, points: null, mastery: null, completion: null });
   const [error, setError] = useState("");
   const [missionSource, setMissionSource] = useState("all");
+
+  function startReteach(question) {
+    navigate(ROUTES.TEACHER.MISSIONS, {
+      state: {
+        intervention: {
+          title: "Reteach: key skill check",
+          content: question.prompt,
+          learning_target: "I can solve this skill accurately and explain my method.",
+          prior_knowledge: `This question was least mastered (${question.pct}% correct): ${question.prompt}`,
+          assessment_purpose: "reteach",
+        },
+      },
+    });
+  }
 
   useEffect(() => { load(); }, [user]);
 
@@ -239,7 +253,7 @@ export default function TeacherAnalytics() {
         <p className="mt-1 text-xs text-ink/55">Accuracy across active and archived teacher/AI missions and Daily Power-Ups.</p>
         <MissionSourceFilters value={missionSource} onChange={setMissionSource} />
         {visibleMissions.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={visibleMissions} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("mastery")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#80C94B1A" }} /><Bar dataKey="mastery" radius={[8, 8, 2, 2]}>{visibleMissions.map((mission) => <Cell key={mission.label} fill={mission.source === "Daily Power-Up" ? "#42A9E8" : "#80C94B"} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No {missionSource === "powerup" ? "Daily Power-Up" : "teacher or AI-made mission"} data in this class yet.</p>}
-        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p><p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} /></ContainedDetail>
+        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p><p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} onReteach={startReteach} /></ContainedDetail>
       </ClayCard>
       <ClayCard className="p-4">
         <h2 className="flex items-center gap-2 text-sm font-display font-bold"><CheckCircle2 className="h-4 w-4" /> Mission completion rate</h2>
