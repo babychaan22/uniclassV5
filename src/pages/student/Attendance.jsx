@@ -137,17 +137,17 @@ export default function StudentAttendance() {
           const present = statuses[m.id] === "present";
           const isMe = m.id === account.group_member_id;
           return (
-            <ClayCard key={m.id} className="p-4 flex items-center justify-between">
-              <div>
+            <ClayCard key={m.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <p className="font-display font-bold">{m.last_name}, {m.first_name}</p>
                 {isMe && <ClayChip color="purple" className="mt-1">You</ClayChip>}
               </div>
               {canEdit ? (
-                <div className="flex gap-2">
-                  <button onClick={() => toggle(m.id)} className={`clay-btn px-4 py-2 ${present ? "bg-clay-lime text-ink" : "bg-cream text-ink/40"}`}>
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                  <button onClick={() => toggle(m.id)} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${present ? "bg-clay-lime text-ink" : "bg-cream text-ink/40"}`}>
                     <Check className="w-5 h-5" /> Present
                   </button>
-                  <button onClick={() => toggle(m.id)} className={`clay-btn px-4 py-2 ${!present ? "bg-clay-coral text-white" : "bg-cream text-ink/40"}`}>
+                  <button onClick={() => toggle(m.id)} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${!present ? "bg-clay-coral text-white" : "bg-cream text-ink/40"}`}>
                     <X className="w-5 h-5" /> Absent
                   </button>
                 </div>
