@@ -81,7 +81,7 @@ export default function TeacherMissions() {
   const [groups, setGroups] = useState([]);
   const [members, setMembers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
-  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "", intervention_context: null });
   const [creating, setCreating] = useState(false);
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -180,13 +180,14 @@ export default function TeacherMissions() {
           success_criteria: normalizeCriteria(aiContent.success_criteria || form.success_criteria),
           student_instructions: aiContent.student_instructions || form.student_instructions,
           assessment_purpose: aiContent.assessment_purpose || form.assessment_purpose,
+          intervention_context: form.intervention_context || undefined,
           estimated_minutes: aiContent.estimated_minutes,
           ...(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right, feedback: aiContent.feedback || {} } : { questions: aiContent.questions }),
         })
         : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
-    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "", intervention_context: null });
     setAiContent(null);
     setGenMsg(null);
     setTargetAllClasses(true);

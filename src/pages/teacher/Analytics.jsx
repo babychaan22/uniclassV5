@@ -47,8 +47,11 @@ function missionLearningMeta(mission) {
     const criteria = Array.isArray(content.success_criteria)
       ? content.success_criteria.filter(Boolean).slice(0, 3)
       : String(content.success_criteria || "").split(/\n|;/).map((item) => item.trim()).filter(Boolean).slice(0, 3);
-    return { learningTarget: content.learning_target || "", successCriteria: criteria, purpose: content.assessment_purpose || "" };
-  } catch { return { learningTarget: "", successCriteria: [], purpose: "" }; }
+    const intervention = content.intervention_context && typeof content.intervention_context === "object"
+      ? content.intervention_context
+      : null;
+    return { learningTarget: content.learning_target || "", successCriteria: criteria, purpose: content.assessment_purpose || "", intervention };
+  } catch { return { learningTarget: "", successCriteria: [], purpose: "", intervention: null }; }
 }
 function weekKey(day) {
   const date = new Date(`${day}T00:00:00Z`);
@@ -100,6 +103,27 @@ function InterventionPlan({ mission, onReteach }) {
   </div>;
 }
 
+function InterventionHistory({ mission }) {
+  const followUps = mission?.interventions || [];
+  const source = mission?.intervention;
+  if (!followUps.length && !source) return null;
+  return <div className="mt-3 rounded-xl border-2 border-[rgba(80,201,242,.22)] bg-[var(--uc-blue-soft)] p-3 text-xs text-ink/75">
+    <p className="font-display font-extrabold text-[#287fb6]">Intervention history</p>
+    {source && <p className="mt-1">This reteach checks the earlier gap: {source.sourceQuestion || "selected mission skill"} ({source.sourceAccuracy ?? "—"}% at the first check).</p>}
+    {followUps.length > 0 && <ul className="mt-2 space-y-2">
+      {followUps.map((followUp) => {
+        const change = followUp.mastery - mission.mastery;
+        const improvement = change > 0;
+        return <li key={followUp.id} className="rounded-lg bg-white/70 px-2 py-1.5">
+          <p className="font-display font-bold text-ink">{followUp.label}</p>
+          <p className="mt-0.5">Baseline {mission.mastery}% → follow-up {followUp.mastery}% {followUp.completed ? `· ${followUp.completed}/${followUp.total} completed` : ""}</p>
+          <p className={`mt-0.5 font-display font-bold ${improvement ? "text-[#31843d]" : change < 0 ? "text-[#B94B63]" : "text-ink/60"}`}>{improvement ? `Improved by ${change} points` : change < 0 ? `Changed by ${change} points` : "No change yet"}</p>
+        </li>;
+      })}
+    </ul>}
+  </div>;
+}
+
 export default function TeacherAnalytics() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -120,6 +144,11 @@ export default function TeacherAnalytics() {
           success_criteria: mission?.successCriteria?.join("\n") || "",
           prior_knowledge: `This question was least mastered (${question.pct}% correct): ${question.misconception || question.prompt}`,
           assessment_purpose: "reteach",
+          intervention_context: {
+            sourceMissionId: mission?.id,
+            sourceQuestion: question.prompt,
+            sourceAccuracy: question.pct,
+          },
         },
       },
     });
@@ -232,7 +261,7 @@ export default function TeacherAnalytics() {
     for (const powerUp of allDailyPowerUps || []) {
       if (submittedMissionIds.has(powerUp.id)) missionById.set(powerUp.id, powerUp);
     }
-    const missions = [...missionById.values()].map((mission) => {
+    const missionRows = [...missionById.values()].map((mission) => {
       const progress = getMissionProgress(mission, data.submissions || [], groups, members);
       const completedIds = new Set(progress.submissions.map((submission) => progress.individual ? submission.group_member_id : submission.group_id));
       const targets = progress.individual ? members : groups;
@@ -242,8 +271,12 @@ export default function TeacherAnalytics() {
       const label = powerUp ? `Daily Power-Up · ${mission.auto_daily_date || mission.title || "Practice"}` : mission.title || "Teacher mission";
       const questions = questionMastery(mission, data.submissions || []);
       const learningMeta = missionLearningMeta(mission);
-      return { name: powerUp ? `Power-Up ${mission.auto_daily_date?.slice(5) || ""}` : shortTitle(mission.title), label, source: powerUp ? "Daily Power-Up" : "Teacher mission", archived: Boolean(mission.archived_at), mastery: progress.accuracy, completion: progress.completion, completed: progress.completed, total: progress.total, submittedNames, pendingNames, questions, ...learningMeta };
+      return { id: mission.id, name: powerUp ? `Power-Up ${mission.auto_daily_date?.slice(5) || ""}` : shortTitle(mission.title), label, source: powerUp ? "Daily Power-Up" : "Teacher mission", archived: Boolean(mission.archived_at), mastery: progress.accuracy, completion: progress.completion, completed: progress.completed, total: progress.total, submittedNames, pendingNames, questions, ...learningMeta };
     });
+    const missions = missionRows.map((mission) => ({
+      ...mission,
+      interventions: missionRows.filter((candidate) => candidate.intervention?.sourceMissionId === mission.id),
+    }));
 
       setAnalytics({ attendance, activities, points, missions });
     } catch (loadError) {
@@ -281,7 +314,7 @@ export default function TeacherAnalytics() {
         <p className="mt-1 text-xs text-ink/55">Accuracy across active and archived teacher/AI missions and Daily Power-Ups.</p>
         <MissionSourceFilters value={missionSource} onChange={setMissionSource} />
         {visibleMissions.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={visibleMissions} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("mastery")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#80C94B1A" }} /><Bar dataKey="mastery" radius={[8, 8, 2, 2]}>{visibleMissions.map((mission) => <Cell key={mission.label} fill={mission.source === "Daily Power-Up" ? "#42A9E8" : "#80C94B"} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No {missionSource === "powerup" ? "Daily Power-Up" : "teacher or AI-made mission"} data in this class yet.</p>}
-        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p>{hovered.mastery?.learningTarget && <p className="mt-1"><span className="font-display font-bold">Objective:</span> {hovered.mastery.learningTarget}</p>}<p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} onReteach={(question) => startReteach(hovered.mastery, question)} /><InterventionPlan mission={hovered.mastery} onReteach={(question) => startReteach(hovered.mastery, question)} /></ContainedDetail>
+        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p>{hovered.mastery?.learningTarget && <p className="mt-1"><span className="font-display font-bold">Objective:</span> {hovered.mastery.learningTarget}</p>}<p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} onReteach={(question) => startReteach(hovered.mastery, question)} /><InterventionPlan mission={hovered.mastery} onReteach={(question) => startReteach(hovered.mastery, question)} /><InterventionHistory mission={hovered.mastery} /></ContainedDetail>
       </ClayCard>
       <ClayCard className="p-4">
         <h2 className="flex items-center gap-2 text-sm font-display font-bold"><CheckCircle2 className="h-4 w-4" /> Mission completion rate</h2>
