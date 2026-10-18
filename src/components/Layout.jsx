@@ -196,6 +196,7 @@ export default function Layout() {
   return (
     <GroupBadgeProvider user={user} isTeacher={isTeacher}>
     <div className={`min-h-screen bg-[var(--uc-bg)] ${canvasTheme}`}>
+      <a href="#main-content" className="uc-skip-link">Skip to main content</a>
       <OfflineStatus />
       <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
         <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
@@ -247,7 +248,7 @@ export default function Layout() {
           </div>
         )}
 
-        <main className="uc-compact-page flex-1 min-w-0 pb-20 lg:pb-6">
+        <main id="main-content" tabIndex={-1} className="uc-compact-page flex-1 min-w-0 pb-20 lg:pb-6">
           <Outlet />
         </main>
       </div>

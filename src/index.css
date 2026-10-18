@@ -674,3 +674,30 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .uc-compact-scroll::-webkit-scrollbar-thumb:hover { background: rgba(108, 85, 217, .8); }
 .clay-btn { transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease; }
 .clay-btn:enabled:active { transform: translateY(1px) scale(.985); filter: brightness(.98); }
+
+/* Keyboard users receive a consistent, high-contrast focus marker without
+   changing the app's appearance for pointer users. */
+:where(a, button, input, select, textarea, summary, [role="button"]):focus-visible {
+  outline: 3px solid var(--uc-purple);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(108, 85, 217, .22);
+}
+.dark :where(a, button, input, select, textarea, summary, [role="button"]):focus-visible {
+  outline-color: #b9adff;
+  box-shadow: 0 0 0 5px rgba(185, 173, 255, .28);
+}
+.uc-skip-link {
+  position: fixed;
+  top: .75rem;
+  left: .75rem;
+  z-index: 100;
+  transform: translateY(-170%);
+  border-radius: .75rem;
+  background: var(--uc-purple);
+  color: white;
+  padding: .65rem .9rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  transition: transform .15s ease;
+}
+.uc-skip-link:focus-visible { transform: translateY(0); }
