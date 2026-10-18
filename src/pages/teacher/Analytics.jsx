@@ -24,8 +24,8 @@ function questionMastery(mission, submissions) {
     const answerKey = JSON.parse(mission.answer_key);
     const answers = answerKey.answers || answerKey;
     const questions = mission.formative_type === "drag_drop"
-      ? Object.keys(answers || {}).map((prompt) => ({ prompt, correct: answers[prompt] }))
-      : (content.questions || []).map((question, index) => ({ prompt: question.prompt, correct: answers[index] }));
+      ? Object.keys(answers || {}).map((prompt) => ({ prompt, correct: answers[prompt], misconception: content?.misconceptions?.[prompt] || "" }))
+      : (content.questions || []).map((question, index) => ({ prompt: question.prompt, correct: answers[index], misconception: question.misconception || "" }));
     const attempts = submissions.filter((submission) => submission.mission_id === mission.id && submission.answers);
     return questions.map((question, index) => {
       let correct = 0;
@@ -36,9 +36,19 @@ function questionMastery(mission, submissions) {
           if (String(answer) === String(question.correct)) correct += 1;
         } catch {}
       }
-      return { prompt: question.prompt || `Question ${index + 1}`, correct, total: attempts.length, pct: attempts.length ? Math.round((correct / attempts.length) * 100) : 0 };
+      return { prompt: question.prompt || `Question ${index + 1}`, misconception: question.misconception, correct, total: attempts.length, pct: attempts.length ? Math.round((correct / attempts.length) * 100) : 0 };
     });
   } catch { return []; }
+}
+
+function missionLearningMeta(mission) {
+  try {
+    const content = JSON.parse(mission?.ai_content || "{}");
+    const criteria = Array.isArray(content.success_criteria)
+      ? content.success_criteria.filter(Boolean).slice(0, 3)
+      : String(content.success_criteria || "").split(/\n|;/).map((item) => item.trim()).filter(Boolean).slice(0, 3);
+    return { learningTarget: content.learning_target || "", successCriteria: criteria, purpose: content.assessment_purpose || "" };
+  } catch { return { learningTarget: "", successCriteria: [], purpose: "" }; }
 }
 function weekKey(day) {
   const date = new Date(`${day}T00:00:00Z`);
@@ -74,6 +84,22 @@ function QuestionMasteryInsights({ questions = [], onReteach }) {
   </div>;
 }
 
+function InterventionPlan({ mission, onReteach }) {
+  const measured = mission?.questions?.filter((question) => question.total > 0) || [];
+  if (!mission || !measured.length) return null;
+  const least = measured.reduce((worst, question) => question.pct < worst.pct ? question : worst);
+  const objective = mission.learningTarget || "Strengthen the skill measured in this mission.";
+  const gap = least.misconception || `Students need another supported try with: ${least.prompt}`;
+  return <div className="mt-3 rounded-xl border-2 border-[rgba(255,95,168,.24)] bg-[#FFF8FA] p-3 text-xs text-ink/75">
+    <p className="font-display font-extrabold text-[#B94B63]">Suggested next teaching move</p>
+    <p className="mt-1"><span className="font-display font-bold">Objective:</span> {objective}</p>
+    <p className="mt-1"><span className="font-display font-bold">Misconception signal:</span> {gap}</p>
+    {mission.successCriteria?.length > 0 && <p className="mt-1"><span className="font-display font-bold">Look for:</span> {mission.successCriteria.join(" · ")}</p>}
+    <p className="mt-1">Model one worked example, then give students a fresh check on this same target.</p>
+    <button type="button" onClick={() => onReteach(least)} className="mt-2 rounded-lg bg-[var(--uc-purple)] px-2.5 py-1.5 font-display font-bold text-white">Create targeted reteach mission</button>
+  </div>;
+}
+
 export default function TeacherAnalytics() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -84,14 +110,15 @@ export default function TeacherAnalytics() {
   const [error, setError] = useState("");
   const [missionSource, setMissionSource] = useState("all");
 
-  function startReteach(question) {
+  function startReteach(mission, question) {
     navigate(ROUTES.TEACHER.MISSIONS, {
       state: {
         intervention: {
-          title: "Reteach: key skill check",
+          title: `Reteach: ${mission?.label || "key skill check"}`,
           content: question.prompt,
-          learning_target: "I can solve this skill accurately and explain my method.",
-          prior_knowledge: `This question was least mastered (${question.pct}% correct): ${question.prompt}`,
+          learning_target: mission?.learningTarget || "I can solve this skill accurately and explain my method.",
+          success_criteria: mission?.successCriteria?.join("\n") || "",
+          prior_knowledge: `This question was least mastered (${question.pct}% correct): ${question.misconception || question.prompt}`,
           assessment_purpose: "reteach",
         },
       },
@@ -214,7 +241,8 @@ export default function TeacherAnalytics() {
       const powerUp = isDailyFoundationMission(mission);
       const label = powerUp ? `Daily Power-Up · ${mission.auto_daily_date || mission.title || "Practice"}` : mission.title || "Teacher mission";
       const questions = questionMastery(mission, data.submissions || []);
-      return { name: powerUp ? `Power-Up ${mission.auto_daily_date?.slice(5) || ""}` : shortTitle(mission.title), label, source: powerUp ? "Daily Power-Up" : "Teacher mission", archived: Boolean(mission.archived_at), mastery: progress.accuracy, completion: progress.completion, completed: progress.completed, total: progress.total, submittedNames, pendingNames, questions };
+      const learningMeta = missionLearningMeta(mission);
+      return { name: powerUp ? `Power-Up ${mission.auto_daily_date?.slice(5) || ""}` : shortTitle(mission.title), label, source: powerUp ? "Daily Power-Up" : "Teacher mission", archived: Boolean(mission.archived_at), mastery: progress.accuracy, completion: progress.completion, completed: progress.completed, total: progress.total, submittedNames, pendingNames, questions, ...learningMeta };
     });
 
       setAnalytics({ attendance, activities, points, missions });
@@ -253,7 +281,7 @@ export default function TeacherAnalytics() {
         <p className="mt-1 text-xs text-ink/55">Accuracy across active and archived teacher/AI missions and Daily Power-Ups.</p>
         <MissionSourceFilters value={missionSource} onChange={setMissionSource} />
         {visibleMissions.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={visibleMissions} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("mastery")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#80C94B1A" }} /><Bar dataKey="mastery" radius={[8, 8, 2, 2]}>{visibleMissions.map((mission) => <Cell key={mission.label} fill={mission.source === "Daily Power-Up" ? "#42A9E8" : "#80C94B"} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No {missionSource === "powerup" ? "Daily Power-Up" : "teacher or AI-made mission"} data in this class yet.</p>}
-        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p><p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} onReteach={startReteach} /></ContainedDetail>
+        <ContainedDetail title="Mission mastery" entry={hovered.mastery}><p><span className="font-display font-bold">Source:</span> {hovered.mastery?.source || "Teacher mission"}{hovered.mastery?.archived ? " · Archived" : ""}</p><p className="mt-1"><span className="font-display font-bold">Accuracy:</span> {hovered.mastery?.mastery || 0}%</p>{hovered.mastery?.learningTarget && <p className="mt-1"><span className="font-display font-bold">Objective:</span> {hovered.mastery.learningTarget}</p>}<p className="mt-1"><span className="font-display font-bold">Submitted:</span> {hovered.mastery?.submittedNames?.join(", ") || "None"}</p><QuestionMasteryInsights questions={hovered.mastery?.questions} onReteach={(question) => startReteach(hovered.mastery, question)} /><InterventionPlan mission={hovered.mastery} onReteach={(question) => startReteach(hovered.mastery, question)} /></ContainedDetail>
       </ClayCard>
       <ClayCard className="p-4">
         <h2 className="flex items-center gap-2 text-sm font-display font-bold"><CheckCircle2 className="h-4 w-4" /> Mission completion rate</h2>

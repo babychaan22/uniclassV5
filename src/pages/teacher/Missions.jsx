@@ -50,8 +50,8 @@ function questionStats(mission, submissions) {
   let content; let answers;
   try { content = JSON.parse(mission.ai_content); answers = JSON.parse(mission.answer_key); answers = answers.answers || answers; } catch { return []; }
   const rows = mission.formative_type === "drag_drop"
-    ? Object.keys(answers || {}).map((key) => ({ prompt: key, correct: answers[key] }))
-    : (content.questions || []).map((q, i) => ({ prompt: q.prompt, correct: answers[i] }));
+    ? Object.keys(answers || {}).map((key) => ({ prompt: key, correct: answers[key], misconception: content?.misconceptions?.[key] || "" }))
+    : (content.questions || []).map((q, i) => ({ prompt: q.prompt, correct: answers[i], misconception: q.misconception || "" }));
   const attempts = submissions.filter((s) => s.mission_id === mission.id && s.answers);
   return rows.map((row, index) => {
     let correct = 0;
@@ -66,6 +66,11 @@ function questionStats(mission, submissions) {
   });
 }
 
+function normalizeCriteria(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean).slice(0, 3);
+  return String(value || "").split(/\n|;/).map((item) => item.replace(/^[-•\d.\s]+/, "").trim()).filter(Boolean).slice(0, 3);
+}
+
 export default function TeacherMissions() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,7 +81,7 @@ export default function TeacherMissions() {
   const [groups, setGroups] = useState([]);
   const [members, setMembers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
-  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+  const [form, setForm] = useState({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
   const [creating, setCreating] = useState(false);
   const [aiContent, setAiContent] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -172,6 +177,7 @@ export default function TeacherMissions() {
       ai_content: isAi && aiContent
         ? JSON.stringify({
           learning_target: aiContent.learning_target || form.learning_target,
+          success_criteria: normalizeCriteria(aiContent.success_criteria || form.success_criteria),
           student_instructions: aiContent.student_instructions || form.student_instructions,
           assessment_purpose: aiContent.assessment_purpose || form.assessment_purpose,
           estimated_minutes: aiContent.estimated_minutes,
@@ -180,7 +186,7 @@ export default function TeacherMissions() {
         : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
-    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
+    setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "" });
     setAiContent(null);
     setGenMsg(null);
     setTargetAllClasses(true);
@@ -222,7 +228,7 @@ export default function TeacherMissions() {
     setGenMsg(null);
     const type = form.formative_type;
     const purposeLabels = { diagnostic: "diagnostic check before instruction", quick_check: "quick formative check during or after instruction", reteach: "reteaching check for a previously difficult skill", exit_ticket: "brief end-of-lesson exit ticket" };
-    const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Include a one-sentence explanation for each correct answer so students receive useful feedback after submitting.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Student instructions must be 1-2 short sentences and must not give answers.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string}],"answers":[number]}]}. Each answer is the zero-based index. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"}}. Use meaningful categories and enough items to demonstrate the target.`;
+    const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nTeacher success criteria: ${form.success_criteria || "Create up to three short, observable success criteria."}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Include a one-sentence explanation for each correct answer so students receive useful feedback after submitting.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"success_criteria":[string],"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Success criteria must be 1-3 observable, student-friendly checks. Student instructions must be 1-2 short sentences and must not give answers.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string,"misconception":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string,"misconception":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"misconception":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"misconception":string}],"answers":[number]}]}. Each answer is the zero-based index. The misconception should name the likely thinking error represented by the strongest distractor. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"},"misconceptions":{"item":string}}. Use meaningful categories and enough items to demonstrate the target.`;
     const promptWithDragFeedback = type === "drag_drop"
       ? prompt.replace('"answers":{"item":"category"}}. Use meaningful', '"answers":{"item":"category"},"feedback":{"item":"one short sentence explaining why the item belongs in its category"}}. Use meaningful')
       : prompt;
@@ -400,6 +406,11 @@ export default function TeacherMissions() {
                 <label className="font-display font-bold text-xs mb-1 block">Learning target students should reach</label>
                 <input className="clay-input" placeholder="e.g. I can plot and identify ordered pairs on a coordinate plane." value={form.learning_target} onChange={(e) => setForm({ ...form, learning_target: e.target.value })} required />
                 <p className="text-[10px] text-ink/50 mt-1">Use one observable skill. This is shown to students before they start.</p>
+              </div>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Success criteria (optional)</label>
+                <textarea className="clay-input" rows={2} placeholder={"One clear check per line, e.g.\nI choose the correct coordinates.\nI explain what each axis shows."} value={form.success_criteria} onChange={(e) => setForm({ ...form, success_criteria: e.target.value })} />
+                <p className="text-[10px] text-ink/50 mt-1">These become a compact, student-friendly rubric for the mission and its reteach follow-up.</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -607,6 +618,17 @@ export default function TeacherMissions() {
                     {approval === 'approved' ? (m.is_active ? "Active" : "Closed") : (approval === 'rejected' ? "Withheld" : "Awaiting approval")}
                   </ClayChip>
                 </div>
+                {isAi && (() => {
+                  let metadata = {};
+                  try { metadata = JSON.parse(m.ai_content || "{}"); } catch {}
+                  const criteria = normalizeCriteria(metadata.success_criteria);
+                  if (!metadata.learning_target && !criteria.length) return null;
+                  return <details className="mt-2 rounded-xl border border-ink/10 bg-cream/70 px-2.5 py-1.5 text-xs">
+                    <summary className="cursor-pointer font-display font-bold text-ink/75">Learning objective and success criteria</summary>
+                    {metadata.learning_target && <p className="mt-1 text-ink/70"><span className="font-display font-bold">Objective:</span> {metadata.learning_target}</p>}
+                    {criteria.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4 text-ink/70">{criteria.map((criterion, index) => <li key={`${criterion}-${index}`}>{criterion}</li>)}</ul>}
+                  </details>;
+                })()}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 {approval === 'approved' ? (
