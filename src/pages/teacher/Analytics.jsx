@@ -25,18 +25,28 @@ function questionMastery(mission, submissions) {
     const answers = answerKey.answers || answerKey;
     const questions = mission.formative_type === "drag_drop"
       ? Object.keys(answers || {}).map((prompt) => ({ prompt, correct: answers[prompt], misconception: content?.misconceptions?.[prompt] || "" }))
-      : (content.questions || []).map((question, index) => ({ prompt: question.prompt, correct: answers[index], misconception: question.misconception || "" }));
+      : (content.questions || []).map((question, index) => ({ prompt: question.prompt, correct: answers[index], options: question.options || [], misconception: question.misconception || "" }));
     const attempts = submissions.filter((submission) => submission.mission_id === mission.id && submission.answers);
     return questions.map((question, index) => {
       let correct = 0;
+      const wrongAnswers = new Map();
       for (const submission of attempts) {
         try {
           const given = JSON.parse(submission.answers);
           const answer = mission.formative_type === "drag_drop" ? given[question.prompt] : given[index];
           if (String(answer) === String(question.correct)) correct += 1;
+          else {
+            const key = typeof answer === "string" ? answer : JSON.stringify(answer);
+            if (key) wrongAnswers.set(key, (wrongAnswers.get(key) || 0) + 1);
+          }
         } catch {}
       }
-      return { prompt: question.prompt || `Question ${index + 1}`, misconception: question.misconception, correct, total: attempts.length, pct: attempts.length ? Math.round((correct / attempts.length) * 100) : 0 };
+      const [wrongKey, wrongCount = 0] = [...wrongAnswers.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+      const optionIndex = Number(wrongKey);
+      const commonWrongAnswer = Array.isArray(question.options) && Number.isInteger(optionIndex) && question.options[optionIndex]
+        ? question.options[optionIndex]
+        : wrongKey;
+      return { prompt: question.prompt || `Question ${index + 1}`, misconception: question.misconception, commonWrongAnswer, wrongCount, correct, total: attempts.length, pct: attempts.length ? Math.round((correct / attempts.length) * 100) : 0 };
     });
   } catch { return []; }
 }
@@ -83,7 +93,7 @@ function QuestionMasteryInsights({ questions = [], onReteach }) {
   const least = measured.reduce((worst, question) => question.pct < worst.pct ? question : worst);
   return <div className="mt-2 grid gap-2 sm:grid-cols-2">
     <div className="rounded-lg bg-[var(--uc-green-soft)] px-2 py-1.5 text-xs text-[#477f28]"><span className="font-display font-extrabold">Most mastered · {most.pct}%</span><p className="mt-0.5 line-clamp-2">{most.prompt}</p></div>
-    <div className="rounded-lg bg-[#FFF0F3] px-2 py-1.5 text-xs text-[#B94B63]"><span className="font-display font-extrabold">Least mastered · {least.pct}%</span><p className="mt-0.5 line-clamp-2">{least.prompt}</p>{onReteach && <button type="button" className="mt-1 text-[10px] font-display font-extrabold underline" onClick={() => onReteach(least)}>Create reteach mission</button>}</div>
+    <div className="rounded-lg bg-[#FFF0F3] px-2 py-1.5 text-xs text-[#B94B63]"><span className="font-display font-extrabold">Least mastered · {least.pct}%</span><p className="mt-0.5 line-clamp-2">{least.prompt}</p>{least.commonWrongAnswer && <p className="mt-1 line-clamp-2"><span className="font-display font-bold">Frequent wrong response:</span> {least.commonWrongAnswer} ({least.wrongCount})</p>}{least.misconception && <p className="mt-1 line-clamp-2"><span className="font-display font-bold">Likely gap:</span> {least.misconception}</p>}{onReteach && <button type="button" className="mt-1 text-[10px] font-display font-extrabold underline" onClick={() => onReteach(least)}>Create reteach mission</button>}</div>
   </div>;
 }
 
@@ -97,6 +107,7 @@ function InterventionPlan({ mission, onReteach }) {
     <p className="font-display font-extrabold text-[#B94B63]">Suggested next teaching move</p>
     <p className="mt-1"><span className="font-display font-bold">Objective:</span> {objective}</p>
     <p className="mt-1"><span className="font-display font-bold">Misconception signal:</span> {gap}</p>
+    {least.commonWrongAnswer && <p className="mt-1"><span className="font-display font-bold">Common wrong response:</span> {least.commonWrongAnswer} ({least.wrongCount} learner{least.wrongCount === 1 ? "" : "s"})</p>}
     {mission.successCriteria?.length > 0 && <p className="mt-1"><span className="font-display font-bold">Look for:</span> {mission.successCriteria.join(" · ")}</p>}
     <p className="mt-1">Model one worked example, then give students a fresh check on this same target.</p>
     <button type="button" onClick={() => onReteach(least)} className="mt-2 rounded-lg bg-[var(--uc-purple)] px-2.5 py-1.5 font-display font-bold text-white">Create targeted reteach mission</button>
@@ -109,7 +120,7 @@ function InterventionHistory({ mission }) {
   if (!followUps.length && !source) return null;
   return <div className="mt-3 rounded-xl border-2 border-[rgba(80,201,242,.22)] bg-[var(--uc-blue-soft)] p-3 text-xs text-ink/75">
     <p className="font-display font-extrabold text-[#287fb6]">Intervention history</p>
-    {source && <p className="mt-1">This reteach checks the earlier gap: {source.sourceQuestion || "selected mission skill"} ({source.sourceAccuracy ?? "—"}% at the first check).</p>}
+    {source && <><p className="mt-1">This reteach checks the earlier gap: {source.sourceQuestion || "selected mission skill"} ({source.sourceAccuracy ?? "—"}% at the first check).</p>{source.commonWrongAnswer && <p className="mt-1">Earlier common wrong response: {source.commonWrongAnswer}</p>}</>}
     {followUps.length > 0 && <ul className="mt-2 space-y-2">
       {followUps.map((followUp) => {
         const change = followUp.mastery - mission.mastery;
@@ -147,6 +158,7 @@ export default function TeacherAnalytics() {
           intervention_context: {
             sourceMissionId: mission?.id,
             sourceQuestion: question.prompt,
+            commonWrongAnswer: question.commonWrongAnswer || "",
             sourceAccuracy: question.pct,
           },
         },
