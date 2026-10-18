@@ -184,7 +184,14 @@ export default function TeacherMissions() {
           estimated_minutes: aiContent.estimated_minutes,
           ...(form.formative_type === "drag_drop" ? { left: aiContent.left, right: aiContent.right, feedback: aiContent.feedback || {} } : { questions: aiContent.questions }),
         })
-        : undefined,
+        : (form.learning_target || form.success_criteria || form.intervention_context)
+          ? JSON.stringify({
+            learning_target: form.learning_target,
+            success_criteria: normalizeCriteria(form.success_criteria),
+            assessment_purpose: form.assessment_purpose,
+            intervention_context: form.intervention_context || undefined,
+          })
+          : undefined,
       answer_key: isAi && aiContent ? JSON.stringify({ answers: aiContent.answers, retry_variants: aiContent.retry_variants || [] }) : undefined,
     });
     setForm({ title: "", description: "", xp_reward: 100, max_score: 10, deadline: "", deadline_time: "23:59", formative_type: "manual", content: "", learning_target: "", success_criteria: "", assessment_purpose: "quick_check", student_instructions: "", prior_knowledge: "", intervention_context: null });
@@ -392,10 +399,21 @@ export default function TeacherMissions() {
             </select>
           </div>
           {form.formative_type === "manual" ? (
-            <div>
-              <label className="font-display font-bold text-xs mb-1 block">Description</label>
-              <textarea className="clay-input" rows={2} placeholder="What students need to do" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
+            <>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Description</label>
+                <textarea className="clay-input" rows={2} placeholder="What students need to do" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </div>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Learning target (optional)</label>
+                <input className="clay-input" placeholder="e.g. I can identify evidence that supports my claim." value={form.learning_target} onChange={(e) => setForm({ ...form, learning_target: e.target.value })} />
+              </div>
+              <div>
+                <label className="font-display font-bold text-xs mb-1 block">Success criteria (optional)</label>
+                <textarea className="clay-input" rows={2} placeholder={"One clear check per line, e.g.\nI use evidence from the text.\nI explain how it supports my claim."} value={form.success_criteria} onChange={(e) => setForm({ ...form, success_criteria: e.target.value })} />
+                <p className="text-[10px] text-ink/50 mt-1">This keeps teacher-graded work connected to the same learning loop.</p>
+              </div>
+            </>
           ) : (
             <>
               <div>
@@ -619,7 +637,7 @@ export default function TeacherMissions() {
                     {approval === 'approved' ? (m.is_active ? "Active" : "Closed") : (approval === 'rejected' ? "Withheld" : "Awaiting approval")}
                   </ClayChip>
                 </div>
-                {isAi && (() => {
+                {(() => {
                   let metadata = {};
                   try { metadata = JSON.parse(m.ai_content || "{}"); } catch {}
                   const criteria = normalizeCriteria(metadata.success_criteria);
