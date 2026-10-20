@@ -14,6 +14,7 @@ import UserAvatar from '@/components/visual/UserAvatar';
 import { UIAsset } from '@/components/visual/UIAsset';
 import { ROUTES } from '@/lib/routes';
 import { reviewActivityScoreEdit } from '@/lib/secureActions';
+import ClayConfirmDialog from '@/components/ClayConfirmDialog';
 
 export default function TeacherEvidence() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function TeacherEvidence() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [scoreEdits, setScoreEdits] = useState([]);
   const [reviewingEdit, setReviewingEdit] = useState(null);
+  const [editDecision, setEditDecision] = useState(null);
 
   async function load(nextPage = 0) {
     if (!user) return;
@@ -127,11 +129,11 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
                     : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-clay-coral/50 px-1 text-center text-[9px] font-bold text-clay-coral">No fresh proof</div>}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-display font-bold">{request.memberLabel} · {request.activityLabel}</p>
-                    <p className="text-xs text-ink/60">{request.groupLabel} · {request.current_score} → {request.proposed_score}</p>
+                    <p className="text-xs text-ink/60">{request.groupLabel} · {request.current_score} → {request.proposed_score} · requested {request.created_at ? new Date(request.created_at).toLocaleDateString() : 'recently'}</p>
                     <p className="text-[10px] text-ink/50">{request.proofUrl ? 'Fresh proof attached with this request' : 'Sent without new proof — decline this request'}</p>
                   </div>
-                  <ClayButton size="sm" color="lime" disabled={reviewingEdit === request.id || !request.proofUrl} onClick={() => reviewScoreEdit(request, true)}>{reviewingEdit === request.id ? 'Saving...' : 'Approve'}</ClayButton>
-                  <ClayButton size="sm" color="coral" disabled={reviewingEdit === request.id} onClick={() => reviewScoreEdit(request, false)}>Decline</ClayButton>
+                  <ClayButton size="sm" color="lime" disabled={reviewingEdit === request.id || !request.proofUrl} onClick={() => setEditDecision({ request, approve: true })}>{reviewingEdit === request.id ? 'Saving...' : 'Approve'}</ClayButton>
+                  <ClayButton size="sm" color="coral" disabled={reviewingEdit === request.id} onClick={() => setEditDecision({ request, approve: false })}>Decline</ClayButton>
                 </div>)}</div></ClayCard>}
       {loading ? <div className="py-16 text-center text-ink/60">Loading activity proof…</div> : rows.length === 0 ? (
         <NovaEmptyState
@@ -145,6 +147,18 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
       {!loading && hasMore && <ClayButton onClick={() => load(page + 1)} disabled={loadingMore} color="white" className="w-full">
         {loadingMore ? 'Loading…' : 'Load older proof'}
       </ClayButton>}
+      <ClayConfirmDialog
+        open={Boolean(editDecision)}
+        onOpenChange={(open) => { if (!open) setEditDecision(null); }}
+        busy={Boolean(editDecision && reviewingEdit === editDecision.request.id)}
+        title={editDecision?.approve ? "Approve this score change?" : "Decline this score change?"}
+        description={editDecision ? (editDecision.approve
+          ? `${editDecision.request.memberLabel}'s score for ${editDecision.request.activityLabel} will change from ${editDecision.request.current_score} to ${editDecision.request.proposed_score}. The fresh proof stays attached to the activity record.`
+          : `${editDecision.request.memberLabel}'s saved score of ${editDecision.request.current_score} will stay unchanged. The representative can revise the request and submit fresh proof again.`) : ""}
+        confirmLabel={editDecision?.approve ? "Approve change" : "Decline change"}
+        confirmColor={editDecision?.approve ? "lime" : "coral"}
+        onConfirm={async () => { const decision = editDecision; setEditDecision(null); if (decision) await reviewScoreEdit(decision.request, decision.approve); }}
+      />
     </div>
   );
 }

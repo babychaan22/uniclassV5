@@ -14,7 +14,7 @@ import ClayChip from "@/components/ClayChip";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Check, X, Loader2 } from "lucide-react";
+import { Check, Trash2, Loader2 } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 
@@ -22,7 +22,6 @@ export default function TeacherStudentManagement() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [classroom, setClassroom] = useState(null);
   const [pending, setPending] = useState([]);
   const [approvedCount, setApprovedCount] = useState(0);
   const [approved, setApproved] = useState([]);
@@ -30,6 +29,7 @@ export default function TeacherStudentManagement() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [removeTarget, setRemoveTarget] = useState(null);
+  const [pendingDeleteTarget, setPendingDeleteTarget] = useState(null);
 
   useEffect(() => { load(); }, [user]);
 
@@ -37,7 +37,6 @@ export default function TeacherStudentManagement() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    setClassroom(c);
     const ds = await getClassroomDataset(c.id, ['groups','groupAccounts']);
     const accounts = ds.groupAccounts;
     setGroups(ds.groups);
@@ -55,10 +54,8 @@ export default function TeacherStudentManagement() {
     invalidateClassroomDataset();
     load();
   }
-  async function reject(a) {
-    await db.entities.GroupAccount.delete(a.id);
-    invalidateClassroomDataset();
-    load();
+  async function deletePendingRequest(a) {
+    await removeStudent(a);
   }
   async function bulkApprove() {
     setBusy(true);
@@ -130,7 +127,7 @@ export default function TeacherStudentManagement() {
               </div></div>
               <div className="flex gap-2">
                 <ClayButton size="sm" color="lime" onClick={() => approve(a)}><Check className="w-4 h-4" /> Approve</ClayButton>
-                <ClayButton size="sm" color="coral" onClick={() => reject(a)}><X className="w-4 h-4" /> Reject</ClayButton>
+                <ClayButton size="sm" color="coral" onClick={() => setPendingDeleteTarget(a)} disabled={busy}><Trash2 className="w-4 h-4" /> Delete</ClayButton>
               </div>
             </ClayCard>
           ))}
@@ -161,6 +158,15 @@ export default function TeacherStudentManagement() {
         description={removeTarget ? `${removeTarget.last_name}, ${removeTarget.first_name}'s roster record, scores, attendance, evidence, and class activity history will be removed. Their login and other classrooms stay intact.` : ""}
         confirmLabel="Remove student"
         onConfirm={async () => { const target = removeTarget; setRemoveTarget(null); if (target) await removeStudent(target); }}
+      />
+      <ClayConfirmDialog
+        open={Boolean(pendingDeleteTarget)}
+        onOpenChange={(open) => { if (!open) setPendingDeleteTarget(null); }}
+        busy={busy}
+        title="Delete this join request?"
+        description={pendingDeleteTarget ? `Remove ${pendingDeleteTarget.last_name}, ${pendingDeleteTarget.first_name}'s pending class request and any empty class record created with it. Their sign-in account is not deleted, and they can submit a new request later.` : ""}
+        confirmLabel="Delete request"
+        onConfirm={async () => { const target = pendingDeleteTarget; setPendingDeleteTarget(null); if (target) await deletePendingRequest(target); }}
       />
     </div>
   );

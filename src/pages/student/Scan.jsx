@@ -86,7 +86,7 @@ export default function StudentScan() {
   async function stopCamera() {
     setScanning(false);
     if (html5Ref.current) {
-      try { await html5Ref.current.stop(); await html5Ref.current.clear(); } catch (e) {}
+      try { await html5Ref.current.stop(); await html5Ref.current.clear(); } catch {}
       html5Ref.current = null;
     }
   }
@@ -124,30 +124,36 @@ export default function StudentScan() {
         const rank = sorted.findIndex(([id]) => id === memberId) + 1;
         setSummary({ pointsThisScan, weekTotal: totals[memberId] || 0, rank: rank || "—" });
       }
-    } catch (e) { /* ignore */ }
+    } catch { /* Weekly summary is optional. */ }
   }, [account, memberId, recipientType]);
 
   async function handleScanTyped(hash) {
     if (resolving || phase !== "idle") return;
     if (!navigator.onLine) { setError('Reconnect before scanning. A code can only be awarded securely while online.'); return; }
-    await stopCamera();
-    setPendingHash(hash);
-    setError("");
+    const normalizedHash = String(hash || "").trim().toUpperCase();
+    if (!normalizedHash) { setError("Enter or scan a QR code first."); return; }
+    // Lock immediately so a camera callback cannot start the same scan twice
+    // while its preview is being closed.
     setResolving(true);
+    await stopCamera();
+    setPendingHash(normalizedHash);
+    setError("");
     setSummary(null);
-    const qr = await peekQrCode(hash);
-    if (qr.error) {
-      setError(qr.error);
+    try {
+      const qr = await peekQrCode(normalizedHash);
+      if (qr.error) {
+        setError(qr.error);
+        setPendingHash(null);
+        return;
+      }
+      setPendingCode(qr);
+      setPhase(qr.qr_type === "gacha" ? "risk" : "confirm");
+    } catch (err) {
+      setError(err?.message || "We could not check that code. Please try again.");
       setResolving(false);
       setPendingHash(null);
-      return;
-    }
-    setResolving(false);
-    setPendingCode(qr);
-    if (qr.qr_type === "gacha") {
-      setPhase("risk");
-    } else {
-      setPhase("confirm");
+    } finally {
+      setResolving(false);
     }
   }
 
@@ -178,6 +184,7 @@ export default function StudentScan() {
   async function startCameraTyped() {
     setError("");
     if (!navigator.onLine) { setError('Reconnect before scanning. A code can only be awarded securely while online.'); return; }
+    if (scanning || html5Ref.current) return;
     setScanning(true);
     setTimeout(async () => {
       try {
@@ -189,7 +196,7 @@ export default function StudentScan() {
           (decodedText) => scannerRef.current(decodedText)
         );
       } catch (err) {
-        setError("Camera not available. Use manual entry below.");
+        setError(err?.name === "NotAllowedError" ? "Camera permission was not allowed. You can allow it in your browser settings or use manual entry below." : "Camera not available. Use manual entry below.");
         setScanning(false);
       }
     }, 100);
@@ -285,6 +292,7 @@ export default function StudentScan() {
               <div className="text-center py-6">
                 <Camera className="w-12 h-12 mx-auto text-clay-purple mb-3" />
                 <ClayButton color="purple" size="lg" onClick={startCameraTyped} className="w-full" disabled={!online}>Start Camera Scan</ClayButton>
+                <p className="mt-3 text-xs text-ink/55">Allow camera access, then hold one code inside the frame until the check screen appears.</p>
               </div>
             )}
           </ClayCard>

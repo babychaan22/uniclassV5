@@ -356,7 +356,7 @@ export default function Roster() {
         busy={Boolean(saving) || transferring}
         title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move selected student records?"}
         description={confirmation?.type === "remove"
-          ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s class data and activity proof will be removed. Their login and other classrooms stay intact.`
+          ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s attendance, scores, evidence, points, badges, submissions, and class-only history will be removed from this classroom. Their sign-in and other classrooms stay intact.`
           : confirmation?.type === "representative"
             ? `Make ${confirmation.account.last_name}, ${confirmation.account.first_name} the representative? The current representative becomes a regular member.`
             : transferTarget && selectedSources.length > 0 ? `Move ${selectedSources.length} student record${selectedSources.length === 1 ? '' : 's'} to ${transferTargetName}. Each old class account will be blocked and kept in the transfer audit.` : ""}

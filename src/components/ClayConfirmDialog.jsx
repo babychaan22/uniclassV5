@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function ClayConfirmDialog({ open, onOpenChange, title, description, confirmLabel = "Confirm", busy = false, onConfirm }) {
+export default function ClayConfirmDialog({ open, onOpenChange, title, description, confirmLabel = "Confirm", confirmColor = "coral", busy = false, onConfirm }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="w-[calc(100%-2rem)] rounded-3xl border-2 border-ink/10 bg-white p-5 shadow-[var(--uc-shadow-lg)] sm:p-6">
@@ -19,7 +19,7 @@ export default function ClayConfirmDialog({ open, onOpenChange, title, descripti
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-2 gap-2">
           <AlertDialogCancel asChild><ClayButton color="cream" disabled={busy}>Cancel</ClayButton></AlertDialogCancel>
-          <ClayButton color="coral" disabled={busy} onClick={onConfirm}>{busy ? "Working…" : confirmLabel}</ClayButton>
+          <ClayButton color={confirmColor} disabled={busy} onClick={onConfirm}>{busy ? "Working…" : confirmLabel}</ClayButton>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

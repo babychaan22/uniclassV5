@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ROUTES } from "@/lib/routes";
@@ -132,6 +132,9 @@ export default function Layout() {
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState("Home");
   const [studentAvatarKey, setStudentAvatarKey] = useState(null);
+  const menuButtonRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const wasMobileMenuOpen = useRef(false);
 
   const isTeacher = location.pathname.startsWith("/teacher") || location.pathname === ROUTES.LEADERBOARD;
   const mobileNav = isTeacher
@@ -162,6 +165,36 @@ export default function Layout() {
     })().catch(() => { if (active) setStudentAvatarKey(user.avatar_key || null); });
     return () => { active = false; };
   }, [isTeacher, user?.id, user?.avatar_key]);
+
+  // Keep keyboard navigation inside the temporary mobile menu, then return
+  // the learner or teacher to the Menu button when it closes.
+  useEffect(() => {
+    if (!open) {
+      if (wasMobileMenuOpen.current) menuButtonRef.current?.focus?.();
+      wasMobileMenuOpen.current = false;
+      return undefined;
+    }
+    wasMobileMenuOpen.current = true;
+    const menu = mobileMenuRef.current;
+    if (!menu) return undefined;
+    const focusable = () => Array.from(menu.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const first = focusable()[0];
+    first?.focus?.();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); return; }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.shiftKey && (currentIndex <= 0 || !menu.contains(document.activeElement))) {
+        event.preventDefault(); items[items.length - 1].focus();
+      } else if (!event.shiftKey && (currentIndex === items.length - 1 || !menu.contains(document.activeElement))) {
+        event.preventDefault(); items[0].focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   const handleLogout = async () => { await logout(true); };
 
@@ -210,7 +243,7 @@ export default function Layout() {
             <NotificationBell teacher={isTeacher} />
             <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={isTeacher ? user?.avatar_key : studentAvatarKey || user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
             <ThemeToggle />
-            <button onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu">
+            <button ref={menuButtonRef} onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu" aria-expanded={open} aria-controls="mobile-navigation">
               {open ? <X className="w-6 h-6" /> : <UIAsset name="menu" className="h-6 w-6" />}
             </button>
           </div>
@@ -235,7 +268,7 @@ export default function Layout() {
 
         {open && (
           <div className="fixed inset-0 top-16 z-30 bg-[var(--uc-bg)]/95 backdrop-blur lg:hidden no-print" onClick={() => setOpen(false)}>
-            <nav className="mx-auto flex max-h-[calc(100vh-4rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
+            <nav ref={mobileMenuRef} id="mobile-navigation" aria-label="Mobile navigation" className="mx-auto flex max-h-[calc(100vh-4rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
               {isTeacher ? (
                 TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} hideIcon />)
               ) : (

@@ -70,13 +70,17 @@ export default function StudentScores() {
         const [existing, evidence, requests] = await Promise.all([
           db.entities.ActivityScore.filter({ activity_id: acts[0].id, group_id: account.group_id }),
           db.entities.ActivityEvidence.filter({ activity_id: acts[0].id, group_id: account.group_id }),
-          supabase.from('activity_score_edit_requests').select('*').eq('activity_id', acts[0].id).eq('group_id', account.group_id).eq('status', 'pending'),
+          supabase.from('activity_score_edit_requests').select('*').eq('activity_id', acts[0].id).eq('group_id', account.group_id).order('created_at', { ascending: false }),
         ]);
         setLocked(existing.length > 0);
         const saved = Object.fromEntries(existing.map((item) => [item.group_member_id, item]));
         setExistingScores(saved);
         setScores(Object.fromEntries(existing.map((item) => [item.group_member_id, item.score])));
-        setEditRequests(Object.fromEntries((requests.data || []).map((item) => [item.activity_score_id, item])));
+        // Keep the newest request for each score so a representative can see
+        // whether the teacher approved, declined, or still needs to decide.
+        setEditRequests((requests.data || []).reduce((byScore, item) => (
+          byScore[item.activity_score_id] ? byScore : { ...byScore, [item.activity_score_id]: item }
+        ), {}));
         setEvidenceByMember(Object.fromEntries(evidence.map((item) => [item.group_member_id, item])));
         // Evidence on file from the original submission cannot justify a change.
         setEditProofByMember({});
@@ -176,7 +180,10 @@ export default function StudentScores() {
   }
 
   async function requestEdits() {
-    const changed = Object.values(existingScores).filter((saved) => Number(scores[saved.group_member_id]) !== Number(saved.score));
+    const changed = Object.values(existingScores).filter((saved) => (
+      Number(scores[saved.group_member_id]) !== Number(saved.score)
+      && editRequests[saved.id]?.status !== 'pending'
+    ));
     if (!changed.length) { setError("Change a saved score before requesting teacher approval."); return; }
     // A fresh photo is required for every score being changed, so the teacher
     // reviews new evidence instead of trusting the original submission.
@@ -189,13 +196,26 @@ export default function StudentScores() {
     }
     setRequestingEdits(true); setError("");
     try {
-      await Promise.all(
-        changed.map((saved) =>
-          requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]), editProofByMember[saved.group_member_id]),
-        ),
-      );
-      setEditRequests((current) => ({ ...current, ...Object.fromEntries(changed.map((saved) => [saved.id, { pending: true }])) }));
-      setProofMsg("Score edit request sent to your teacher for approval.");
+      const outcomes = await Promise.allSettled(changed.map((saved) =>
+        requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]), editProofByMember[saved.group_member_id]),
+      ));
+      const successful = outcomes
+        .map((outcome, index) => ({ outcome, saved: changed[index] }))
+        .filter(({ outcome }) => outcome.status === 'fulfilled');
+      if (successful.length) {
+        setEditRequests((current) => ({ ...current, ...Object.fromEntries(successful.map(({ saved, outcome }) => [saved.id, outcome.value || { status: 'pending' }])) }));
+        setEditProofByMember((current) => {
+          const next = { ...current };
+          successful.forEach(({ saved }) => { delete next[saved.group_member_id]; });
+          return next;
+        });
+      }
+      const failed = outcomes.filter((outcome) => outcome.status === 'rejected');
+      if (failed.length) {
+        setError(`${successful.length} request${successful.length === 1 ? '' : 's'} sent. ${failed.length} still need attention: ${failed[0].reason?.message || 'please try again'}`);
+      } else {
+        setProofMsg(`${successful.length} score edit request${successful.length === 1 ? '' : 's'} sent to your teacher for approval.`);
+      }
     } catch (err) {
       setError(err?.message || "Could not request the score edit.");
     } finally { setRequestingEdits(false); }
@@ -248,7 +268,7 @@ export default function StudentScores() {
           </ClayCard>
           <div className="space-y-2">
             {members.filter((member) => existingScores[member.id]).map((member) => {
-              const saved = existingScores[member.id]; const pendingRequest = editRequests[saved.id];
+              const saved = existingScores[member.id]; const request = editRequests[saved.id]; const pendingRequest = request?.status === 'pending';
               const changed = Number(scores[saved.group_member_id]) !== Number(saved.score);
               return (
                 <ClayCard key={member.id} className="p-3 flex flex-wrap items-center gap-3">
@@ -267,7 +287,9 @@ export default function StudentScores() {
                   )}
                   <input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} />
                   <span className="text-xs font-mono text-ink/50">/ {maxScore}</span>
-                  {pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Pending</span>}
+                  {pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Teacher review pending</span>}
+                  {request?.status === 'approved' && <span className="text-[10px] font-display font-bold text-clay-lime">Approved</span>}
+                  {request?.status === 'rejected' && <span className="text-[10px] font-display font-bold text-clay-coral">Not approved — revise and send fresh proof</span>}
                 </ClayCard>
               );
             })}
@@ -277,7 +299,7 @@ export default function StudentScores() {
               {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.startsWith("Proof uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
               {error && <p className="text-clay-coral font-display font-bold text-sm">{error}</p>}
               <ClayButton color="purple" size="md" className="w-full" disabled={requestingEdits} onClick={requestEdits}>{requestingEdits ? "Sending request..." : "Request score edit"}</ClayButton>
-              <p className="text-xs text-ink/55">Changing a saved score needs a new photo of the work. Your teacher reviews that fresh proof before the change takes effect.</p>
+              <p className="text-xs text-ink/55">Each changed score is sent separately with fresh proof. Pending scores stay protected until your teacher approves or declines them.</p>
             </>
           )}
         </>
