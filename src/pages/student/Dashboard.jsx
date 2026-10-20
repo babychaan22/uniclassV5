@@ -69,7 +69,6 @@ export default function StudentDashboard() {
   const [loadError, setLoadError] = useState("");
   const [range, setRange] = useState("week");
   const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
-
   useEffect(() => {
     let active = true;
     async function load() {
@@ -89,7 +88,7 @@ export default function StudentDashboard() {
         badges: [], badgeDefinitions: [], terms: [], memberCards: [],
         groupLeaderboard: [{ group: { id: group.id, group_number: group.group_number }, points: 0 }],
         indLeaderboard: [], personalStreak: 0, myAvatarKey: user?.avatar_key || null,
-        missions: [], announcements: [],
+        missions: [], missionSubmissions: [], announcements: [],
       };
       studentDashboardCache = { userId: user.id, classroomId, data: immediate, savedAt: Date.now() };
       if (!active) return;
@@ -121,8 +120,9 @@ export default function StudentDashboard() {
         db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,created_date' }),
         db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,max_score,created_date' }),
         db.entities.ParticipationLog.filter({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
+        db.entities.MissionSubmission.filter({ group_id: group.id }, { columns: 'group_member_id,created_date' }),
         supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
-      ]).then(([attendance, scores, activities, logs, avatarResult]) => {
+      ]).then(([attendance, scores, activities, logs, missionSubmissions, avatarResult]) => {
         if (!active || avatarResult.error) return;
         const avatarKeys = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.avatar_key]));
         const nameEffects = new Map((avatarResult.data || []).map((row) => [row.group_member_id, row.name_effect || "opaque-ink"]));
@@ -136,9 +136,9 @@ export default function StudentDashboard() {
           .map((member) => ({ member, points: computeParticipationPoints(member.id, logs), avatarKey: avatarKeys.get(member.id) }))
           .sort((left, right) => right.points - left.points)
           .slice(0, 10);
-        const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days);
+        const personalStreak = computeEngagementStreak(account.group_member_id, attendance, scores, getTodayManila(), classroom?.class_days, missionSubmissions);
         setData((current) => {
-          const next = current && { ...current, attendance, scores, activities, logs, memberCards, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null };
+          const next = current && { ...current, attendance, scores, activities, logs, missionSubmissions, memberCards, indLeaderboard, personalStreak, myAvatarKey: avatarKeys.get(account.group_member_id) || user?.avatar_key || null };
           if (next) studentDashboardCache = { userId: user.id, classroomId, data: next, savedAt: Date.now() };
           return next;
         });
@@ -177,7 +177,7 @@ export default function StudentDashboard() {
   if (loading) return <PanelSkeleton />;
   if (!data) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><h1 className="font-display text-xl font-extrabold">Dashboard unavailable</h1><p className="mt-2 text-sm text-ink/60">{loadError || "Please refresh and try again."}</p><ClayButton className="mt-4" onClick={() => window.location.reload()}>Try again</ClayButton></ClayCard>;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, badges, badgeDefinitions, terms, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, missionSubmissions, badges, badgeDefinitions, terms, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
   const myMemberId = account.group_member_id;
   const selectedDate = anchorDate || getTodayManila();
   const selectedTerm = (terms || []).find((term) => term.start_date <= selectedDate && term.end_date >= selectedDate)
@@ -188,6 +188,7 @@ export default function StudentDashboard() {
   const inSelectedPeriod = (record) => isDateInRange(recordDate(record), selectedPeriod.start, selectedPeriod.end);
   const periodAttendance = attendance.filter(inSelectedPeriod);
   const periodScores = scores.filter(inSelectedPeriod);
+  const periodMissionSubmissions = (missionSubmissions || []).filter(inSelectedPeriod);
   const periodActivityIds = new Set(periodScores.map((score) => score.activity_id));
   const periodActivities = activities.filter((activity) => periodActivityIds.has(activity.id));
   const myAttendanceEntries = periodAttendance.filter((entry) => entry.group_member_id === myMemberId);
@@ -197,7 +198,7 @@ export default function StudentDashboard() {
   const streakReferenceDate = selectedPeriod.end && selectedPeriod.end < getTodayManila() ? selectedPeriod.end : getTodayManila();
   const periodMemberCards = members.map((member) => ({
     member,
-    streak: computeEngagementStreak(member.id, periodAttendance, periodScores, streakReferenceDate, classroom?.class_days),
+    streak: computeEngagementStreak(member.id, periodAttendance, periodScores, streakReferenceDate, classroom?.class_days, periodMissionSubmissions),
     activityPct: computeActivityPct(member.id, periodScores, periodActivities).pct || 0,
     points: computeParticipationPoints(member.id, periodLogs),
   }));
@@ -258,7 +259,7 @@ export default function StudentDashboard() {
 
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15" aria-hidden="true"><UIAsset name="missions" className="h-8 w-8" /></div>
+          <div className="flex min-h-16 w-16 shrink-0 self-stretch items-center justify-center rounded-2xl bg-white/15 p-1 sm:min-h-20 sm:w-20" aria-hidden="true"><UIAsset name="missions" className="h-full w-full object-contain" /></div>
           <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
           <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : "Open scanner"}</Link>
         </div>
@@ -319,14 +320,14 @@ export default function StudentDashboard() {
             <Link to={ROUTES.STUDENT.MISSIONS} className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold underline">Open missions <ArrowRight className="w-3 h-3" /></Link>
       </NovaMessage>
 
-      <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center p-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <UIAsset name="streakFire" className="h-8 w-8 shrink-0" />
-            <p className="font-mono text-3xl font-extrabold leading-none">{periodPersonalStreak}</p>
+      <ClayCard tone="green" className="flex min-h-[5.25rem] min-w-0 items-center justify-center p-3 text-center">
+        <div className="min-w-0">
+          <div className="flex items-center justify-center gap-2">
+            <UIAsset name="streakFire" className="h-10 w-10 shrink-0" />
+            <p className="font-mono text-4xl font-extrabold leading-none">{periodPersonalStreak}</p>
           </div>
-          <p className="font-display text-[10px] font-bold">personal day{periodPersonalStreak === 1 ? "" : "s"} in a row</p>
-          <p className="mt-1 text-[9px] leading-snug text-ink/60 max-[420px]:hidden">{periodPersonalStreak > 0 ? "Attendance and activity keep it alive." : "A class-day action starts your streak."}</p>
+          <p className="mt-1 font-display text-xs font-bold">personal day{periodPersonalStreak === 1 ? "" : "s"} in a row</p>
+          <p className="mt-1 text-[10px] leading-snug text-ink/60 max-[420px]:hidden">{periodPersonalStreak > 0 ? "Attendance, activities, and missions keep it alive." : "A class-day action starts your streak."}</p>
         </div>
       </ClayCard>
       </div>

@@ -43,14 +43,11 @@ export default function TeacherDashboard() {
   const [data, setData] = useState(initialCache);
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(!initialCache);
-  const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all");
   const [chartRange, setChartRange] = useState("week");
   const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
   const [attentionLoading, setAttentionLoading] = useState(true);
-
-  const refresh = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     let active = true;
@@ -155,7 +152,7 @@ export default function TeacherDashboard() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [user, reloadKey, navigate]);
+  }, [user, navigate]);
 
   if (loading) return <PanelSkeleton cards={4} />;
   if (!data) return null;

@@ -62,7 +62,7 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
       ));
       setScoreEdits((editsResult.data || []).map((request) => ({
         ...request,
-        memberLabel: memberMap[request.group_member_id] || 'Unknown student',
+        memberLabel: memberMap[request.group_member_id] || 'Group proof',
         groupLabel: groupMap[request.group_id] ? `Group ${groupMap[request.group_id]}` : 'Individual',
         activityLabel: activityMap[request.activity_id] || 'Activity',
         proofUrl: signedById[request.id] || '',
@@ -73,7 +73,7 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
       }));
       const nextRows = signed.map((item) => ({
         ...item,
-        memberLabel: memberMap[item.group_member_id] || 'Unknown student',
+        memberLabel: memberMap[item.group_member_id] || 'Group proof',
         groupLabel: groupMap[item.group_id] ? `Group ${groupMap[item.group_id]}` : 'Individual',
         activityLabel: activityMap[item.activity_id] || 'Activity proof',
       }));
@@ -142,7 +142,7 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
           description="Students will upload activity proof after they submit their scores. It will appear here for your review."
         />
       ) : (
-        <div className="space-y-3">{Object.values(sections).map((section) => <ClayCard key={section.key} className="p-3 sm:p-4"><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><UIAsset name="resources" className="h-8 w-8" /><div><p className="font-display text-sm font-extrabold text-[var(--uc-navy-950)]">{section.activityLabel}</p><p className="text-[11px] text-ink/55">{section.groupLabel} · {section.rows.length} proof{section.rows.length === 1 ? '' : 's'}</p></div></div></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">{section.rows.map((row) => <a key={row.id} href={row.signedUrl || undefined} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-xl border border-ink/5 bg-[var(--uc-bg)] transition-transform hover:-translate-y-0.5"><div className="h-20 bg-ink/5">{row.signedUrl ? <img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-xs text-ink/50">Unavailable</div>}</div><div className="flex items-center gap-1.5 p-1.5"><UserAvatar name={row.memberLabel} size="sm" /><p className="min-w-0 truncate text-[10px] font-display font-bold text-[var(--uc-navy-950)]">{row.memberLabel}</p></div></a>)}</div></ClayCard>)}</div>
+        <div className="space-y-3">{Object.values(sections).map((section) => <ClayCard key={section.key} className="p-3 sm:p-4"><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><UIAsset name="resources" className="h-8 w-8" /><div><p className="font-display text-sm font-extrabold text-[var(--uc-navy-950)]">{section.activityLabel}</p><p className="text-[11px] text-ink/55">{section.groupLabel} · {section.rows.length} proof{section.rows.length === 1 ? '' : 's'}</p></div></div></div><div className="grid w-fit max-w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">{section.rows.map((row) => <a key={row.id} href={row.signedUrl || undefined} target="_blank" rel="noreferrer" className="group w-20 overflow-hidden rounded-xl border border-ink/5 bg-[var(--uc-bg)] transition-transform hover:-translate-y-0.5 sm:w-24"><div className="h-20 bg-ink/5">{row.signedUrl ? <img src={row.signedUrl} alt={`${row.memberLabel} activity proof`} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-xs text-ink/50">Unavailable</div>}</div><div className="flex items-center gap-1.5 p-1.5"><UserAvatar name={row.memberLabel} size="sm" /><p className="min-w-0 truncate text-[10px] font-display font-bold text-[var(--uc-navy-950)]">{row.memberLabel}</p></div></a>)}</div></ClayCard>)}</div>
       )}
       {!loading && hasMore && <ClayButton onClick={() => load(page + 1)} disabled={loadingMore} color="white" className="w-full">
         {loadingMore ? 'Loading…' : 'Load older proof'}

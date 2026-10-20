@@ -13,6 +13,7 @@ import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from '@/components/PanelSkeleton';
 import PageErrorBoundary from '@/components/PageErrorBoundary';
 import { ACTIVE_CLASS_CHANGED_EVENT } from '@/lib/studentContext';
+import { APP_DATA_CHANGED_EVENT } from '@/api/supabaseClient';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -65,11 +66,22 @@ function ResilientLayout() {
 
   useEffect(() => {
     const refreshClassData = () => setClassVersion((current) => current + 1);
+    let dataRefreshTimer = null;
+    const refreshChangedData = () => {
+      // Several score edits can settle together. Coalesce their successful
+      // writes into one quick, in-place panel refresh instead of flashing the
+      // page repeatedly or asking the teacher to reload manually.
+      window.clearTimeout(dataRefreshTimer);
+      dataRefreshTimer = window.setTimeout(refreshClassData, 180);
+    };
     window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refreshClassData);
     window.addEventListener('uniclass-teacher-class-changed', refreshClassData);
+    window.addEventListener(APP_DATA_CHANGED_EVENT, refreshChangedData);
     return () => {
       window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refreshClassData);
       window.removeEventListener('uniclass-teacher-class-changed', refreshClassData);
+      window.removeEventListener(APP_DATA_CHANGED_EVENT, refreshChangedData);
+      window.clearTimeout(dataRefreshTimer);
     };
   }, []);
 

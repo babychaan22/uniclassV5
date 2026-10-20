@@ -30,9 +30,9 @@ export default function StudentScores() {
   const [error, setError] = useState("");
   const [proofBusy, setProofBusy] = useState(false);
   const [proofMsg, setProofMsg] = useState("");
-  const [evidenceByMember, setEvidenceByMember] = useState({});
-  // Proof uploaded during this session, used to justify a score edit.
-  const [editProofByMember, setEditProofByMember] = useState({});
+  const [groupProofs, setGroupProofs] = useState([]);
+  // A fresh group proof supports every changed score in one request.
+  const [editGroupProofId, setEditGroupProofId] = useState(null);
   const [existingScores, setExistingScores] = useState({});
   const [editRequests, setEditRequests] = useState({});
   const [requestingEdits, setRequestingEdits] = useState(false);
@@ -81,14 +81,20 @@ export default function StudentScores() {
         setEditRequests((requests.data || []).reduce((byScore, item) => (
           byScore[item.activity_score_id] ? byScore : { ...byScore, [item.activity_score_id]: item }
         ), {}));
-        setEvidenceByMember(Object.fromEntries(evidence.map((item) => [item.group_member_id, item])));
-        // Evidence on file from the original submission cannot justify a change.
-        setEditProofByMember({});
+        const groupRows = evidence.filter((item) => !item.group_member_id)
+          .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
+        const withPreviewUrls = await Promise.all(groupRows.map(async (item) => {
+          const { data } = await supabase.storage.from('activity-evidence').createSignedUrl(item.storage_path, 600);
+          return { ...item, previewUrl: data?.signedUrl || '' };
+        }));
+        setGroupProofs(withPreviewUrls);
+        // Original proof cannot justify a later correction.
+        setEditGroupProofId(null);
       } else {
         setActivity(null);
         setLocked(false);
-        setEvidenceByMember({});
-        setEditProofByMember({});
+        setGroupProofs([]);
+        setEditGroupProofId(null);
         setExistingScores({});
         setEditRequests({});
       }
@@ -106,32 +112,40 @@ export default function StudentScores() {
     return next;
   }
 
-  async function uploadProof(file, targetMemberId) {
-    if (!file || !account || !targetMemberId) return;
-    if (file.type && !/^image\/(jpeg|png|webp)$/i.test(file.type)) {
-      setProofMsg("Use a JPG, PNG, or WebP image for activity proof.");
-      return;
-    }
+  async function uploadGroupProofs(fileList, forScoreEdit = false) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !account) return;
+    const invalid = files.find((file) => file.type && !/^image\/(jpeg|png|webp)$/i.test(file.type));
+    if (invalid) { setProofMsg("Use JPG, PNG, or WebP images for activity proof."); return; }
     setProofBusy(true); setProofMsg("");
-    let uploadedPath = "";
+    const uploaded = [];
+    const failed = [];
     try {
-      const compressed = await compressImage(file);
       const act = await getOrCreateActivity();
-      const memberForProof = targetMemberId;
-      const path = `${account.group_id}/${act.id}/${memberForProof}-${Date.now()}.webp`;
-      uploadedPath = path;
-      const { error: uploadError } = await supabase.storage.from("activity-evidence").upload(path, compressed, { contentType: "image/webp", upsert: false });
-      if (uploadError) throw uploadError;
-      // Keep the returned evidence id: a score edit must be backed by proof
-      // uploaded after the last approval, not by an older photo on file.
-      const evidence = await recordActivityEvidence(act.id, memberForProof, path, file.name, compressed.size);
-      setEvidenceByMember((current) => ({ ...current, [memberForProof]: { id: evidence.id, storage_path: path } }));
-      setEditProofByMember((current) => ({ ...current, [memberForProof]: evidence.id }));
-      setProofMsg(`Proof uploaded and compressed to ${Math.round(compressed.size / 1024)} KB.`);
-    } catch (err) {
-      if (uploadedPath) {
-        await supabase.storage.from("activity-evidence").remove([uploadedPath]).catch(() => {});
+      for (const [index, file] of files.entries()) {
+        let uploadedPath = "";
+        try {
+          const compressed = await compressImage(file);
+          const path = `${account.group_id}/${act.id}/group-proof-${Date.now()}-${index}.webp`;
+          uploadedPath = path;
+          const { error: uploadError } = await supabase.storage.from("activity-evidence").upload(path, compressed, { contentType: "image/webp", upsert: false });
+          if (uploadError) throw uploadError;
+          const evidence = await recordActivityEvidence(act.id, null, path, file.name, compressed.size);
+          const { data } = await supabase.storage.from('activity-evidence').createSignedUrl(path, 600);
+          uploaded.push({ id: evidence.id, storage_path: path, created_at: evidence.created_at, original_name: file.name, previewUrl: data?.signedUrl || '' });
+        } catch {
+          if (uploadedPath) await supabase.storage.from("activity-evidence").remove([uploadedPath]).catch(() => {});
+          failed.push(file.name || 'image');
+        }
       }
+      if (uploaded.length) {
+        setGroupProofs((current) => [...uploaded, ...current].sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || ''))));
+        if (forScoreEdit) setEditGroupProofId(uploaded[uploaded.length - 1].id);
+        setProofMsg(`${uploaded.length} group proof image${uploaded.length === 1 ? '' : 's'} uploaded${failed.length ? `; ${failed.length} could not be uploaded` : ''}.`);
+      } else {
+        setProofMsg(`No group proof images were uploaded. ${failed[0] || 'Please try again.'}`);
+      }
+    } catch (err) {
       setProofMsg(err?.message || "Proof upload failed.");
     } finally { setProofBusy(false); }
   }
@@ -149,9 +163,8 @@ export default function StudentScores() {
       setError("Enter at least one score above zero. Students without a score will remain unsubmitted for this activity.");
       return;
     }
-    const missingProofs = scoredMembers.filter((m) => !evidenceByMember[m.id]);
-    if (missingProofs.length > 0) {
-      setError(`Upload activity proof for ${missingProofs.length} member${missingProofs.length === 1 ? "" : "s"} before submitting scores.`);
+    if (!groupProofs.length) {
+      setError("Upload at least one clear group proof image before submitting scores.");
       return;
     }
     setSaving(true);
@@ -185,32 +198,23 @@ export default function StudentScores() {
       && editRequests[saved.id]?.status !== 'pending'
     ));
     if (!changed.length) { setError("Change a saved score before requesting teacher approval."); return; }
-    // A fresh photo is required for every score being changed, so the teacher
-    // reviews new evidence instead of trusting the original submission.
-    const missingProof = changed.filter((saved) => !editProofByMember[saved.group_member_id]);
-    if (missingProof.length > 0) {
-      setError(
-        `Upload a new photo of the work for ${missingProof.length} student${missingProof.length === 1 ? "" : "s"} before requesting approval. A score change cannot be sent without fresh proof.`,
-      );
+    if (!editGroupProofId) {
+      setError("Upload one new group proof before requesting approval. A score change cannot be sent without fresh proof.");
       return;
     }
     setRequestingEdits(true); setError("");
     try {
       const outcomes = await Promise.allSettled(changed.map((saved) =>
-        requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]), editProofByMember[saved.group_member_id]),
+        requestActivityScoreEdit(saved.id, Number(scores[saved.group_member_id]), editGroupProofId),
       ));
       const successful = outcomes
         .map((outcome, index) => ({ outcome, saved: changed[index] }))
         .filter(({ outcome }) => outcome.status === 'fulfilled');
       if (successful.length) {
         setEditRequests((current) => ({ ...current, ...Object.fromEntries(successful.map(({ saved, outcome }) => [saved.id, outcome.value || { status: 'pending' }])) }));
-        setEditProofByMember((current) => {
-          const next = { ...current };
-          successful.forEach(({ saved }) => { delete next[saved.group_member_id]; });
-          return next;
-        });
       }
       const failed = outcomes.filter((outcome) => outcome.status === 'rejected');
+      if (!failed.length) setEditGroupProofId(null);
       if (failed.length) {
         setError(`${successful.length} request${successful.length === 1 ? '' : 's'} sent. ${failed.length} still need attention: ${failed[0].reason?.message || 'please try again'}`);
       } else {
@@ -229,7 +233,7 @@ export default function StudentScores() {
         <div>
           <p className="text-sm font-semibold text-[var(--uc-purple)]">Activity submission</p>
           <h1 className="uc-page-title mt-1 text-3xl sm:text-4xl">Activity scores</h1>
-          <p className="mt-1 text-sm leading-relaxed text-ink/60">Upload proof for every group member, record scores carefully, then submit once.</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink/60">Upload one clear group proof, record the group’s scores carefully, then submit once.</p>
         </div>
         <NovaMessage variant="learning" tone="blue" title="Proof first, then scores.">A clear photo keeps your group’s work easy to review.</NovaMessage>
       </section>
@@ -259,6 +263,8 @@ export default function StudentScores() {
         </div>
       </ClayCard>
 
+      {activity && <GroupProofHistory proofs={groupProofs} />}
+
       {locked ? (
         <>
           <ClayCard color="coral" className="p-5 text-center">
@@ -266,25 +272,23 @@ export default function StudentScores() {
             <p className="font-display font-bold text-lg">Activity {activityNum} is submitted</p>
             <p className="text-white/80 text-sm">Saved scores stay protected. Representatives may request a correction for teacher approval.</p>
           </ClayCard>
+          {canEdit && (
+            <ClayCard color="sky" className="p-4">
+              <p className="font-display font-bold">New group proof for this edit</p>
+              <p className="mt-1 text-xs text-ink/60">Select one or more current photos of the group’s work. The newest image supports every changed score in this request.</p>
+              <label className={`clay-btn mt-3 w-full justify-center bg-clay-sky text-ink ${proofBusy ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
+                {proofBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : editGroupProofId ? "New group proof ready" : "Add new group proof images"}
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" disabled={proofBusy} onChange={(e) => { uploadGroupProofs(e.target.files, true); e.target.value = ""; }} />
+              </label>
+            </ClayCard>
+          )}
           <div className="space-y-2">
             {members.filter((member) => existingScores[member.id]).map((member) => {
               const saved = existingScores[member.id]; const request = editRequests[saved.id]; const pendingRequest = request?.status === 'pending';
-              const changed = Number(scores[saved.group_member_id]) !== Number(saved.score);
               return (
                 <ClayCard key={member.id} className="p-3 flex flex-wrap items-center gap-3">
                   <UserAvatar name={`${member.last_name}-${member.first_name}`} size="sm" />
                   <p className="min-w-0 flex-1 truncate font-display font-bold text-sm">{member.last_name}, {member.first_name}</p>
-                  {changed && !pendingRequest && (
-                    <label className={`clay-btn bg-clay-sky text-ink px-2 py-1.5 text-[10px] cursor-pointer ${proofBusy ? "opacity-60 pointer-events-none" : ""}`}>
-                      {proofBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : "New proof"}
-                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={proofBusy} onChange={(e) => { uploadProof(e.target.files?.[0], member.id); e.target.value = ""; }} />
-                    </label>
-                  )}
-                  {changed && !pendingRequest && (
-                    <span className={`text-[10px] font-display font-bold ${editProofByMember[member.id] ? "text-clay-lime" : "text-clay-coral"}`}>
-                      {editProofByMember[member.id] ? "New proof ready" : "New proof required"}
-                    </span>
-                  )}
                   <input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} />
                   <span className="text-xs font-mono text-ink/50">/ {maxScore}</span>
                   {pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Teacher review pending</span>}
@@ -296,10 +300,10 @@ export default function StudentScores() {
           </div>
           {canEdit && (
             <>
-              {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.startsWith("Proof uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
+              {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.includes("uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
               {error && <p className="text-clay-coral font-display font-bold text-sm">{error}</p>}
               <ClayButton color="purple" size="md" className="w-full" disabled={requestingEdits} onClick={requestEdits}>{requestingEdits ? "Sending request..." : "Request score edit"}</ClayButton>
-              <p className="text-xs text-ink/55">Each changed score is sent separately with fresh proof. Pending scores stay protected until your teacher approves or declines them.</p>
+              <p className="text-xs text-ink/55">One new group proof supports every changed score. Pending scores stay protected until your teacher approves or declines them.</p>
             </>
           )}
         </>
@@ -315,12 +319,19 @@ export default function StudentScores() {
               <input type="number" min="1" className="clay-input" value={maxScore} onChange={(e) => setMaxScore(Number(e.target.value))} />
             </ClayCard>
           )}
+          <ClayCard color="sky" className="p-4">
+            <p className="font-display font-bold">Proof images for the whole group</p>
+            <p className="mt-1 text-xs text-ink/60">Select one or more clear photos of the group’s completed work, then enter each member’s score below.</p>
+            <label className={`clay-btn mt-3 w-full justify-center bg-clay-sky text-ink ${proofBusy ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
+              {proofBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : groupProofs.length ? `Add more images (${groupProofs.length})` : "Upload group proof images"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" disabled={proofBusy} onChange={(e) => { uploadGroupProofs(e.target.files); e.target.value = ""; }} />
+            </label>
+          </ClayCard>
           <div className="space-y-3">
             {members.map((m) => (
               <ClayCard key={m.id} className="p-4 flex items-center gap-3">
                 <UserAvatar name={`${m.last_name}-${m.first_name}`} size="sm" />
-                <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className={`text-xs font-bold ${evidenceByMember[m.id] ? "text-clay-lime" : "text-clay-coral"}`}>{evidenceByMember[m.id] ? "Proof uploaded" : "Proof required"}</p></div>
-                <label className={`clay-btn bg-clay-sky text-ink px-2 py-2 text-xs cursor-pointer ${proofBusy ? "opacity-60 pointer-events-none" : ""}`}>{proofBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Upload proof"}<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={proofBusy} onChange={(e) => { uploadProof(e.target.files?.[0], m.id); e.target.value = ""; }} /></label>
+                <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className="text-xs font-bold text-ink/55">Covered by the group proof</p></div>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" max={maxScore} className="clay-input w-20 text-center font-mono text-lg" value={scores[m.id] ?? ""} onChange={(e) => setScore(m.id, e.target.value)} />
                   <span className="font-mono text-ink/50">/ {maxScore}</span>
@@ -328,7 +339,7 @@ export default function StudentScores() {
               </ClayCard>
             ))}
           </div>
-          {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.startsWith("Proof uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
+          {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.includes("uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
           {error && <p className="text-clay-coral font-display font-bold text-sm">{error}</p>}
           <ClayButton color="pink" size="lg" className="w-full" onClick={() => setShowConfirm(true)}>Submit Scores</ClayButton>
         </>
@@ -352,6 +363,27 @@ export default function StudentScores() {
         </div>
       )}
     </div>
+  );
+}
+
+function GroupProofHistory({ proofs }) {
+  return (
+    <ClayCard color="cream" className="p-4">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div><p className="font-display font-bold">Group proof history</p><p className="mt-1 text-xs text-ink/60">Shared with every group member. Open an image to inspect it.</p></div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-display font-bold text-ink/65">{proofs.length} image{proofs.length === 1 ? '' : 's'}</span>
+      </div>
+      {proofs.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-ink/15 bg-white/60 px-3 py-3 text-xs text-ink/55">No group proof images have been uploaded for this activity yet.</p>
+      ) : (
+        <div className="mt-3 grid w-fit max-w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+          {proofs.map((proof) => <a key={proof.id} href={proof.previewUrl || undefined} target="_blank" rel="noreferrer" className="group w-20 overflow-hidden rounded-xl border border-ink/10 bg-white transition-transform hover:-translate-y-0.5 sm:w-24">
+            <div className="aspect-square bg-ink/5">{proof.previewUrl ? <img src={proof.previewUrl} alt={proof.original_name || 'Group activity proof'} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-ink/50">Preview unavailable</div>}</div>
+            <div className="p-1.5"><p className="truncate text-[10px] font-display font-bold text-ink">{proof.original_name || 'Group proof'}</p><p className="mt-0.5 text-[9px] text-ink/50">{proof.created_at ? new Date(proof.created_at).toLocaleString() : 'Just uploaded'}</p></div>
+          </a>)}
+        </div>
+      )}
+    </ClayCard>
   );
 }
 

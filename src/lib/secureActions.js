@@ -1,39 +1,46 @@
-import { supabase } from '@/api/supabaseClient';
+import { invalidateReadCache, supabase } from '@/api/supabaseClient';
+
+function finishMutation(data) {
+  // RPC writes do not travel through db.entities, so explicitly invalidate
+  // every lightweight cache and ask visible dashboards to refresh.
+  invalidateReadCache();
+  return data;
+}
 
 export async function joinClassroom(payload) {
   const { data, error } = await supabase.rpc('join_classroom', payload);
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function createClassroom(payload) {
   const { data, error } = await supabase.rpc('create_classroom', payload);
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function deleteClassroom(classroomId) {
   const { data, error } = await supabase.rpc('delete_classroom', { p_classroom_id: classroomId });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function removeStudentFromClass(groupAccountId) {
   const { data, error } = await supabase.rpc('remove_student_from_class', { p_group_account_id: groupAccountId });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function removeRosterMember(groupMemberId) {
   const { data, error } = await supabase.rpc('remove_roster_member', { p_group_member_id: groupMemberId });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function setGroupRepresentative(groupAccountId) {
   const { data, error } = await supabase.rpc('set_group_representative', { p_group_account_id: groupAccountId });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function ensureGroupActivity(classroomId, groupId, activityNumber, maxScore) {
@@ -54,7 +61,7 @@ export async function createGeneralQrBatch(qrType, basePoints, batchSize) {
     p_batch_size: batchSize,
   });
   if (error) throw error;
-  return data ?? [];
+  return finishMutation(data ?? []);
 }
 
 export async function recordActivityEvidence(activityId, groupMemberId, storagePath, originalName, fileSize, mimeType = 'image/webp') {
@@ -67,6 +74,9 @@ export async function recordActivityEvidence(activityId, groupMemberId, storageP
     p_mime_type: mimeType,
   });
   if (error) throw error;
+  // Evidence can be selected in batches before an activity is submitted. The
+  // score submission itself broadcasts the refresh, which keeps the active
+  // form stable while several images are being compressed and stored.
   return data;
 }
 
@@ -113,7 +123,7 @@ export async function setMissionApproval(missionId, status, classroomId = null) 
     p_classroom_id: classroomId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Publishes today's Power-Up to every Mathematics class the teacher owns in one
@@ -123,7 +133,7 @@ export async function approvePowerUpForAllClasses(autoDailyDate = null) {
     p_auto_daily_date: autoDailyDate,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Edits a mission, including one already approved and deployed. Only the
@@ -135,7 +145,7 @@ export async function updateMission(missionId, patch) {
     p_patch: patch,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function requestActivityScoreEdit(activityScoreId, proposedScore, evidenceId) {
@@ -145,7 +155,7 @@ export async function requestActivityScoreEdit(activityScoreId, proposedScore, e
     p_evidence_id: evidenceId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function reviewActivityScoreEdit(requestId, approve) {
@@ -154,7 +164,7 @@ export async function reviewActivityScoreEdit(requestId, approve) {
     p_approve: approve,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function lookupClassroomByJoinCode(joinCode) {
@@ -168,7 +178,7 @@ export async function lookupClassroomByJoinCode(joinCode) {
 export async function submitMission(payload) {
   const { data, error } = await supabase.rpc('submit_mission', payload);
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function getMissionSubmissionReview(missionId, groupId, retryAttemptId = null) {
@@ -182,7 +192,7 @@ export async function getMissionSubmissionReview(missionId, groupId, retryAttemp
 export async function startMissionRetry(missionId, groupId) {
   const { data, error } = await supabase.rpc('start_mission_retry', { p_mission_id: missionId, p_group_id: groupId });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function claimBadgeDefinition(definitionId, groupId, memberId = null) {
@@ -192,7 +202,7 @@ export async function claimBadgeDefinition(definitionId, groupId, memberId = nul
     p_member_id: memberId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function redeemReward(rewardId, classroomId = null) {
@@ -201,7 +211,7 @@ export async function redeemReward(rewardId, classroomId = null) {
     p_classroom_id: classroomId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function redeemMissionPoints(amount, classroomId) {
@@ -210,7 +220,7 @@ export async function redeemMissionPoints(amount, classroomId) {
     p_classroom_id: classroomId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Personal rewards spend only a learner's mission XP. They never touch the
@@ -229,7 +239,7 @@ export async function claimPersonalReward(rewardId, classroomId) {
     p_classroom_id: classroomId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function equipPersonalReward(claimId) {
@@ -237,7 +247,7 @@ export async function equipPersonalReward(claimId) {
     p_claim_id: claimId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function unlockStyleChoice(choiceType, classroomId) {
@@ -246,7 +256,7 @@ export async function unlockStyleChoice(choiceType, classroomId) {
     p_classroom_id: classroomId,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function applyStyleChoice(claimId, assetKey) {
@@ -255,7 +265,7 @@ export async function applyStyleChoice(claimId, assetKey) {
     p_asset_key: assetKey,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function correctParticipationRecipient(sourceLogId, targetMemberId) {
@@ -267,7 +277,7 @@ export async function correctParticipationRecipient(sourceLogId, targetMemberId)
     p_reason: 'Recipient correction',
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Moving a duplicate account's record onto the right one. Everything keyed on
@@ -279,7 +289,7 @@ export async function transferStudentRecord(sourceMemberId, targetMemberId, note
     p_note: note,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Runs several duplicate-record merges as one database transaction. If any
@@ -292,7 +302,7 @@ export async function transferStudentRecords(sourceMemberIds, targetMemberId, no
     p_note: note,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Filing a mission away is not deleting it: the row, its submissions and its
@@ -303,7 +313,7 @@ export async function archiveMission(missionId, archived = true) {
     p_archived: archived,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // Awarding points by hand, and taking an entry back. Both are teacher-only and
@@ -316,7 +326,7 @@ export async function awardParticipationPoints(groupId, points, memberId = null,
     p_note: note,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 // A penalty is deliberately its own protected action. The database receives a
@@ -328,7 +338,7 @@ export async function applyBehaviorPenalty(groupId, points, note = null) {
     p_note: note,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function voidParticipationEntry(logId, reason = null) {
@@ -337,19 +347,19 @@ export async function voidParticipationEntry(logId, reason = null) {
     p_reason: reason,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function reviewBadgeClaim(badgeId, approve) {
   const { data, error } = await supabase.rpc('review_badge_claim', { p_badge_id: badgeId, p_approve: approve });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function reviewRewardRedemption(redemptionId, approve) {
   const { data, error } = await supabase.rpc('review_reward_redemption', { p_redemption_id: redemptionId, p_approve: approve });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }
 
 export async function completeLearningReview(reviewId, correct) {
@@ -358,5 +368,5 @@ export async function completeLearningReview(reviewId, correct) {
     p_correct: correct,
   });
   if (error) throw error;
-  return data;
+  return finishMutation(data);
 }

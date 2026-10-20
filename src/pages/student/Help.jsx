@@ -43,7 +43,7 @@ const guides = [
     title: "Use Rewards and personalize your profile",
     steps: [
       <>Your personal XP and your group participation points are separate.</>,
-      <>You may redeem available XP into participation points. Earning every 20 XP also makes one avatar, theme, or name-style choice available—choosing a style does not deduct XP.</>,
+      <>You may redeem available XP into participation points. A fresh five-day streak of attendance, activity, or mission participation makes one avatar, theme, or name-style choice available—choosing a style does not deduct XP.</>,
       <>Group reward requests never spend your group’s points; your teacher approves eligible requests.</>,
     ],
   },

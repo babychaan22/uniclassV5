@@ -40,15 +40,23 @@ const ENTITY_TABLE_MAP = {
 // feel instant while still invalidating immediately after writes.
 const READ_CACHE_TTL = 15 * 1000;
 const readCache = new Map();
+export const APP_DATA_CHANGED_EVENT = 'uniclass-data-changed';
+
+export function notifyAppDataChanged(detail = {}) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(APP_DATA_CHANGED_EVENT, { detail }));
+  }
+}
 
 export function invalidateReadCache(tableName) {
   if (!tableName) {
     readCache.clear();
-    return;
+  } else {
+    for (const key of readCache.keys()) {
+      if (key.startsWith(`${tableName}:`)) readCache.delete(key);
+    }
   }
-  for (const key of readCache.keys()) {
-    if (key.startsWith(`${tableName}:`)) readCache.delete(key);
-  }
+  notifyAppDataChanged({ tableName: tableName || null });
 }
 
 function readCacheKey(tableName, conditions, options) {

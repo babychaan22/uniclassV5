@@ -1,5 +1,5 @@
 // Only the import line changes — the entire caching logic is identical.
-import { db as base44, invalidateReadCache } from "@/api/supabaseClient";
+import { APP_DATA_CHANGED_EVENT, db as base44, invalidateReadCache } from "@/api/supabaseClient";
 
 // Module-level cache for the current teacher's classroom record.
 let cache = null; // { userId, promise, ts }
@@ -87,6 +87,17 @@ const DATASET_TTL = 30 * 1000;
 
 export function invalidateClassroomDataset() {
   datasetCache.clear();
+}
+
+// Protected RPC actions bypass the generic entity helper, so they broadcast a
+// shared data-change event after succeeding. Clear the teacher caches here so
+// returning to any teacher panel never resurrects a stale classroom snapshot.
+if (typeof window !== 'undefined') {
+  window.addEventListener(APP_DATA_CHANGED_EVENT, () => {
+    invalidateTeacherClassroom();
+    invalidateClassroomContext();
+    invalidateClassroomDataset();
+  });
 }
 
 const DATASET_QUERIES = {

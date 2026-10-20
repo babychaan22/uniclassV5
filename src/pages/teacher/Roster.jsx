@@ -38,6 +38,7 @@ export default function Roster() {
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [transferSummary, setTransferSummary] = useState("");
+  const [transferNotice, setTransferNotice] = useState("");
   const [transferHistory, setTransferHistory] = useState([]);
   const [confirmation, setConfirmation] = useState(null);
 
@@ -124,13 +125,15 @@ export default function Roster() {
       setTransferSearch("");
       setTransferNote("");
       setActionError("");
-      setTransferSummary(
+      const summary =
         `Merged ${sources.length} record${sources.length === 1 ? '' : 's'} into ${to.last_name}, ${to.first_name}: `
         + `${totals.moved_logs} point entr${totals.moved_logs === 1 ? 'y' : 'ies'}, `
         + `${totals.moved_attendance} attendance mark${totals.moved_attendance === 1 ? '' : 's'}, `
         + `${totals.moved_badges} badge${totals.moved_badges === 1 ? '' : 's'} and `
-        + `${totals.moved_submissions} mission submission${totals.moved_submissions === 1 ? '' : 's'}.`,
-      );
+        + `${totals.moved_submissions} mission submission${totals.moved_submissions === 1 ? '' : 's'}.`;
+      setTransferSummary(summary);
+      setTransferNotice(summary);
+      window.setTimeout(() => setTransferNotice(""), 8000);
       await load();
     } catch (err) {
       setActionError(err.message || "That record could not be moved.");
@@ -182,6 +185,7 @@ export default function Roster() {
         {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
       </div>
       {transferSummary && <p className="rounded-xl border-2 border-ink bg-clay-lime/20 p-3 text-sm font-display font-bold text-ink">{transferSummary}</p>}
+      {transferNotice && <div role="status" className="fixed bottom-20 right-4 z-[60] max-w-sm rounded-2xl border-2 border-clay-lime bg-white p-4 text-sm font-display font-bold text-ink shadow-[var(--uc-shadow-lg)] sm:bottom-5"><p className="text-clay-lime">Records moved</p><p className="mt-1 text-xs font-medium text-ink/70">{transferNotice}</p></div>}
 
       <RepresentativeRosterRequests classroomId={classroom.id} members={members} onReviewed={async () => {
         invalidateClassroomContext();
@@ -346,6 +350,7 @@ export default function Roster() {
                 </ClayButton>
                 <ClayButton size="sm" color="cream" onClick={() => setTransferTarget(null)}>Cancel</ClayButton>
               </div>
+              {selectedSources.length > 0 && <div className="mt-3 flex max-h-16 flex-wrap gap-1 overflow-y-auto" aria-label="Selected source records">{selectedSources.map((member) => <ClayChip key={member.id} color="purple">{member.last_name}, {member.first_name}</ClayChip>)}</div>}
             </div>
           </ClayCard>
         </div>
