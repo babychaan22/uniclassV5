@@ -9,6 +9,7 @@ import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
+import FloatingNotice from "@/components/FloatingNotice";
 import { CalendarDays, Check, ClipboardCheck, RefreshCw, X } from "lucide-react";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
@@ -85,7 +86,9 @@ export default function TeacherAttendance() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
+  // Do not replace a teacher's roster while a manual refresh is in progress.
+  // The controls remain usable and the updated record swaps in when ready.
+  if (loading && !classroom) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -101,7 +104,6 @@ export default function TeacherAttendance() {
           </label>
           <button type="button" onClick={load} className="clay-btn bg-cream px-3 py-2 text-sm text-ink" aria-label="Refresh attendance records"><RefreshCw className="h-4 w-4" /> Refresh</button>
         </div>
-        {message && <p role="status" className="mt-3 rounded-lg bg-clay-sky/15 px-3 py-2 text-sm font-display font-bold text-ink">{message}</p>}
       </ClayCard>
 
       <div className="space-y-4">
@@ -122,6 +124,7 @@ export default function TeacherAttendance() {
           </ClayCard>
         ))}
       </div>
+      <FloatingNotice notice={message ? { ok: !message.toLowerCase().includes("could not"), text: message } : null} onDismiss={() => setMessage("")} />
     </div>
   );
 }

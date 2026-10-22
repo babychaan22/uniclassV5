@@ -154,7 +154,10 @@ export default function StudentHistory() {
     let active = true;
     async function load() {
       if (!user) return;
-      setLoading(true);
+      // Existing history remains on screen while its latest rows arrive.
+      // Replacing the page with a spinner made filters and scroll position feel
+      // as though they had been reset after a routine refresh.
+      if (!totals && entries.length === 0) setLoading(true);
       setError("");
       try {
         const account = await getActiveStudentAccount(user.id);
@@ -222,7 +225,7 @@ export default function StudentHistory() {
     }
   }
 
-  if (loading) {
+  if (loading && !totals && entries.length === 0) {
     return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
   }
 

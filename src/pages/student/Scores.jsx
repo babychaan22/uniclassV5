@@ -263,8 +263,6 @@ export default function StudentScores() {
         </div>
       </ClayCard>
 
-      {activity && <GroupProofHistory proofs={groupProofs} />}
-
       {locked ? (
         <>
           <ClayCard color="coral" className="p-5 text-center">
@@ -345,9 +343,14 @@ export default function StudentScores() {
         </>
       )}
 
+      {/* Keep earlier uploads as a compact reference after the score workflow,
+          rather than forcing a representative to scroll past them before they
+          can enter scores or submit the group work. */}
+      {activity && <GroupProofHistory proofs={groupProofs} />}
+
       {showConfirm && (
-        <div className="fixed inset-0 z-50 bg-ink/50 flex items-center justify-center p-4" onClick={() => setShowConfirm(false)}>
-          <ClayCard className="p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={() => setShowConfirm(false)}>
+          <ClayCard className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="text-center">
               <div className="inline-flex w-14 h-14 rounded-full bg-clay-coral border-[3px] border-ink items-center justify-center mb-3">
                 <AlertTriangle className="w-7 h-7 text-white" />
@@ -368,19 +371,21 @@ export default function StudentScores() {
 
 function GroupProofHistory({ proofs }) {
   return (
-    <ClayCard color="cream" className="p-4">
+    <ClayCard color="cream" className="p-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div><p className="font-display font-bold">Group proof history</p><p className="mt-1 text-xs text-ink/60">Shared with every group member. Open an image to inspect it.</p></div>
+        <div><p className="font-display text-sm font-bold">Group proof history</p><p className="mt-0.5 text-[11px] text-ink/60">Shared with every member. Select an image to inspect it.</p></div>
         <span className="rounded-full bg-white px-2.5 py-1 text-xs font-display font-bold text-ink/65">{proofs.length} image{proofs.length === 1 ? '' : 's'}</span>
       </div>
       {proofs.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-ink/15 bg-white/60 px-3 py-3 text-xs text-ink/55">No group proof images have been uploaded for this activity yet.</p>
       ) : (
-        <div className="mt-3 grid w-fit max-w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-          {proofs.map((proof) => <a key={proof.id} href={proof.previewUrl || undefined} target="_blank" rel="noreferrer" className="group w-20 overflow-hidden rounded-xl border border-ink/10 bg-white transition-transform hover:-translate-y-0.5 sm:w-24">
+        <div className="mt-3 max-h-52 overflow-y-auto pr-1">
+          <div className="grid max-w-full grid-cols-8 gap-1">
+          {proofs.map((proof) => <a key={proof.id} href={proof.previewUrl || undefined} target="_blank" rel="noreferrer" className="group w-12 overflow-hidden rounded-lg border border-ink/10 bg-white transition-transform hover:-translate-y-0.5 sm:w-16">
             <div className="aspect-square bg-ink/5">{proof.previewUrl ? <img src={proof.previewUrl} alt={proof.original_name || 'Group activity proof'} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-ink/50">Preview unavailable</div>}</div>
-            <div className="p-1.5"><p className="truncate text-[10px] font-display font-bold text-ink">{proof.original_name || 'Group proof'}</p><p className="mt-0.5 text-[9px] text-ink/50">{proof.created_at ? new Date(proof.created_at).toLocaleString() : 'Just uploaded'}</p></div>
+            <div className="p-1"><p className="truncate text-[9px] font-display font-bold text-ink">{proof.original_name || 'Group proof'}</p><p className="mt-0.5 text-[8px] text-ink/50">{proof.created_at ? new Date(proof.created_at).toLocaleDateString() : 'Just uploaded'}</p></div>
           </a>)}
+          </div>
         </div>
       )}
     </ClayCard>

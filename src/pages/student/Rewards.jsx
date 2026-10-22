@@ -11,6 +11,7 @@ import ClayChip from "@/components/ClayChip";
 import NovaEmptyState from "@/components/mascot/NovaEmptyState";
 import NovaMessage from "@/components/NovaMessage";
 import PanelSkeleton from "@/components/PanelSkeleton";
+import FloatingNotice from "@/components/FloatingNotice";
 import { ROUTES } from "@/lib/routes";
 import { getPersonalRewardDashboard, redeemMissionPoints, redeemReward, unlockStyleChoice } from "@/lib/secureActions";
 
@@ -100,7 +101,7 @@ export default function StudentRewards() {
       <ClayCard tone="violet" className="min-w-0 p-3 sm:p-4"><div className="flex items-start gap-2"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[var(--uc-purple)]" /><div className="min-w-0"><p className="font-mono text-3xl font-extrabold leading-none">{Math.floor(availableXp)}</p><p className="font-display text-xs font-bold">personal XP available</p><p className="mt-1 text-[10px] leading-snug text-ink/65">10 XP = 1 participation point. Your streak unlocks personal styles.</p></div></div><div className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">{activeStyleChoice ? "Choose your style in Settings" : availablePersonal ? "Your 5-day style choice is ready" : `${styleStreakDays}/5 days in your current learning streak`}</div>{availableXp >= 10 && <div className="mt-2"><ClayButton size="sm" color="white" className="w-full !px-2 !text-[10px]" disabled={claiming === "converter"} onClick={() => convertXp(10)}>{claiming === "converter" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem 10 XP · 1 point"}</ClayButton></div>}</ClayCard>
       <ClayCard tone="blue" className="min-w-0 p-3 sm:p-4"><div className="flex items-start gap-2"><Users className="mt-0.5 h-5 w-5 shrink-0 text-[#287fb6]" /><div className="min-w-0"><p className="font-mono text-3xl font-extrabold leading-none">{Math.round(groupPoints)}</p><p className="font-display text-xs font-bold">Group {group.group_number} points</p><p className="mt-1 text-[10px] leading-snug text-ink/65">Shared progress toward class goals; requests never spend them.</p></div></div>{closestGroupGoal ? <p className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">{Math.max(0, closestGroupGoal.cost_points - groupPoints)} points until {closestGroupGoal.title}</p> : <p className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">Every current group goal is reached.</p>}</ClayCard>
     </section>
-    {notice && <p role="status" className={`text-center text-sm font-display font-bold ${notice.ok ? "text-clay-lime" : "text-clay-coral"}`}>{notice.text}</p>}
+    <FloatingNotice notice={notice} onDismiss={() => setNotice(null)} />
 
     {hasStyleChoiceAvailable && !activeStyleChoice && (
       <ClayCard color="lime" className="flex flex-wrap items-center gap-3 p-4" role="status">

@@ -34,7 +34,10 @@ export default function StudentAttendance() {
   useEffect(() => {
     async function load() {
       if (!user) { setLoading(false); return; }
-      setLoading(true);
+      // Keep the current roster visible during a background refresh. This is
+      // especially important immediately after saving attendance, when a full
+      // loading replacement used to throw the student back to the page top.
+      if (!account) setLoading(true);
       setLoadError("");
       try {
         const a = await getActiveStudentAccount(user.id);
@@ -102,7 +105,7 @@ export default function StudentAttendance() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading && !account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
   if (loadError) return <div className="mx-auto max-w-lg py-8"><ClayCard color="coral" className="p-5 text-center"><p className="font-display text-lg font-extrabold">Attendance could not load</p><p className="mt-2 text-sm text-ink/70">{loadError}</p><ClayButton type="button" color="purple" className="mt-4" onClick={() => setLoadVersion((current) => current + 1)}>Try again</ClayButton></ClayCard></div>;
 

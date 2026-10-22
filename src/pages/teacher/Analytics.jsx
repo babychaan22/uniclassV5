@@ -185,7 +185,9 @@ export default function TeacherAnalytics() {
 
   async function load() {
     if (!user) { setLoading(false); return; }
-    setLoading(true);
+    // Preserve already-rendered charts on retries/background refreshes instead
+    // of replacing the whole analytics view and resetting the reader's place.
+    if (!analytics.attendance.length && !analytics.activities.length && !analytics.points.length && !analytics.missions.length) setLoading(true);
     setError("");
     try {
       const classroom = await getTeacherClassroom(user.id);
@@ -322,7 +324,7 @@ export default function TeacherAnalytics() {
     setHovered((current) => ({ ...current, [key]: current[key] === selected ? null : selected }));
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
+  if (loading && !analytics.attendance.length && !analytics.activities.length && !analytics.points.length && !analytics.missions.length) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-clay-purple border-t-transparent" /></div>;
   if (error) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><p className="font-display font-bold text-[var(--uc-navy-950)]">{error}</p><button type="button" onClick={load} className="mt-3 rounded-xl bg-[var(--uc-purple)] px-4 py-2 text-sm font-display font-bold text-white">Try again</button></ClayCard>;
   const chartProps = (key) => ({ onClick: selectChart(key), style: { cursor: "pointer" } });
 
