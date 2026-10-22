@@ -19,6 +19,7 @@ import { Save, Loader2, UserCog, Trash2, Crown, ArrowRightLeft, Check, Search } 
 import { ROUTES } from '@/lib/routes';
 import RepresentativeRosterRequests from '@/components/teacher/RepresentativeRosterRequests';
 import ClayConfirmDialog from "@/components/ClayConfirmDialog";
+import FloatingNotice from "@/components/FloatingNotice";
 
 export default function Roster() {
   const { user } = useAuth();
@@ -32,6 +33,7 @@ export default function Roster() {
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
   const [actionError, setActionError] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
   const [transferTarget, setTransferTarget] = useState(null);
   const [transferSourceIds, setTransferSourceIds] = useState([]);
   const [transferSearch, setTransferSearch] = useState("");
@@ -81,7 +83,7 @@ export default function Roster() {
   }
 
   async function removeMember(mem) {
-    setSaving(mem.id); setActionError("");
+    setSaving(mem.id); setActionError(""); setActionNotice("");
     try {
       const result = await removeRosterMember(mem.id);
       if (result?.evidencePaths?.length) {
@@ -90,17 +92,19 @@ export default function Roster() {
       }
       invalidateClassroomContext();
       await load();
+      setActionNotice(`${mem.last_name}, ${mem.first_name} was removed from this class.`);
     } catch (err) {
       setActionError(err.message || "This roster member could not be removed.");
     } finally { setSaving(null); }
   }
 
   async function makeRepresentative(account) {
-    setSaving(account.group_member_id); setActionError("");
+    setSaving(account.group_member_id); setActionError(""); setActionNotice("");
     try {
       await setGroupRepresentative(account.id);
       invalidateClassroomContext();
       await load();
+      setActionNotice(`${account.last_name}, ${account.first_name} is now the group representative.`);
     } catch (err) {
       setActionError(err.message || "Representative could not be changed.");
     } finally { setSaving(null); }
@@ -111,10 +115,10 @@ export default function Roster() {
   // old one. A teacher can merge several duplicates into the same correct
   // learner without losing the individual audit records.
   async function runTransfer() {
-    if (!transferTarget || transferSourceIds.length === 0) return;
+    if (!transferTarget || transferSourceIds.length === 0) return false;
     const to = members.find((m) => m.id === transferTarget.id);
     const sources = members.filter((m) => transferSourceIds.includes(m.id));
-    if (!to || sources.length === 0) return;
+    if (!to || sources.length === 0) return false;
     setTransferring(true);
     setActionError("");
     try {
@@ -135,8 +139,10 @@ export default function Roster() {
       setTransferNotice(summary);
       window.setTimeout(() => setTransferNotice(""), 8000);
       await load();
+      return true;
     } catch (err) {
       setActionError(err.message || "That record could not be moved.");
+      return false;
     } finally {
       setTransferring(false);
     }
@@ -181,9 +187,6 @@ export default function Roster() {
         </div>
         <NovaMessage variant="learning" tone="blue" title="A well-kept class helps everyone shine.">Review each group whenever learners join or change roles.</NovaMessage>
       </section>
-      <div>
-        {actionError && <p className="mt-2 rounded-xl border-2 border-ink bg-clay-coral/20 p-3 text-sm font-display font-bold text-clay-coral">{actionError}</p>}
-      </div>
       {transferSummary && <p className="rounded-xl border-2 border-ink bg-clay-lime/20 p-3 text-sm font-display font-bold text-ink">{transferSummary}</p>}
       {transferNotice && <div role="status" className="fixed bottom-20 right-4 z-[60] max-w-sm rounded-2xl border-2 border-clay-lime bg-white p-4 text-sm font-display font-bold text-ink shadow-[var(--uc-shadow-lg)] sm:bottom-5"><p className="text-clay-lime">Records moved</p><p className="mt-1 text-xs font-medium text-ink/70">{transferNotice}</p></div>}
 
@@ -364,16 +367,21 @@ export default function Roster() {
           ? `${confirmation.member.last_name}, ${confirmation.member.first_name}'s attendance, scores, evidence, points, badges, submissions, and class-only history will be removed from this classroom. Their sign-in and other classrooms stay intact.`
           : confirmation?.type === "representative"
             ? `Make ${confirmation.account.last_name}, ${confirmation.account.first_name} the representative? The current representative becomes a regular member.`
-            : transferTarget && selectedSources.length > 0 ? `Move ${selectedSources.length} student record${selectedSources.length === 1 ? '' : 's'} to ${transferTargetName}. Each old class account will be blocked and kept in the transfer audit.` : ""}
+            : transferTarget && selectedSources.length > 0 ? `Move ${selectedSources.length} student record${selectedSources.length === 1 ? '' : 's'} to ${transferTargetName}. Each old class account will be blocked and kept in the transfer audit.${actionError ? ` ${actionError}` : ""}` : ""}
         confirmLabel={confirmation?.type === "remove" ? "Remove student" : confirmation?.type === "representative" ? "Make representative" : "Move records"}
         onConfirm={async () => {
           const next = confirmation;
+          if (next?.type === "transfer") {
+            const moved = await runTransfer();
+            if (moved) setConfirmation(null);
+            return;
+          }
           setConfirmation(null);
           if (next?.type === "remove") await removeMember(next.member);
           else if (next?.type === "representative") await makeRepresentative(next.account);
-          else if (next?.type === "transfer") await runTransfer();
         }}
       />
+      <FloatingNotice notice={actionError ? { ok: false, text: actionError } : actionNotice ? { ok: true, text: actionNotice } : null} onDismiss={() => { setActionError(""); setActionNotice(""); }} />
     </div>
   );
 }
