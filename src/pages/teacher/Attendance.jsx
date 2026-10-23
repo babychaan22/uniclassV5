@@ -1,10 +1,10 @@
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
-import { supabase } from "@/api/supabaseClient";
+import { invalidateReadCache, supabase } from "@/api/supabaseClient";
 import { getTodayManila } from "@/lib/week";
 import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
@@ -26,34 +26,54 @@ export default function TeacherAttendance() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
+  const loadSequenceRef = useRef(0);
 
   async function load({ showSpinner = true } = {}) {
+    const sequence = ++loadSequenceRef.current;
     if (!user) return;
     if (showSpinner) setLoading(true);
-    const activeClassroom = await getTeacherClassroom(user.id);
-    if (!activeClassroom) {
-      navigate(ROUTES.TEACHER.ONBOARDING);
-      return;
+    try {
+      const activeClassroom = await getTeacherClassroom(user.id);
+      if (!activeClassroom) {
+        if (sequence === loadSequenceRef.current) navigate(ROUTES.TEACHER.ONBOARDING);
+        return;
+      }
+      const dataset = await getClassroomDataset(activeClassroom.id, ["groups", "members", "attendance"]);
+      // A save or newer refresh happened while this request was in flight.
+      // Its result is authoritative, so never let this older payload replace it.
+      if (sequence !== loadSequenceRef.current) return;
+      setClassroom(activeClassroom);
+      setGroups(dataset.groups || []);
+      setMembers((dataset.members || []).slice().sort((a, b) => fullName(a).localeCompare(fullName(b))));
+      setRecords(dataset.attendance || []);
+    } finally {
+      if (sequence === loadSequenceRef.current) setLoading(false);
     }
-    const dataset = await getClassroomDataset(activeClassroom.id, ["groups", "members", "attendance"]);
-    setClassroom(activeClassroom);
-    setGroups(dataset.groups || []);
-    setMembers((dataset.members || []).slice().sort((a, b) => fullName(a).localeCompare(fullName(b))));
-    setRecords(dataset.attendance || []);
-    setLoading(false);
   }
 
   useEffect(() => {
     load();
     const refreshInPlace = () => {
       invalidateClassroomDataset();
-      void load({ showSpinner: false });
+      // The classroom dataset cache is not the only cache involved. Clear the
+      // attendance query cache too, otherwise a record saved by a student on
+      // another device can be re-read from this browser's stale response.
+      invalidateReadCache("attendances");
+      void load({ showSpinner: false }).catch((error) => {
+        setMessage(error?.message || "Attendance could not be refreshed. Please try again.");
+      });
     };
     window.addEventListener('uniclass-connection-restored', refreshInPlace);
     window.addEventListener('focus', refreshInPlace);
+    // Realtime is immediate when available. This quiet, visible-page fallback
+    // keeps the roster in sync when a browser or network blocks realtime.
+    const syncTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") refreshInPlace();
+    }, 15000);
     return () => {
       window.removeEventListener('uniclass-connection-restored', refreshInPlace);
       window.removeEventListener('focus', refreshInPlace);
+      window.clearInterval(syncTimer);
     };
   }, [user]);
 
@@ -68,7 +88,10 @@ export default function TeacherAttendance() {
         event: '*', schema: 'public', table: 'attendances', filter: `classroom_id=eq.${classroom.id}`,
       }, () => {
         invalidateClassroomDataset();
-        void load({ showSpinner: false });
+        invalidateReadCache("attendances");
+        void load({ showSpinner: false }).catch((error) => {
+          setMessage(error?.message || "Attendance could not be refreshed. Please try again.");
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -94,20 +117,54 @@ export default function TeacherAttendance() {
     setMessage("");
     try {
       const existing = attendanceByMember[member.id];
+      let saved;
       if (existing) {
-        await db.entities.Attendance.update(existing.id, { status, marked_by: user.id });
+        saved = await db.entities.Attendance.update(existing.id, { status, marked_by: user.id });
       } else {
-        await db.entities.Attendance.create({
-          classroom_id: classroom.id,
-          group_id: member.group_id,
-          group_member_id: member.id,
-          attendance_date: selectedDate,
-          status,
-          marked_by: user.id,
-        });
+        try {
+          saved = await db.entities.Attendance.create({
+            classroom_id: classroom.id,
+            group_id: member.group_id,
+            group_member_id: member.id,
+            attendance_date: selectedDate,
+            status,
+            marked_by: user.id,
+          });
+        } catch (error) {
+          // A representative or another teacher can save in the small gap
+          // between a quiet refresh and this click. The database rightfully
+          // rejects a second row; find that row and apply the teacher's
+          // intended correction instead of leaving the control in an error.
+          if (error?.code !== "23505") throw error;
+          invalidateReadCache("attendances");
+          const matching = await db.entities.Attendance.filter({
+            group_member_id: member.id,
+            attendance_date: selectedDate,
+          });
+          if (!matching[0]) throw error;
+          // Some legacy rows predate the current classroom assignment. Keep
+          // the one-row-per-student-per-day rule, but repair its ownership so
+          // it is visible in the active classroom immediately afterwards.
+          saved = await db.entities.Attendance.update(matching[0].id, {
+            classroom_id: classroom.id,
+            group_id: member.group_id,
+            status,
+            marked_by: user.id,
+          });
+        }
       }
+      // Show the confirmed value in this exact row immediately. A quiet
+      // background read still reconciles concurrent edits from a student
+      // representative or another teacher device, but the teacher never has
+      // to wait for it just to see their own edit.
+      setRecords((current) => {
+        const withoutPrevious = current.filter((record) => record.id !== saved.id && !(record.group_member_id === member.id && record.attendance_date === selectedDate));
+        return [...withoutPrevious, saved];
+      });
+      // Stop any request that started before this confirmed save from putting
+      // an out-of-date snapshot back over the newly coloured row.
+      loadSequenceRef.current += 1;
       invalidateClassroomDataset();
-      await load({ showSpinner: false });
       setMessage(`${fullName(member)} marked ${status}.`);
     } catch (error) {
       setMessage(error?.message || "Attendance could not be saved. Please try again.");
