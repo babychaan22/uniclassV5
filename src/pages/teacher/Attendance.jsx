@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
+import { supabase } from "@/api/supabaseClient";
 import { getTodayManila } from "@/lib/week";
 import { ROUTES } from "@/lib/routes";
 import ClayCard from "@/components/ClayCard";
@@ -44,10 +45,34 @@ export default function TeacherAttendance() {
 
   useEffect(() => {
     load();
-    const refreshInPlace = () => load({ showSpinner: false });
+    const refreshInPlace = () => {
+      invalidateClassroomDataset();
+      void load({ showSpinner: false });
+    };
     window.addEventListener('uniclass-connection-restored', refreshInPlace);
-    return () => window.removeEventListener('uniclass-connection-restored', refreshInPlace);
+    window.addEventListener('focus', refreshInPlace);
+    return () => {
+      window.removeEventListener('uniclass-connection-restored', refreshInPlace);
+      window.removeEventListener('focus', refreshInPlace);
+    };
   }, [user]);
+
+  useEffect(() => {
+    if (!classroom?.id) return undefined;
+    // Student representatives save attendance from a different device. Listen
+    // for those rows and refresh only this page's data; never remount the
+    // teacher workspace or replace the roster with a spinner.
+    const channel = supabase
+      .channel(`teacher-attendance-${classroom.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'attendances', filter: `classroom_id=eq.${classroom.id}`,
+      }, () => {
+        invalidateClassroomDataset();
+        void load({ showSpinner: false });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [classroom?.id, user]);
 
   const attendanceByMember = useMemo(() => Object.fromEntries(
     records.filter((record) => record.attendance_date === selectedDate).map((record) => [record.group_member_id, record]),
