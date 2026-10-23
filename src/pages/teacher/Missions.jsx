@@ -115,7 +115,11 @@ export default function TeacherMissions() {
     load();
     const refresh = () => load();
     window.addEventListener('uniclass-teacher-class-changed', refresh);
-    return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
+    window.addEventListener('uniclass-connection-restored', refresh);
+    return () => {
+      window.removeEventListener('uniclass-teacher-class-changed', refresh);
+      window.removeEventListener('uniclass-connection-restored', refresh);
+    };
   }, [user]);
   useEffect(() => {
     if (!user) return;

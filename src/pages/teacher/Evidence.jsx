@@ -1,6 +1,6 @@
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
@@ -20,7 +20,9 @@ export default function TeacherEvidence() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
+  const hasRowsRef = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -31,7 +33,11 @@ export default function TeacherEvidence() {
 
   async function load(nextPage = 0) {
     if (!user) return;
-    if (nextPage === 0) setLoading(true); else setLoadingMore(true);
+    const firstLoad = nextPage === 0 && !hasRowsRef.current;
+    if (nextPage === 0) {
+      if (firstLoad) setLoading(true);
+      else setRefreshing(true);
+    } else setLoadingMore(true);
     setError('');
     try {
       const classroom = await getTeacherClassroom(user.id);
@@ -78,18 +84,23 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
         activityLabel: activityMap[item.activity_id] || 'Activity proof',
       }));
       setRows((current) => nextPage === 0 ? nextRows : [...current, ...nextRows]);
+      hasRowsRef.current = nextPage > 0 ? hasRowsRef.current || nextRows.length > 0 : nextRows.length > 0;
       setPage(nextPage);
       setHasMore(evidence.length === 40);
     } catch (err) {
       setError(err?.message || 'Unable to load activity proof.');
-    } finally { setLoading(false); setLoadingMore(false); }
+    } finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }
 
   useEffect(() => {
     load();
     const refresh = () => load();
     window.addEventListener('uniclass-teacher-class-changed', refresh);
-    return () => window.removeEventListener('uniclass-teacher-class-changed', refresh);
+    window.addEventListener('uniclass-connection-restored', refresh);
+    return () => {
+      window.removeEventListener('uniclass-teacher-class-changed', refresh);
+      window.removeEventListener('uniclass-connection-restored', refresh);
+    };
   }, [user]);
 
   const sections = rows.reduce((all, row) => {
@@ -120,7 +131,7 @@ const activityMap = Object.fromEntries(activities.map((activity) => [activity.id
         <NovaMessage variant="evidence" tone="violet" title="Every proof tells part of the story.">Open a tile to inspect the work at full size.</NovaMessage>
       </section>
       <div className="flex justify-end">
-        <ClayButton onClick={load} color="white" className="shrink-0" aria-label="Refresh activity proof"><RefreshCw className="w-4 h-4" /></ClayButton>
+        <ClayButton onClick={load} color="white" className="shrink-0" disabled={refreshing} aria-label="Refresh activity proof"><RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /></ClayButton>
       </div>
       {error && <ClayCard color="coral" className="p-4 text-sm">{error}</ClayCard>}
       {scoreEdits.length > 0 && <ClayCard color="sun" className="p-4 sm:p-5"><div className="mb-3"><h2 className="font-display font-bold text-base">Score edit requests</h2><p className="text-xs text-ink/60">Approve to replace the saved score, or decline to keep the current one.</p></div><div className="space-y-2">{scoreEdits.map((request) => <div key={request.id} className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3">

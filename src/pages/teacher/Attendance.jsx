@@ -42,7 +42,12 @@ export default function TeacherAttendance() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refreshInPlace = () => load({ showSpinner: false });
+    window.addEventListener('uniclass-connection-restored', refreshInPlace);
+    return () => window.removeEventListener('uniclass-connection-restored', refreshInPlace);
+  }, [user]);
 
   const attendanceByMember = useMemo(() => Object.fromEntries(
     records.filter((record) => record.attendance_date === selectedDate).map((record) => [record.group_member_id, record]),

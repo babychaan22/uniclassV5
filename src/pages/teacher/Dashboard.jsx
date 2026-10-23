@@ -151,7 +151,15 @@ export default function TeacherDashboard() {
       console.error("Teacher dashboard could not be loaded", error);
       if (active) setLoading(false);
     });
-    return () => { active = false; };
+    // A reconnect refreshes this dashboard in place. `load` deliberately does
+    // not clear `data`, so the teacher keeps their current screen and scroll
+    // position while the newer values arrive.
+    const refreshInPlace = () => { load().catch((error) => console.warn("Teacher dashboard refresh failed", error)); };
+    window.addEventListener('uniclass-connection-restored', refreshInPlace);
+    return () => {
+      active = false;
+      window.removeEventListener('uniclass-connection-restored', refreshInPlace);
+    };
   }, [user, navigate]);
 
   if (loading) return <PanelSkeleton cards={4} />;

@@ -72,7 +72,12 @@ export default function ActivityLogs() {
   const [notice, setNotice] = useState('');
   const [definitions, setDefinitions] = useState([]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    load();
+    const refreshInPlace = () => load();
+    window.addEventListener('uniclass-connection-restored', refreshInPlace);
+    return () => window.removeEventListener('uniclass-connection-restored', refreshInPlace);
+  }, [user]);
 
   async function load(nextPage = 0) {
     if (!user) return;

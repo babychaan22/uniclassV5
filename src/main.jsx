@@ -12,12 +12,9 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { ThemeProvider } from "next-themes";
 
 if ('serviceWorker' in navigator) {
-  let reloadingForServiceWorker = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadingForServiceWorker) return;
-    reloadingForServiceWorker = true;
-    window.location.reload();
-  });
+  // A newly activated worker must not replace an open classroom screen. The
+  // old controller remains safe for this visit; the newer app loads naturally
+  // on the next visit or a teacher's deliberate refresh.
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 

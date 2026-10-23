@@ -18,7 +18,12 @@ export default function OfflineStatus() {
 
   useEffect(() => {
     if (!online || !wasOffline) return undefined;
-    const timer = window.setTimeout(() => window.location.reload(), 700);
+    // Keep the teacher exactly where they are. A full browser reload caused
+    // the page to flash, discarded in-progress work, and returned them to the
+    // top of the screen. Panels that need fresh server data can opt into this
+    // lightweight event without replacing their currently rendered content.
+    window.dispatchEvent(new CustomEvent('uniclass-connection-restored'));
+    const timer = window.setTimeout(() => setWasOffline(false), 3500);
     return () => window.clearTimeout(timer);
   }, [online, wasOffline]);
 
@@ -26,7 +31,7 @@ export default function OfflineStatus() {
   return (
     <div className={`fixed bottom-3 left-3 right-3 z-[70] mx-auto max-w-md rounded-2xl border-2 border-ink px-3 py-2 text-xs font-display font-bold shadow-[3px_3px_0_#17162B] ${online ? 'bg-clay-lime text-ink' : 'bg-clay-sun text-ink'}`} role="status">
       {online ? <Cloud className="mr-1 inline h-4 w-4" /> : <CloudOff className="mr-1 inline h-4 w-4" />}
-      {online ? 'Back online — refreshing your data…' : 'Offline — opened pages stay available. Reconnect before scanning, uploading, or saving points.'}
+      {online ? 'Back online — your open screen stayed in place.' : 'Offline — opened pages stay available. Reconnect before scanning, uploading, or saving points.'}
     </div>
   );
 }

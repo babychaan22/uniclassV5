@@ -41,7 +41,11 @@ export default function StudentMissions() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Mission submissions call this same loader after saving. Keep the current
+    // mission cards in place during that background refresh instead of showing
+    // a full-page skeleton and throwing the student back up the page.
+    const firstLoad = !data;
+    if (firstLoad) setLoading(true);
     setLoadError("");
     try {
       const account = await getActiveStudentAccount(user.id);
@@ -92,7 +96,7 @@ export default function StudentMissions() {
       setData({ account, group, classroom, missions, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
     } catch (error) {
       console.error('[StudentMissions] load failed', error);
-      setData(null);
+      if (firstLoad) setData(null);
       setLoadError('We could not load your missions right now. Your work is safe—please try again.');
     } finally {
       setLoading(false);
@@ -106,7 +110,7 @@ export default function StudentMissions() {
 
   if (loading && !data) return <PanelSkeleton />;
 
-  if (loadError) {
+  if (loadError && !data) {
     return (
       <div className="mx-auto max-w-xl py-8">
         <ClayCard color="coral" className="p-5 text-center">
@@ -142,6 +146,7 @@ export default function StudentMissions() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      {loadError && <p role="status" className="rounded-xl border-2 border-clay-coral/35 bg-clay-coral/10 p-3 text-sm font-semibold text-clay-coral">{loadError}</p>}
       {powerUpParseFailed && (
         <p className="rounded-xl border-2 border-clay-coral/40 bg-clay-coral/10 p-3 text-sm font-bold text-clay-coral">
           Today&apos;s Power-Up could not be read, so it cannot be shown. Please tell your teacher.
