@@ -1,11 +1,15 @@
 
+import { useState } from "react";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import FillInTheBlank from "@/components/student/FillInTheBlank";
+import DragDropMatch from "@/components/student/DragDropMatch";
 import { Eye, CheckCircle2 } from "lucide-react";
 
 // Read-only visual preview of AI-generated mission content for the teacher.
 // Distinct from the student-facing instructions in MissionAssessment/DragDropMatch.
 export default function MissionPreview({ type, content }) {
+  const [previewAnswers, setPreviewAnswers] = useState({});
   if (!content) return null;
   const questions = content.questions || [];
   const answers = content.answers || {};
@@ -55,25 +59,11 @@ export default function MissionPreview({ type, content }) {
       )}
 
       {type === "drag_drop" && (
-        <div>
-          <p className="text-xs text-ink/60 mb-2">Students drag each item tile into the correct category panel.</p>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {(content.right || []).map((cat) => {
-              const items = (content.left || []).filter((l) => answers[l] === cat);
-              return (
-                <div key={cat} className="rounded-xl border-2 border-ink/15 bg-cream p-2">
-                  <p className="font-display font-bold text-xs mb-1">{cat}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {items.map((it) => (
-                      <span key={it} className="clay-chip px-2 py-1 text-xs bg-clay-purple text-white">{it}</span>
-                    ))}
-                    {items.length === 0 && <span className="text-[10px] text-ink/40">—</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <DragDropMatch left={content.left} right={content.right} answers={answers} preview />
+      )}
+
+      {type === "fill_in_blank" && (
+        <FillInTheBlank questions={questions} answers={previewAnswers} onChange={setPreviewAnswers} preview />
       )}
     </ClayCard>
   );

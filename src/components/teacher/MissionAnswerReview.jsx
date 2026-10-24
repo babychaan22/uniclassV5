@@ -89,6 +89,21 @@ export default function MissionAnswerReview({ type, content, answerKey, groupAns
           })}
         </div>
       )}
+
+      {type === "fill_in_blank" && (
+        <div className="space-y-2">
+          {Object.entries(answerKey || {}).map(([key, correct]) => {
+            const given = ga[key];
+            const answered = Boolean(given);
+            return <div key={key} className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-ink/15 bg-cream p-2">
+              <ClayChip color="purple">Blank {key}</ClayChip>
+              <span className="text-xs">Group: <b>{answered ? given : "—"}</b></span>
+              <span className="text-xs">Correct: <b>{correct}</b></span>
+              {answered && <Verdict ok={given === correct} />}
+            </div>;
+          })}
+        </div>
+      )}
     </ClayCard>
   );
 }

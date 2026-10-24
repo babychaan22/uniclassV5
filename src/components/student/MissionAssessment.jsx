@@ -4,6 +4,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayButton from "@/components/ClayButton";
 import ClayChip from "@/components/ClayChip";
 import DragDropMatch from "@/components/student/DragDropMatch";
+import FillInTheBlank from "@/components/student/FillInTheBlank";
 import { Loader2, RotateCcw } from "lucide-react";
 import { getMissionSubmissionReview, startMissionRetry, submitMission } from '@/lib/secureActions';
 import { formatMissionDeadline, isMissionLocked } from '@/lib/missionProgress';
@@ -13,6 +14,10 @@ function displayAnswer(question, value, type) {
   if (value === undefined || value === null) return "No answer";
   if (type === 'true_false') return value ? 'True' : 'False';
   return question?.options?.[Number(value)] ?? String(value);
+}
+
+function questionBlanks(question, questionIndex) {
+  return Array.from(String(question?.prompt || '').matchAll(/\{\{([^}]+)\}\}/g)).map((match) => `${questionIndex}:${match[1].trim()}`);
 }
 
 // ai_content is a text column, but RPC payloads can hand back an already-parsed
@@ -130,16 +135,17 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
   }
 
   if (result) {
-    const displayMax = mission.formative_type === 'drag_drop' ? (content.left || []).length : questions.length;
+    const displayMax = mission.formative_type === 'drag_drop' ? (content.left || []).length : mission.formative_type === 'fill_in_blank' ? questions.reduce((total, question, index) => total + questionBlanks(question, index).length, 0) : questions.length;
     const reviewedScore = review?.score ?? result.score;
     const reviewedMax = review?.maxScore ?? displayMax;
     return <ClayCard className="p-4 space-y-4">
       <div className="text-center"><div className="text-4xl mb-2">{reviewedScore >= reviewedMax * 0.8 ? "🎉" : reviewedScore >= reviewedMax * 0.5 ? "🙂" : "😢"}</div><p className="font-display font-bold text-lg">{retryAttemptId ? `Retry result: ${reviewedScore}/${reviewedMax}` : `${reviewedScore}/${reviewedMax}`}</p><ClayChip color="sun">{result.xp_earned ?? Math.round((reviewedScore / reviewedMax) * mission.xp_reward)} XP earned</ClayChip>{retryAttemptId && <p className="mt-2 text-xs text-ink/60">This retry is for feedback and practice only. Your XP stays based on the first attempt.</p>}</div>
-      {mission.formative_type !== 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
+      {mission.formative_type !== 'drag_drop' && mission.formative_type !== 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
         const question = questions[item.index];
         const correctAnswer = displayAnswer(question, item.correct_answer, mission.formative_type);
         return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={item} correctAnswer={correctAnswer} /></div>;
       })}</div>}
+      {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={item} correctAnswer={item.correct_answer} /></div>)}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
         <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
           <p className="font-display font-bold">{item.item} · {item.correct ? 'Correct placement' : 'Try again'}</p>
@@ -148,12 +154,13 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
           <SolutionGuide item={item} correctAnswer={item.correct_answer} />
         </div>
       ))}</div>}
-      {mission.formative_type !== 'drag_drop' && reviewedScore < reviewedMax && <ClayButton color="sky" size="sm" className="w-full" onClick={beginRetry} disabled={retrying}>{retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RotateCcw className="w-4 h-4" /> Try a fresh variant</>}</ClayButton>}
+      {['true_false', 'multiple_choice'].includes(mission.formative_type) && reviewedScore < reviewedMax && <ClayButton color="sky" size="sm" className="w-full" onClick={beginRetry} disabled={retrying}>{retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RotateCcw className="w-4 h-4" /> Try a fresh variant</>}</ClayButton>}
       {submitError && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{submitError}</p>}
     </ClayCard>;
   }
 
   if (mission.formative_type === "drag_drop") return <div className="space-y-3">{formativeBrief}<DragDropMatch left={content.left || []} right={content.right || []} answers={{}} onSubmit={(res) => submit(res.placements || {})} submitting={submitting} error={submitError} /></div>;
+  if (mission.formative_type === "fill_in_blank") return <div className="space-y-3">{formativeBrief}<FillInTheBlank questions={questions} answers={answers} onChange={setAnswers} onSubmit={submit} submitting={submitting} error={submitError} /></div>;
 
   const question = questions[questionIndex];
   const answeredCount = Object.keys(answers).length;

@@ -25,6 +25,8 @@ function questionMastery(mission, submissions) {
     const answers = answerKey.answers || answerKey;
     const questions = mission.formative_type === "drag_drop"
       ? Object.keys(answers || {}).map((prompt) => ({ prompt, correct: answers[prompt], misconception: content?.misconceptions?.[prompt] || "" }))
+      : mission.formative_type === "fill_in_blank"
+        ? Object.keys(answers || {}).map((key) => ({ prompt: `Blank ${key}`, key, correct: answers[key], misconception: content?.misconceptions?.[key] || "" }))
       : (content.questions || []).map((question, index) => ({ prompt: question.prompt, correct: answers[index], options: question.options || [], misconception: question.misconception || "" }));
     const attempts = submissions.filter((submission) => submission.mission_id === mission.id && submission.answers);
     return questions.map((question, index) => {
@@ -33,7 +35,7 @@ function questionMastery(mission, submissions) {
       for (const submission of attempts) {
         try {
           const given = JSON.parse(submission.answers);
-          const answer = mission.formative_type === "drag_drop" ? given[question.prompt] : given[index];
+          const answer = mission.formative_type === "drag_drop" ? given[question.prompt] : mission.formative_type === "fill_in_blank" ? given[question.key] : given[index];
           if (String(answer) === String(question.correct)) correct += 1;
           else {
             const key = typeof answer === "string" ? answer : JSON.stringify(answer);

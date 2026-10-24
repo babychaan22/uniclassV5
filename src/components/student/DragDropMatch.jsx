@@ -6,7 +6,7 @@ import { Check, X, Layers } from "lucide-react";
 
 // Categorization activity without a drag gesture. Students tap a tile, then a
 // category, which is more reliable on phones and gives instant visual feedback.
-export default function DragDropMatch({ left, right, answers, onSubmit, submitting = false, error = "" }) {
+export default function DragDropMatch({ left, right, answers, onSubmit, submitting = false, error = "", preview = false }) {
   const [placed, setPlaced] = useState({});
   const [selectedItem, setSelectedItem] = useState(null);
 
@@ -72,9 +72,11 @@ export default function DragDropMatch({ left, right, answers, onSubmit, submitti
       </div>
 
       {error && <p className="rounded-lg bg-clay-coral/15 border-2 border-clay-coral/40 p-3 text-xs font-bold text-clay-coral">{error}</p>}
-      <ClayButton color="lime" size="md" className="w-full" onClick={submit} disabled={submitting || Object.keys(placed).length < items.length}>
-        {submitting ? <><span className="inline-block w-4 h-4 border-2 border-ink border-t-transparent rounded-full animate-spin" /> Grading…</> : <><Check className="w-4 h-4" /> Submit</>}
-      </ClayButton>
+      {preview
+        ? <p className="rounded-xl border-2 border-clay-sky/40 bg-clay-sky/10 p-3 text-xs font-display font-bold text-ink/70">Interactive preview — student answers are not submitted from this screen.</p>
+        : <ClayButton color="lime" size="md" className="w-full" onClick={submit} disabled={submitting || Object.keys(placed).length < items.length}>
+            {submitting ? <><span className="inline-block w-4 h-4 border-2 border-ink border-t-transparent rounded-full animate-spin" /> Grading…</> : <><Check className="w-4 h-4" /> Submit</>}
+          </ClayButton>}
     </ClayCard>
   );
 }

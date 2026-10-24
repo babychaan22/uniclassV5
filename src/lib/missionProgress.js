@@ -24,6 +24,7 @@ export function getMissionMaxScore(mission) {
   try {
     const content = JSON.parse(mission?.ai_content || "{}");
     if (mission?.formative_type === "drag_drop" && Array.isArray(content.left)) return content.left.length || Number(mission.max_score) || 0;
+    if (mission?.formative_type === "fill_in_blank") return (content.questions || []).reduce((total, question) => total + (String(question.prompt || "").match(/\{\{[^}]+\}\}/g)?.length || 0), 0) || Number(mission.max_score) || 0;
     if (Array.isArray(content.questions)) return content.questions.length || Number(mission.max_score) || 0;
   } catch {}
   return Number(mission?.max_score) || 0;

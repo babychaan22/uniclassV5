@@ -260,8 +260,10 @@ export default function StudentMissions() {
               const sub = subs.find((s) => s.mission_id === m.id);
               const isAi = m.formative_type && m.formative_type !== "manual";
               let questionMax = m.max_score;
-              if (isAi && m.formative_type !== 'drag_drop') {
+              if (isAi && m.formative_type !== 'drag_drop' && m.formative_type !== 'fill_in_blank') {
                 try { questionMax = JSON.parse(m.ai_content || '{}').questions?.length || m.max_score; } catch {}
+              } else if (isAi && m.formative_type === 'fill_in_blank') {
+                try { questionMax = (JSON.parse(m.ai_content || '{}').questions || []).reduce((total, question) => total + (String(question.prompt || '').match(/\{\{[^}]+\}\}/g)?.length || 0), 0) || m.max_score; } catch {}
               }
               const header = (
                 <div className="flex items-start justify-between gap-3">
@@ -301,10 +303,12 @@ export default function StudentMissions() {
               const sub = subs.find((s) => s.mission_id === m.id);
               const isAi = m.formative_type && m.formative_type !== "manual";
               let questionMax = m.max_score;
-              if (isAi && m.formative_type !== 'drag_drop') {
+              if (isAi && m.formative_type !== 'drag_drop' && m.formative_type !== 'fill_in_blank') {
                 try { questionMax = JSON.parse(m.ai_content || '{}').questions?.length || m.max_score; } catch {}
               } else if (isAi && m.formative_type === 'drag_drop') {
                 try { questionMax = JSON.parse(m.ai_content || '{}').left?.length || m.max_score; } catch {}
+              } else if (isAi && m.formative_type === 'fill_in_blank') {
+                try { questionMax = (JSON.parse(m.ai_content || '{}').questions || []).reduce((total, question) => total + (String(question.prompt || '').match(/\{\{[^}]+\}\}/g)?.length || 0), 0) || m.max_score; } catch {}
               }
               const expanded = historyMissionId === m.id;
               return <div key={m.id} className="space-y-2">

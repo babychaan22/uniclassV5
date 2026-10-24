@@ -37,6 +37,10 @@ const PROMPT_TEMPLATES = {
     placeholder: "e.g. Classify angles as acute, right, obtuse, or straight",
     template: "Check one focused learning target with a meaningful sorting task.",
   },
+  fill_in_blank: {
+    placeholder: "e.g. Use place-value words to complete each sentence",
+    template: "Check one focused learning target with a word bank and clear sentence blanks.",
+  },
 };
 
 function missionPreviewContent(m) {
@@ -51,6 +55,8 @@ function questionStats(mission, submissions) {
   try { content = JSON.parse(mission.ai_content); answers = JSON.parse(mission.answer_key); answers = answers.answers || answers; } catch { return []; }
   const rows = mission.formative_type === "drag_drop"
     ? Object.keys(answers || {}).map((key) => ({ prompt: key, correct: answers[key], misconception: content?.misconceptions?.[key] || "" }))
+    : mission.formative_type === "fill_in_blank"
+      ? Object.keys(answers || {}).map((key) => ({ prompt: `Blank ${key}`, correct: answers[key], misconception: content?.misconceptions?.[key] || "" }))
     : (content.questions || []).map((q, i) => ({ prompt: q.prompt, correct: answers[i], misconception: q.misconception || "" }));
   const attempts = submissions.filter((s) => s.mission_id === mission.id && s.answers);
   return rows.map((row, index) => {
@@ -58,7 +64,8 @@ function questionStats(mission, submissions) {
     attempts.forEach((submission) => {
       try {
         const given = JSON.parse(submission.answers);
-        const value = mission.formative_type === "drag_drop" ? given[row.prompt] : given[index];
+        const key = mission.formative_type === "fill_in_blank" ? Object.keys(answers || {})[index] : row.prompt;
+        const value = mission.formative_type === "drag_drop" || mission.formative_type === "fill_in_blank" ? given[key] : given[index];
         if (String(value) === String(row.correct)) correct++;
       } catch {}
     });
@@ -244,8 +251,11 @@ export default function TeacherMissions() {
     const promptWithDragFeedback = type === "drag_drop"
       ? prompt.replace('"answers":{"item":"category"}}. Use meaningful', '"answers":{"item":"category"},"feedback":{"item":"one short sentence explaining why the item belongs in its category"}}. Use meaningful')
       : prompt;
+    const promptWithFormatDetails = type === "fill_in_blank"
+      ? `${promptWithDragFeedback}\n- For "fill_in_blank": add {"questions":[{"prompt":"A student-ready sentence with {{blank1}} marker(s)","word_bank":[strings],"explanation":string,"misconception":string}],"answers":{"0:blank1":"correct word"},"misconceptions":{"0:blank1":string}}. Every answer must appear once in that question's word bank. Include plausible extra words, use one to three blanks per sentence, and never reveal an answer outside its blank.`
+      : promptWithDragFeedback;
     try {
-      const res = await invokeLLM({ prompt: promptWithDragFeedback });
+      const res = await invokeLLM({ prompt: promptWithFormatDetails });
       setAiContent(res);
       setGenMsg("Generated! Review below, then create the mission.");
     } catch (err) {
@@ -400,6 +410,7 @@ export default function TeacherMissions() {
               <option value="true_false">True / False (AI)</option>
               <option value="multiple_choice">Multiple Choice (AI)</option>
               <option value="drag_drop">Drag &amp; Drop (AI)</option>
+              <option value="fill_in_blank">Fill in the Blank (AI)</option>
             </select>
           </div>
           {form.formative_type === "manual" ? (
