@@ -1,4 +1,5 @@
 
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 const COLORS = {
@@ -18,11 +19,23 @@ const SIZES = {
   lg: "px-7 py-3.5 text-lg",
 };
 
-export default function ClayButton({ children, color = "purple", size = "md", className, ...props }) {
+const ClayButton = forwardRef(function ClayButton({ children, color = "purple", size = "md", className, onClick, ...props }, ref) {
   return (
-    <button className={cn("clay-btn", COLORS[color], SIZES[size], className)} {...props}>
+    <button
+      ref={ref}
+      className={cn("clay-btn", COLORS[color], SIZES[size], className)}
+      {...props}
+      onClick={(event) => {
+        // Save the action origin before a dialog shifts focus to itself.
+        // Shared feedback can then remain near the control that was used.
+        if (typeof window !== "undefined") window.__uniclassPopupAnchor = event.currentTarget;
+        onClick?.(event);
+      }}
+    >
       {children}
     </button>
   );
-}
+});
+
+export default ClayButton;
 

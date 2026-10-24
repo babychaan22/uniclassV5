@@ -1,7 +1,8 @@
 
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomContext } from "@/lib/teacherClassroom";
@@ -41,10 +42,38 @@ export default function Roster() {
   const [transferring, setTransferring] = useState(false);
   const [transferSummary, setTransferSummary] = useState("");
   const [transferNotice, setTransferNotice] = useState("");
+  const [transferAnchor, setTransferAnchor] = useState(null);
+  const [transferDialogPosition, setTransferDialogPosition] = useState(null);
   const [transferHistory, setTransferHistory] = useState([]);
   const [confirmation, setConfirmation] = useState(null);
+  const [confirmationAnchor, setConfirmationAnchor] = useState(null);
 
   useEffect(() => { load(); }, [user]);
+
+  useLayoutEffect(() => {
+    if (!transferTarget || !transferAnchor?.isConnected) {
+      setTransferDialogPosition(null);
+      return undefined;
+    }
+    const placeTransferDialog = () => {
+      const rect = transferAnchor.getBoundingClientRect();
+      const width = Math.min(512, window.innerWidth - 32);
+      const left = Math.max(16, Math.min(rect.left, window.innerWidth - width - 16));
+      const dialogHeight = Math.min(window.innerHeight * 0.85, 560);
+      const below = rect.bottom + 12;
+      const top = below + dialogHeight <= window.innerHeight - 16
+        ? below
+        : Math.max(16, rect.top - dialogHeight - 12);
+      setTransferDialogPosition({ top, left, width });
+    };
+    placeTransferDialog();
+    window.addEventListener("resize", placeTransferDialog);
+    window.addEventListener("scroll", placeTransferDialog, true);
+    return () => {
+      window.removeEventListener("resize", placeTransferDialog);
+      window.removeEventListener("scroll", placeTransferDialog, true);
+    };
+  }, [transferTarget, transferAnchor]);
 
   async function load() {
     if (!user) return;
@@ -188,7 +217,7 @@ export default function Roster() {
         <NovaMessage variant="learning" tone="blue" title="A well-kept class helps everyone shine.">Review each group whenever learners join or change roles.</NovaMessage>
       </section>
       {transferSummary && <p className="rounded-xl border-2 border-ink bg-clay-lime/20 p-3 text-sm font-display font-bold text-ink">{transferSummary}</p>}
-      {transferNotice && <div role="status" className="fixed bottom-20 right-4 z-[60] max-w-sm rounded-2xl border-2 border-clay-lime bg-white p-4 text-sm font-display font-bold text-ink shadow-[var(--uc-shadow-lg)] sm:bottom-5"><p className="text-clay-lime">Records moved</p><p className="mt-1 text-xs font-medium text-ink/70">{transferNotice}</p></div>}
+      <FloatingNotice notice={transferNotice ? { ok: true, text: transferNotice } : null} anchorElement={transferAnchor} onDismiss={() => setTransferNotice("")} />
 
       <RepresentativeRosterRequests classroomId={classroom.id} members={members} onReviewed={async () => {
         invalidateClassroomContext();
@@ -233,13 +262,13 @@ export default function Roster() {
                         <ClayButton
                           size="sm"
                           color="purple"
-                          onClick={() => openTransfer(mem)}
+                          onClick={(event) => { setTransferAnchor(event.currentTarget); openTransfer(mem); }}
                           title="Choose duplicate records to merge into this student's account"
                         >
                           <ArrowRightLeft className="w-4 h-4" /> Move records here
                         </ClayButton>
-                        {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "representative", account: memberAccount })} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
-                        <ClayButton size="sm" color="coral" onClick={() => setConfirmation({ type: "remove", member: mem })} disabled={saving === mem.id} title="Delete this student and their class-only record">
+                        {memberAccount?.is_approved && !memberAccount.is_representative && <ClayButton size="sm" color="purple" onClick={(event) => { setConfirmationAnchor(event.currentTarget); setConfirmation({ type: "representative", account: memberAccount }); }} disabled={saving === mem.id}><Crown className="w-4 h-4" /> Make rep</ClayButton>}
+                        <ClayButton size="sm" color="coral" onClick={(event) => { setConfirmationAnchor(event.currentTarget); setConfirmation({ type: "remove", member: mem }); }} disabled={saving === mem.id} title="Delete this student and their class-only record">
                           {saving === mem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete student
                         </ClayButton>
                       </>
@@ -266,17 +295,17 @@ export default function Roster() {
         </div>}
       </ClayCard>
 
-      {transferTarget && (
+      {transferTarget && createPortal((
         /* This fixed dialog keeps the destination and selections visible while
            the teacher searches through a long roster. */
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[105]">
           <button
             type="button"
             aria-label="Close"
             className="absolute inset-0 cursor-default bg-ink/40"
             onClick={() => setTransferTarget(null)}
           />
-          <ClayCard role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" className="relative flex w-full max-w-lg max-h-[85vh] flex-col p-0 overflow-hidden">
+          <ClayCard role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" style={transferDialogPosition || undefined} className={`fixed flex w-[calc(100%-2rem)] max-w-lg max-h-[85vh] flex-col overflow-hidden p-0 ${transferDialogPosition ? "" : "bottom-4 left-4 right-4 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"}`}>
             <div className="shrink-0 border-b border-ink/10 bg-[var(--uc-bg)] p-5 pb-4">
               <h3 id="transfer-dialog-title" className="font-display font-extrabold text-lg">Move records into</h3>
               <div className="mt-3 flex items-center gap-3 rounded-2xl border-2 border-clay-purple bg-clay-purple/10 p-3">
@@ -347,7 +376,7 @@ export default function Roster() {
                 placeholder="Forgot to select own name"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <ClayButton size="sm" color="purple" onClick={() => setConfirmation({ type: "transfer" })} disabled={transferSourceIds.length === 0 || transferring}>
+                <ClayButton size="sm" color="purple" onClick={(event) => { setConfirmationAnchor(event.currentTarget); setConfirmation({ type: "transfer" }); }} disabled={transferSourceIds.length === 0 || transferring}>
                   {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
                   {transferSourceIds.length > 0 ? `Move ${transferSourceIds.length} record${transferSourceIds.length === 1 ? '' : 's'}` : "Select records to move"}
                 </ClayButton>
@@ -357,10 +386,11 @@ export default function Roster() {
             </div>
           </ClayCard>
         </div>
-      )}
+      ), document.body)}
       <ClayConfirmDialog
         open={Boolean(confirmation)}
         onOpenChange={(open) => { if (!open) setConfirmation(null); }}
+        anchorElement={confirmationAnchor}
         busy={Boolean(saving) || transferring}
         title={confirmation?.type === "remove" ? "Remove this student?" : confirmation?.type === "representative" ? "Make this student representative?" : "Move selected student records?"}
         description={confirmation?.type === "remove"

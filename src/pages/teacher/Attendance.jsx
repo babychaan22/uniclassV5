@@ -26,6 +26,7 @@ export default function TeacherAttendance() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
+  const [noticeAnchor, setNoticeAnchor] = useState(null);
   const loadSequenceRef = useRef(0);
 
   async function load({ showSpinner = true } = {}) {
@@ -111,10 +112,11 @@ export default function TeacherAttendance() {
     }));
   }, [classroom, groups, members]);
 
-  async function setStatus(member, status) {
+  async function setStatus(member, status, sourceElement) {
     if (!classroom || savingId) return;
     setSavingId(member.id);
     setMessage("");
+    setNoticeAnchor(sourceElement || null);
     try {
       const existing = attendanceByMember[member.id];
       let saved;
@@ -203,15 +205,15 @@ export default function TeacherAttendance() {
               return <div key={member.id} className="flex items-center justify-between gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3">
                 <div className="min-w-0"><p className="truncate text-sm font-display font-bold">{fullName(member)}</p><p className="mt-0.5 text-xs text-ink/55">{status ? "Saved record" : "No record yet"}</p></div>
                 <div className="flex shrink-0 gap-1">
-                  <button type="button" disabled={busy} onClick={() => setStatus(member, "present")} className={`clay-btn px-2.5 py-2 text-xs ${status === "present" ? "bg-clay-lime text-ink" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} present`}><Check className="h-4 w-4" /> Present</button>
-                  <button type="button" disabled={busy} onClick={() => setStatus(member, "absent")} className={`clay-btn px-2.5 py-2 text-xs ${status === "absent" ? "bg-clay-coral text-white" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} absent`}><X className="h-4 w-4" /> Absent</button>
+                  <button type="button" disabled={busy} onClick={(event) => setStatus(member, "present", event.currentTarget)} className={`clay-btn px-2.5 py-2 text-xs ${status === "present" ? "bg-clay-lime text-ink" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} present`}><Check className="h-4 w-4" /> Present</button>
+                  <button type="button" disabled={busy} onClick={(event) => setStatus(member, "absent", event.currentTarget)} className={`clay-btn px-2.5 py-2 text-xs ${status === "absent" ? "bg-clay-coral text-white" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} absent`}><X className="h-4 w-4" /> Absent</button>
                 </div>
               </div>;
             })}</div>}
           </ClayCard>
         ))}
       </div>
-      <FloatingNotice notice={message ? { ok: !message.toLowerCase().includes("could not"), text: message } : null} onDismiss={() => setMessage("")} />
+      <FloatingNotice notice={message ? { ok: !message.toLowerCase().includes("could not"), text: message } : null} anchorElement={noticeAnchor} onDismiss={() => setMessage("")} />
     </div>
   );
 }

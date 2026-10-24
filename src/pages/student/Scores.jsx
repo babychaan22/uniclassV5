@@ -9,10 +9,11 @@ import { ensureGroupActivity, recordActivityEvidence, requestActivityScoreEdit }
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Lock, AlertTriangle, Loader2 } from "lucide-react";
+import { Lock, Loader2 } from "lucide-react";
 
 export default function StudentScores() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function StudentScores() {
   const [locked, setLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAnchor, setConfirmAnchor] = useState(null);
   const [lockedActivities, setLockedActivities] = useState({});
   const [error, setError] = useState("");
   const [proofBusy, setProofBusy] = useState(false);
@@ -339,7 +341,7 @@ export default function StudentScores() {
           </div>
           {proofMsg && <p className={`text-sm font-display font-bold ${proofMsg.includes("uploaded") ? "text-clay-lime" : "text-clay-coral"}`}>{proofMsg}</p>}
           {error && <p className="text-clay-coral font-display font-bold text-sm">{error}</p>}
-          <ClayButton color="pink" size="lg" className="w-full" onClick={() => setShowConfirm(true)}>Submit Scores</ClayButton>
+          <ClayButton color="pink" size="lg" className="w-full" onClick={(event) => { setConfirmAnchor(event.currentTarget); setShowConfirm(true); }}>Submit Scores</ClayButton>
         </>
       )}
 
@@ -348,23 +350,16 @@ export default function StudentScores() {
           can enter scores or submit the group work. */}
       {activity && <GroupProofHistory proofs={groupProofs} />}
 
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={() => setShowConfirm(false)}>
-          <ClayCard className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="text-center">
-              <div className="inline-flex w-14 h-14 rounded-full bg-clay-coral border-[3px] border-ink items-center justify-center mb-3">
-                <AlertTriangle className="w-7 h-7 text-white" />
-              </div>
-              <h2 className="font-display font-bold text-lg">Are you sure?</h2>
-              <p className="text-ink/70 text-sm mt-1">Only members with a score above zero will be submitted. Scores can later be corrected only after teacher approval.</p>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <ClayButton color="cream" className="flex-1" onClick={() => setShowConfirm(false)}>Cancel</ClayButton>
-              <ClayButton color="coral" className="flex-1" onClick={confirmSave} disabled={saving}>{saving ? "Saving..." : "Confirm & Lock"}</ClayButton>
-            </div>
-          </ClayCard>
-        </div>
-      )}
+      <ClayConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        anchorElement={confirmAnchor}
+        busy={saving}
+        title="Submit scores for your group?"
+        description="Only members with a score above zero will be submitted. Scores can later be corrected only after teacher approval."
+        confirmLabel="Confirm & Lock"
+        onConfirm={confirmSave}
+      />
     </div>
   );
 }

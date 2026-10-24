@@ -9,6 +9,7 @@ import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidat
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import ClayButton from "@/components/ClayButton";
+import FloatingNotice from "@/components/FloatingNotice";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import PointRecipientCorrection from "@/components/teacher/PointRecipientCorrection";
 import PointsAward from "@/components/teacher/PointsAward";
@@ -284,7 +285,7 @@ const logEntries = logs.map((l) => {
         </h1>
         <p className="text-ink/60 text-sm">Attendance, activity scores, mission XP, points, scans, gacha results, rewards, and badges—newest first.</p>
       </div>
-      {notice && <p className="rounded-xl border-2 border-clay-lime/40 bg-clay-lime/15 px-3 py-2 text-sm font-bold text-ink">{notice}</p>}
+      <FloatingNotice notice={notice ? { ok: !notice.toLowerCase().includes("could not"), text: notice } : null} onDismiss={() => setNotice('')} />
 
       <PointsAward
         groups={groups}

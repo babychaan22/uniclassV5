@@ -26,6 +26,7 @@ export default function StudentRewards() {
   const [claiming, setClaiming] = useState(null);
   const [requesting, setRequesting] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [noticeAnchor, setNoticeAnchor] = useState(null);
 
   useEffect(() => { void load(); }, [user]);
 
@@ -46,8 +47,8 @@ export default function StudentRewards() {
     setData({ group, classroomId, groupPoints, groupRewards, redemptions, personal });
   }
 
-  async function claimPersonal(reward) {
-    setClaiming(reward.id); setNotice(null);
+  async function claimPersonal(reward, sourceElement) {
+    setClaiming(reward.id); setNotice(null); setNoticeAnchor(sourceElement || document.activeElement);
     try {
       await unlockStyleChoice(reward.reward_type, data.classroomId);
       setNotice({ ok: true, text: `${reward.title} is ready. Choose it in Profile settings before unlocking another style.` });
@@ -56,8 +57,8 @@ export default function StudentRewards() {
     finally { setClaiming(null); }
   }
 
-  async function convertXp(requestedAmount) {
-    setClaiming("converter"); setNotice(null);
+  async function convertXp(requestedAmount, sourceElement) {
+    setClaiming("converter"); setNotice(null); setNoticeAnchor(sourceElement || document.activeElement);
     try {
       const available = Math.max(0, Number(data.personal.available || 0));
       const amount = requestedAmount === 10
@@ -74,8 +75,8 @@ export default function StudentRewards() {
     finally { setClaiming(null); }
   }
 
-  async function requestGroupReward(reward) {
-    setRequesting(reward.id); setNotice(null);
+  async function requestGroupReward(reward, sourceElement) {
+    setRequesting(reward.id); setNotice(null); setNoticeAnchor(sourceElement || document.activeElement);
     try {
       await redeemReward(reward.id, data.classroomId);
       setNotice({ ok: true, text: `Requested “${reward.title}” for Group ${data.group.group_number}. Group points are not spent.` });
@@ -101,7 +102,7 @@ export default function StudentRewards() {
       <ClayCard tone="violet" className="min-w-0 p-3 sm:p-4"><div className="flex items-start gap-2"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[var(--uc-purple)]" /><div className="min-w-0"><p className="font-mono text-3xl font-extrabold leading-none">{Math.floor(availableXp)}</p><p className="font-display text-xs font-bold">personal XP available</p><p className="mt-1 text-[10px] leading-snug text-ink/65">10 XP = 1 participation point. Your streak unlocks personal styles.</p></div></div><div className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">{activeStyleChoice ? "Choose your style in Settings" : availablePersonal ? "Your 5-day style choice is ready" : `${styleStreakDays}/5 days in your current learning streak`}</div>{availableXp >= 10 && <div className="mt-2"><ClayButton size="sm" color="white" className="w-full !px-2 !text-[10px]" disabled={claiming === "converter"} onClick={() => convertXp(10)}>{claiming === "converter" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem 10 XP · 1 point"}</ClayButton></div>}</ClayCard>
       <ClayCard tone="blue" className="min-w-0 p-3 sm:p-4"><div className="flex items-start gap-2"><Users className="mt-0.5 h-5 w-5 shrink-0 text-[#287fb6]" /><div className="min-w-0"><p className="font-mono text-3xl font-extrabold leading-none">{Math.round(groupPoints)}</p><p className="font-display text-xs font-bold">Group {group.group_number} points</p><p className="mt-1 text-[10px] leading-snug text-ink/65">Shared progress toward class goals; requests never spend them.</p></div></div>{closestGroupGoal ? <p className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">{Math.max(0, closestGroupGoal.cost_points - groupPoints)} points until {closestGroupGoal.title}</p> : <p className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-display font-bold leading-snug">Every current group goal is reached.</p>}</ClayCard>
     </section>
-    <FloatingNotice notice={notice} onDismiss={() => setNotice(null)} />
+    <FloatingNotice notice={notice} anchorElement={noticeAnchor} onDismiss={() => setNotice(null)} />
 
     {hasStyleChoiceAvailable && !activeStyleChoice && (
       <ClayCard color="lime" className="flex flex-wrap items-center gap-3 p-4" role="status">
