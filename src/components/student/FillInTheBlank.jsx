@@ -20,13 +20,16 @@ function questionBlanks(question, questionIndex) {
 export default function FillInTheBlank({ questions, answers, onChange, onSubmit, submitting, error, preview = false }) {
   const [selectedWord, setSelectedWord] = useState(null);
   const blanks = useMemo(() => questions.flatMap((question, index) => questionBlanks(question, index)), [questions]);
-  const usedWords = Object.values(answers || {});
-  const remainingWords = questions.flatMap((question) => question.word_bank || []).filter((word) => !usedWords.includes(word) || word === selectedWord);
+  const usedCounts = Object.values(answers || {}).reduce((counts, word) => ({ ...counts, [word]: (counts[word] || 0) + 1 }), {});
+  const remainingCounts = { ...usedCounts };
+  const remainingWords = questions.flatMap((question) => question.word_bank || []).filter((word) => {
+    if (remainingCounts[word] > 0) { remainingCounts[word] -= 1; return false; }
+    return true;
+  });
 
   function place(blankKey, word = selectedWord) {
-    if (!word) return;
+    if (!word || !remainingWords.includes(word)) return;
     const next = { ...(answers || {}) };
-    Object.keys(next).forEach((key) => { if (next[key] === word) delete next[key]; });
     next[blankKey] = word;
     onChange(next);
     setSelectedWord(null);

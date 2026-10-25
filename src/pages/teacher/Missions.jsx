@@ -43,6 +43,34 @@ const PROMPT_TEMPLATES = {
   },
 };
 
+function validateGeneratedMission(type, content) {
+  if (type === 'fill_in_blank') {
+    const { questions, answers } = content || {};
+    if (!Array.isArray(questions) || !questions.length || !answers || typeof answers !== 'object' || Array.isArray(answers)) throw new Error('The generated Fill in the Blank activity is incomplete. Generate it again.');
+    const expected = [];
+    for (const [index, question] of questions.entries()) {
+      const blanks = Array.from(String(question?.prompt || '').matchAll(/\{\{([^}]+)\}\}/g), (match) => match[1].trim());
+      if (!blanks.length || new Set(blanks).size !== blanks.length || !Array.isArray(question.word_bank) || question.word_bank.some((word) => typeof word !== 'string' || !word.trim())) throw new Error(`Sentence ${index + 1} needs clear blanks and a word bank. Generate the activity again.`);
+      const words = [...question.word_bank];
+      for (const blank of blanks) {
+        const key = `${index}:${blank}`;
+        const wordIndex = words.indexOf(answers[key]);
+        if (wordIndex < 0) throw new Error(`Sentence ${index + 1} has a missing answer or word-bank tile. Generate the activity again.`);
+        words.splice(wordIndex, 1);
+        expected.push(key);
+      }
+    }
+    if (Object.keys(answers).length !== expected.length || Object.keys(answers).some((key) => !expected.includes(key))) throw new Error('The answer key does not match the blanks. Generate the activity again.');
+    return;
+  }
+  if (type !== 'drag_drop') return;
+  const { left, right, answers } = content || {};
+  const validList = (items) => Array.isArray(items) && items.length > 0 && items.every((item) => typeof item === 'string' && item.trim()) && new Set(items).size === items.length;
+  if (!validList(left) || !validList(right) || !answers || typeof answers !== 'object' || Array.isArray(answers) || left.some((item) => !right.includes(answers[item])) || Object.keys(answers).length !== left.length) {
+    throw new Error('The generated Drag & Drop activity is incomplete. Generate it again and check that every tile has one matching category.');
+  }
+}
+
 function missionPreviewContent(m) {
   let c = {}; try { c = JSON.parse(m.ai_content || "{}"); } catch {}
   let ak = {}; try { ak = JSON.parse(m.answer_key || "{}"); } catch {}
@@ -170,6 +198,8 @@ export default function TeacherMissions() {
     if (!targetAllClasses && targetClassIds.length === 0) { setGenMsg('Select at least one class.'); return; }
     if (targetStatuses.length === 0) { setGenMsg('Select at least one student status.'); return; }
     setCreating(true);
+    setGenMsg(null);
+    try {
     const isAi = form.formative_type !== "manual";
     await db.entities.Mission.create({
       classroom_id: classroom.id,
@@ -211,9 +241,21 @@ export default function TeacherMissions() {
     setTargetAllClasses(true);
     setTargetClassIds([classroom.id]);
     setTargetStatuses(["On Track", "Developing", "At Risk"]);
-    setCreating(false);
     invalidateClassroomDataset();
-    load();
+    try {
+      await load();
+    } catch (refreshError) {
+      console.error('[missions] refresh after creation failed:', refreshError);
+      setGenMsg('Mission saved, but the list could not refresh. Reopen this page to see it.');
+    }
+    } catch (err) {
+      console.error('[missions] create failed:', err);
+      setGenMsg(err?.message?.includes('missions_formative_type_check')
+        ? 'Fill in the Blank is not enabled in the database yet. Ask your administrator to apply the latest mission update.'
+        : `Could not create the mission: ${err?.message || 'Please try again.'}`);
+    } finally {
+      setCreating(false);
+    }
   }
 
   function updateQuestion(index, patch) {
@@ -245,6 +287,7 @@ export default function TeacherMissions() {
     if (!form.title || !form.content || !form.learning_target) { setGenMsg("Add a title, topic, and learning target first."); return; }
     setGenerating(true);
     setGenMsg(null);
+    setAiContent(null);
     const type = form.formative_type;
     const purposeLabels = { diagnostic: "diagnostic check before instruction", quick_check: "quick formative check during or after instruction", reteach: "reteaching check for a previously difficult skill", exit_ticket: "brief end-of-lesson exit ticket" };
     const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nTeacher success criteria: ${form.success_criteria || "Create up to three short, observable success criteria."}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Feedback must be easy for a learner with low reading comprehension: name the method, show one small next step, then give a short check. Never write a generic “Try again” reminder.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"success_criteria":[string],"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Success criteria must be 1-3 observable, student-friendly checks. Student instructions must be 1-2 short sentences and must not give answers.\n- For every question, add "solution_steps":[string,string] with two short, concrete steps and "remember":string with one short transferable tip.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[number]}]}. Each answer is the zero-based index. The misconception should name the likely thinking error represented by the strongest distractor. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"},"misconceptions":{"item":string}}. Use meaningful categories and enough items to demonstrate the target.`;
@@ -257,6 +300,7 @@ export default function TeacherMissions() {
       : promptWithDragFeedback;
     try {
       const res = await invokeLLM({ prompt: promptWithFormatDetails });
+      validateGeneratedMission(type, res);
       setAiContent(res);
       setGenMsg("Generated! Review below, then create the mission.");
     } catch (err) {
@@ -477,7 +521,7 @@ export default function TeacherMissions() {
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate with AI</>}
               </ClayButton>
               <div className="flex items-center gap-3 rounded-2xl border border-[rgba(50,169,237,.14)] bg-[var(--uc-blue-soft)] p-3"><NovaAsset pose={generating ? "thinking" : "ai"} className="h-12 w-12 shrink-0" /><p className="text-xs font-display font-bold">{generating ? "Professor Nova is crafting your challenge…" : "Professor Nova turns your topic into a ready-to-review challenge."}</p></div>
-              {genMsg && <p className={`text-xs font-display font-bold ${genMsg.includes("failed") || genMsg.includes("Add") ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
+              {genMsg && <p role="status" className={`text-xs font-display font-bold ${/failed|could not|add |select |not enabled/i.test(genMsg) ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
               {aiContent && (
                 <div className="space-y-3">
                   <MissionPreview type={form.formative_type} content={aiContent} />
@@ -558,6 +602,7 @@ export default function TeacherMissions() {
               })}
             </div>
           </div>
+          {genMsg && <p className={`text-xs font-display font-bold ${/failed|could not|add |select |not enabled/i.test(genMsg) ? "text-clay-coral" : "text-clay-lime"}`}>{genMsg}</p>}
           <ClayButton type="submit" color="purple" size="md" className="w-full" disabled={creating || (form.formative_type !== "manual" && !aiContent)}>
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4" /> Create Mission</>}
           </ClayButton>
