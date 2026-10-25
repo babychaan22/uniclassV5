@@ -1,7 +1,7 @@
 
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
@@ -29,15 +29,31 @@ export default function StudentMissions() {
   const [historyMissionId, setHistoryMissionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const loadSequence = useRef(0);
+  const dataRef = useRef(null);
+  const powerUpRef = useRef(null);
 
   useEffect(() => {
     load();
-    const refresh = () => load();
+    const refresh = () => { void load(); };
     window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('uniclass-connection-restored', refresh);
+    const unsubscribe = db.entities.Mission.subscribe(refresh);
+    // Realtime can be unavailable or restricted; check while visible as a fallback.
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 15000);
+    return () => {
+      loadSequence.current += 1;
+      window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('uniclass-connection-restored', refresh);
+      window.clearInterval(timer);
+      unsubscribe();
+    };
   }, [user]);
 
   async function load() {
+    const sequence = ++loadSequence.current;
     if (!user) {
       setLoading(false);
       return;
@@ -45,45 +61,43 @@ export default function StudentMissions() {
     // Mission submissions call this same loader after saving. Keep the current
     // mission cards in place during that background refresh instead of showing
     // a full-page skeleton and throwing the student back up the page.
-    const firstLoad = !data;
+    const firstLoad = !dataRef.current;
     if (firstLoad) setLoading(true);
     setLoadError("");
     try {
       const account = await getActiveStudentAccount(user.id);
+      if (sequence !== loadSequence.current) return;
       if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
       const [group, classroom] = await Promise.all([
         db.entities.Group.get(account.group_id),
         db.entities.Classroom.get(account.classroom_id),
       ]);
       const classroomId = group.classroom_id;
-    // The Power-Up is a Mathematics activity. A student in another subject has
-    // no Power-Up coming, so the whole section stays hidden rather than telling
-    // them to wait for a teacher's review that will never happen.
-      const powerUpApplies = await powerUpAppliesToClassroom(classroomId).catch(() => false);
-    // Materialise today's Daily Math Power-Up before reading the list, so a
-    // student who has never opened the app still has one waiting.
-      let powerUp = null;
-      if (powerUpApplies) {
-        try {
-          powerUp = await ensureDailyPowerUp(classroomId);
-        } catch (err) {
-        // A missing Power-Up must never block the teacher's missions from
-        // loading, but the reason matters to the teacher who reports it.
-          powerUp = null;
-          console.warn('[power-up] not generated for today:', err?.message || err);
-        }
+      // Start the Power-Up separately: it must never hold teacher missions up.
+      const powerUpKey = `${classroomId}:${manilaDateKey()}`;
+      if (powerUpRef.current?.key !== powerUpKey) {
+        const promise = powerUpAppliesToClassroom(classroomId).then(async (applies) => {
+          if (!applies) return { applies: false, powerUp: null };
+          const powerUp = await ensureDailyPowerUp(classroomId).catch((err) => {
+            console.warn('[power-up] not generated for today:', err?.message || err);
+            return null;
+          });
+          return { applies: true, powerUp };
+        }).catch((err) => {
+          console.warn('[power-up] applicability check failed:', err?.message || err);
+          if (powerUpRef.current?.key === powerUpKey) powerUpRef.current = null;
+          return { applies: false, powerUp: null };
+        });
+        powerUpRef.current = { key: powerUpKey, promise };
       }
+      const powerUpPromise = powerUpRef.current.promise;
       const [{ data: dashboard, error: dashboardError }, personalRewards] = await Promise.all([
         supabase.rpc('get_student_mission_dashboard', { p_classroom_id: classroomId }),
         getPersonalRewardDashboard(classroomId),
       ]);
       if (dashboardError) throw dashboardError;
+      if (sequence !== loadSequence.current) return;
       const missions = [...(dashboard?.missions || [])];
-    // A Power-Up generated after the RPC snapshot still belongs in today's list,
-    // but only once a teacher has approved it. The engine creates it pending, so
-    // an unapproved row must never reach the student's screen.
-      if (powerUp && powerUp.approval_status === 'approved' && powerUp.is_active
-        && !missions.some((m) => m.id === powerUp.id)) missions.unshift(powerUp);
     // The daily Power-Up is generated by UniClass, not by the teacher, and it
     // is rebuilt every day. It gets its own section instead of competing with
     // teacher-assigned work for attention.
@@ -94,19 +108,33 @@ export default function StudentMissions() {
       const spent = Number(personalRewards?.spent || 0);
       const available = Math.max(0, Number(personalRewards?.available || 0));
       const dueReviews = (dashboard?.reviews || []).filter((review) => new Date(review.next_review_at) <= new Date());
-      setData({ account, group, classroom, missions, active, powerUps, powerUpApplies, subs, earned, spent, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } });
+      const prior = dataRef.current;
+      const next = { account, group, classroom, missions, active, powerUps, powerUpApplies: prior?.group?.classroom_id === classroomId ? prior.powerUpApplies : false, subs, earned, spent, available, dueReviews, classification: { tag: dashboard?.classification || 'At Risk' } };
+      dataRef.current = next;
+      setData(next);
+      void powerUpPromise.then(({ applies }) => {
+        if (sequence !== loadSequence.current || dataRef.current?.group?.classroom_id !== classroomId) return;
+        const current = dataRef.current;
+        const updated = { ...current, powerUpApplies: applies };
+        dataRef.current = updated;
+        setData(updated);
+      });
     } catch (error) {
+      if (sequence !== loadSequence.current) return;
       console.error('[StudentMissions] load failed', error);
       if (firstLoad) setData(null);
       setLoadError('We could not load your missions right now. Your work is safe—please try again.');
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }
 
   async function markReviewed(review, correct) {
     await completeLearningReview(review.id, correct);
-    setData((current) => ({ ...current, dueReviews: current.dueReviews.filter((item) => item.id !== review.id) }));
+    if (!dataRef.current) return;
+    const updated = { ...dataRef.current, dueReviews: dataRef.current.dueReviews.filter((item) => item.id !== review.id) };
+    dataRef.current = updated;
+    setData(updated);
   }
 
   if (loading && !data) return <PanelSkeleton />;
