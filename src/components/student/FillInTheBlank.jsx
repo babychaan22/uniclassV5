@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
+import MissionImage from "@/components/student/MissionImage";
 import { Check, GripVertical, X } from "lucide-react";
 
 function blankId(token) {
@@ -71,6 +72,7 @@ export default function FillInTheBlank({ questions, answers, onChange, onSubmit,
           const pieces = String(question.prompt || "").split(/(\{\{[^}]+\}\})/g);
           return <div key={questionIndex} className="rounded-2xl border-2 border-ink/10 bg-cream p-3">
             <p className="mb-2 text-[11px] font-display font-bold text-ink/55">Sentence {questionIndex + 1}</p>
+            {question.image_url && <MissionImage src={question.image_url} alt={`Visual for sentence ${questionIndex + 1}`} className="mb-2" />}
             <p className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm leading-7">
               {pieces.map((piece, index) => {
                 if (!/^\{\{[^}]+\}\}$/.test(piece)) return <span key={`${piece}-${index}`}>{piece}</span>;

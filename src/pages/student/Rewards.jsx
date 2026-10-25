@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Lock, Sparkles, Users } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { getActiveStudentAccount } from "@/lib/studentContext";
+import { APP_DATA_CHANGED_EVENT } from "@/api/supabaseClient";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
@@ -28,7 +29,14 @@ export default function StudentRewards() {
   const [notice, setNotice] = useState(null);
   const [noticeAnchor, setNoticeAnchor] = useState(null);
 
-  useEffect(() => { void load(); }, [user]);
+  useEffect(() => {
+    void load();
+    // Mission submissions update the personal XP wallet server-side. Keep an
+    // already-open Rewards panel current without replacing it with a loader.
+    const refreshWallet = () => { void load(); };
+    window.addEventListener(APP_DATA_CHANGED_EVENT, refreshWallet);
+    return () => window.removeEventListener(APP_DATA_CHANGED_EVENT, refreshWallet);
+  }, [user]);
 
   async function load() {
     if (!user) return;

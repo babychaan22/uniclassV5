@@ -5,10 +5,12 @@ import ClayButton from "@/components/ClayButton";
 import ClayChip from "@/components/ClayChip";
 import DragDropMatch from "@/components/student/DragDropMatch";
 import FillInTheBlank from "@/components/student/FillInTheBlank";
+import MissionImage from "@/components/student/MissionImage";
 import { Loader2, RotateCcw } from "lucide-react";
 import { getMissionSubmissionReview, startMissionRetry, submitMission } from '@/lib/secureActions';
 import { formatMissionDeadline, isMissionLocked } from '@/lib/missionProgress';
 import { playCorrectAnswer, playIncorrectAnswer, primeAudio } from '@/lib/gacha';
+import { triangleSideSteps } from '@/lib/missionReview';
 
 function displayAnswer(question, value, type) {
   if (value === undefined || value === null) return "No answer";
@@ -38,17 +40,22 @@ function readDraft(key) {
 }
 
 function SolutionGuide({ item, correctAnswer }) {
-  const method = item.tags || item.skill || "Use the rule that matches the question.";
-  const explanation = item.explanation || "";
-  const redundantAnswer = /^The correct answer is [A-D]\. .+\. Why\? .+$/i.test(explanation.trim());
+  const explanation = typeof item.explanation === "string" ? item.explanation.trim() : "";
+  const redundantAnswer = /^The correct answer is [A-D]\. .+\. Why\? .+$/i.test(explanation);
+  const suppliedSteps = Array.isArray(item.solution_steps)
+    ? item.solution_steps.map((step) => String(step || "").trim()).filter(Boolean)
+    : [];
+  const workedTriangle = triangleSideSteps(item.item, correctAnswer);
+  const genericExplanation = item.item && (explanation === `${item.item} belongs in ${correctAnswer}.` || explanation === "Read the complete sentence and choose the word that makes its meaning correct.");
+  const steps = workedTriangle || (suppliedSteps.length ? suppliedSteps : explanation && !redundantAnswer && !genericExplanation ? [explanation] : []);
+  const remember = item.remember || (typeof item.feedback === "string" ? item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "") : "");
   return <div className="mt-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/85">
-    <p className="font-display font-extrabold text-ink">A clear way to solve it</p>
-    <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
-      <li><b>Use this method:</b> {method}</li>
-      <li>{redundantAnswer ? "Apply the method to the numbers in the question, one step at a time." : explanation || "Apply the method to the numbers in the question, one step at a time."}</li>
-      <li>Check your calculation. The correct answer is <b>{correctAnswer}</b>.</li>
-    </ol>
-    {item.feedback && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">For next time:</span> {item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "")}</p>}
+    <p className="font-display font-extrabold text-ink">A clear way to work it out</p>
+    {steps.length ? <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
+      {steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+      <li><b>Check:</b> the correct answer is <b>{correctAnswer}</b>.</li>
+    </ol> : <p className="mt-2 leading-relaxed">A worked explanation was not saved for this question. Ask your teacher to explain how to reach this answer.</p>}
+    {remember && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">Remember:</span> {remember}</p>}
   </div>;
 }
 
@@ -139,13 +146,14 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     const reviewedScore = review?.score ?? result.score;
     const reviewedMax = review?.maxScore ?? displayMax;
     return <ClayCard className="p-4 space-y-4">
-      <div className="text-center"><div className="text-4xl mb-2">{reviewedScore >= reviewedMax * 0.8 ? "🎉" : reviewedScore >= reviewedMax * 0.5 ? "🙂" : "😢"}</div><p className="font-display font-bold text-lg">{retryAttemptId ? `Retry result: ${reviewedScore}/${reviewedMax}` : `${reviewedScore}/${reviewedMax}`}</p><ClayChip color="sun">{result.xp_earned ?? Math.round((reviewedScore / reviewedMax) * mission.xp_reward)} XP earned</ClayChip>{retryAttemptId && <p className="mt-2 text-xs text-ink/60">This retry is for feedback and practice only. Your XP stays based on the first attempt.</p>}</div>
+      <div className="text-center"><div className="text-4xl mb-2">{reviewedScore >= reviewedMax * 0.8 ? "🎉" : reviewedScore >= reviewedMax * 0.5 ? "🙂" : "😢"}</div><p className="font-display font-bold text-lg">{retryAttemptId ? `Retry result: ${reviewedScore}/${reviewedMax}` : `${reviewedScore}/${reviewedMax}`}</p><ClayChip color="sun">{result.xp_earned ?? Math.round((reviewedScore / reviewedMax) * mission.xp_reward)} XP earned</ClayChip>{!retryAttemptId && <p className="mt-2 text-xs font-semibold text-ink/65">This XP was added to your personal XP wallet.</p>}{retryAttemptId && <p className="mt-2 text-xs text-ink/60">This retry is for feedback and practice only. Your XP stays based on the first attempt.</p>}</div>
       {mission.formative_type !== 'drag_drop' && mission.formative_type !== 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
         const question = questions[item.index];
         const correctAnswer = displayAnswer(question, item.correct_answer, mission.formative_type);
-        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={item} correctAnswer={correctAnswer} /></div>;
+        const guideItem = { ...question, ...item, solution_steps: question?.solution_steps || item.solution_steps, remember: question?.remember || item.remember };
+        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={guideItem} correctAnswer={correctAnswer} /></div>;
       })}</div>}
-      {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={item} correctAnswer={item.correct_answer} /></div>)}</div>}
+      {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => { const question = questions[Number(String(item.item || '').match(/Blank\s+(\d+):/)?.[1])] || {}; const guideItem = { ...question, ...item, solution_steps: question.solution_steps || item.solution_steps, remember: question.remember || item.remember }; return <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={guideItem} correctAnswer={item.correct_answer} /></div>; })}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
         <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
           <p className="font-display font-bold">{item.item} · {item.correct ? 'Correct placement' : 'Try again'}</p>
@@ -173,7 +181,7 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
     <div className="h-2 overflow-hidden rounded-full bg-ink/10"><div className="h-full rounded-full bg-clay-purple transition-all" style={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }} /></div>
     {!showReview ? <>
       <div className="space-y-2"><p className="font-body text-sm">{questionIndex + 1}. {question.prompt}</p>
-        {question.image_url && <img src={question.image_url} alt={`Visual for question ${questionIndex + 1}`} className="max-h-72 w-full rounded-xl border-2 border-ink bg-white object-contain" loading="lazy" />}
+        {question.image_url && <MissionImage src={question.image_url} alt={`Visual for question ${questionIndex + 1}`} />}
         {mission.formative_type === "true_false" ? <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: value })} className={`clay-btn px-4 py-2 text-sm ${answers[questionIndex] === value ? (value ? "bg-clay-lime text-ink" : "bg-clay-coral text-white") : "bg-cream text-ink/60"}`}>{value ? 'True' : 'False'}</button>)}</div> : <div className="grid grid-cols-2 gap-2">{question.options?.map((option, optionIndex) => <button key={optionIndex} type="button" onClick={() => setAnswers({ ...answers, [questionIndex]: optionIndex })} className={`clay-btn min-h-12 w-full justify-start px-3 py-2 text-left text-sm ${answers[questionIndex] === optionIndex ? "bg-clay-purple text-white" : "bg-cream text-ink"}`}>{option}</button>)}</div>}</div>
       <div className="flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setQuestionIndex((index) => Math.max(0, index - 1))} disabled={questionIndex === 0}>Back</ClayButton><ClayButton color="purple" size="sm" className="ml-auto" onClick={() => isLastQuestion ? setShowReview(true) : setQuestionIndex((index) => index + 1)} disabled={answers[questionIndex] === undefined}>{isLastQuestion ? 'Review answers' : 'Next question'}</ClayButton></div>
     </> : <div className="rounded-xl border-2 border-clay-purple/30 bg-clay-purple/10 p-3"><p className="font-display font-bold">Review every answer</p><p className="mt-1 text-xs text-ink/65">Tap any question to change it before submitting. Your score attempt is submitted once; feedback practice does not change XP.</p><div className="mt-3 space-y-2">{questions.map((reviewQuestion, index) => <button key={index} type="button" onClick={() => { setQuestionIndex(index); setShowReview(false); }} className="flex w-full items-center gap-3 rounded-lg border-2 border-ink/10 bg-white/80 p-2 text-left transition hover:border-clay-purple"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-clay-purple text-xs font-bold text-white">{index + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium">{reviewQuestion.prompt}</span><span className="mt-0.5 block text-[11px] text-ink/60">Your answer: {displayAnswer(reviewQuestion, answers[index], mission.formative_type)}</span></span><span className="text-xs font-display font-bold text-clay-purple">Edit</span></button>)}</div><div className="mt-3 flex gap-2"><ClayButton color="cream" size="sm" onClick={() => setShowReview(false)}>Back to questions</ClayButton><ClayButton color="lime" size="sm" className="ml-auto" onClick={() => submit(answers)} disabled={submitting}>{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit for secure grading'}</ClayButton></div></div>}

@@ -247,12 +247,13 @@ export default function TeacherMissions() {
     setGenMsg(null);
     const type = form.formative_type;
     const purposeLabels = { diagnostic: "diagnostic check before instruction", quick_check: "quick formative check during or after instruction", reteach: "reteaching check for a previously difficult skill", exit_ticket: "brief end-of-lesson exit ticket" };
-    const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nTeacher success criteria: ${form.success_criteria || "Create up to three short, observable success criteria."}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Include a one-sentence explanation for each correct answer so students receive useful feedback after submitting.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"success_criteria":[string],"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Success criteria must be 1-3 observable, student-friendly checks. Student instructions must be 1-2 short sentences and must not give answers.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string,"misconception":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string,"misconception":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"misconception":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"misconception":string}],"answers":[number]}]}. Each answer is the zero-based index. The misconception should name the likely thinking error represented by the strongest distractor. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"},"misconceptions":{"item":string}}. Use meaningful categories and enough items to demonstrate the target.`;
+    const prompt = `You are an expert classroom assessment designer. Create a student-ready, targeted formative assessment.\nTitle: ${form.title}\nSubject topic: ${form.content}\nRequired learning target: ${form.learning_target}\nTeacher success criteria: ${form.success_criteria || "Create up to three short, observable success criteria."}\nAssessment purpose: ${purposeLabels[form.assessment_purpose] || form.assessment_purpose}\nLearner directions supplied by teacher: ${form.student_instructions || "Write clear, encouraging directions."}\nPrior knowledge or misconception to check: ${form.prior_knowledge || "Not specified"}\nFormat: ${type}\n\nRequirements:\n- Assess ONLY the stated learning target; do not add unrelated facts or advanced skills.\n- Use age-appropriate, plain language that students can read independently.\n- Produce exactly 5 items unless the format makes fewer items necessary.\n- Each item must be answerable from the prompt and any attached visual alone. Do not reveal answers in the item wording or directions.\n- Include plausible distractors that reflect common misconceptions, but never trick learners.\n- Feedback must be easy for a learner with low reading comprehension: name the method, show one small next step, then give a short check. Never write a generic “Try again” reminder.\n- For Mathematics, make values and correct answers exactly verifiable.\n- Return valid JSON only.\n\nTop-level JSON required for every format: {"learning_target":string,"success_criteria":[string],"student_instructions":string,"assessment_purpose":string,"estimated_minutes":number,...}. The learning_target must be learner-friendly and begin with "I can...". Success criteria must be 1-3 observable, student-friendly checks. Student instructions must be 1-2 short sentences and must not give answers.\n- For every question, add "solution_steps":[string,string] with two short, concrete steps and "remember":string with one short transferable tip.\n- For "true_false": add {"questions":[{"prompt":string,"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[boolean],"retry_variants":[{"questions":[{"prompt":string,"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[boolean]}]}. The retry variant must assess the same target with fresh facts or values.\n- For "multiple_choice": add {"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[number],"retry_variants":[{"questions":[{"prompt":string,"options":[4 strings],"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":[number]}]}. Each answer is the zero-based index. The misconception should name the likely thinking error represented by the strongest distractor. The retry variant must assess the same target with fresh facts or values.\n- For "drag_drop": add {"left":[strings],"right":[strings],"answers":{"item":"category"},"misconceptions":{"item":string}}. Use meaningful categories and enough items to demonstrate the target.`;
+    const workedReviewInstructions = `${prompt}\n- Generate the answer key and a worked review together for every item. Each review must use that item's actual numbers, words, or evidence and explain why the answer follows. For maths, write out the calculation and result; for other subjects, identify the relevant clue and connect it to the answer. Do not replace the solution with generic directions or repeat the answer as the explanation. Write for a student who needs short, simple sentences. The teacher should check the key and explanation for accuracy before publishing.`;
     const promptWithDragFeedback = type === "drag_drop"
-      ? prompt.replace('"answers":{"item":"category"}}. Use meaningful', '"answers":{"item":"category"},"feedback":{"item":"one short sentence explaining why the item belongs in its category"}}. Use meaningful')
-      : prompt;
+      ? `${workedReviewInstructions}\n- For each drag-and-drop item, add a feedback entry: "feedback":{"item":{"solution_steps":["specific first step","specific second step"],"remember":"short transferable rule"}}. Explain the actual facts or calculations that justify the category. For triangle sides, show the squared values and comparison; do not merely repeat the category. Use the exact item text as the feedback key.`
+      : workedReviewInstructions;
     const promptWithFormatDetails = type === "fill_in_blank"
-      ? `${promptWithDragFeedback}\n- For "fill_in_blank": add {"questions":[{"prompt":"A student-ready sentence with {{blank1}} marker(s)","word_bank":[strings],"explanation":string,"misconception":string}],"answers":{"0:blank1":"correct word"},"misconceptions":{"0:blank1":string}}. Every answer must appear once in that question's word bank. Include plausible extra words, use one to three blanks per sentence, and never reveal an answer outside its blank.`
+      ? `${promptWithDragFeedback}\n- For "fill_in_blank": add {"questions":[{"prompt":"A student-ready sentence with {{blank1}} marker(s)","word_bank":[strings],"explanation":string,"solution_steps":[string,string],"remember":string,"misconception":string}],"answers":{"0:blank1":"correct word"},"misconceptions":{"0:blank1":string}}. Every answer must appear once in that question's word bank. Include plausible extra words, use one to three blanks per sentence, and never reveal an answer outside its blank.`
       : promptWithDragFeedback;
     try {
       const res = await invokeLLM({ prompt: promptWithFormatDetails });
@@ -309,10 +310,14 @@ export default function TeacherMissions() {
       xp_reward: String(m.xp_reward ?? ''),
       max_score: String(m.max_score ?? ''),
       deadline: m.deadline || '',
+      deadline_time: m.deadline_at ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(m.deadline_at)) : '23:59',
+      all_classes: !!m.applies_to_all_classes,
+      class_ids: m.target_classroom_ids?.length ? m.target_classroom_ids : m.classroom_id ? [m.classroom_id] : [],
     });
   }
 
   async function saveEdit(m) {
+    if (!editForm.all_classes && !editForm.class_ids.length) { setReviewMsg('Select at least one class before saving.'); return; }
     setSavingEdit(true);
     setReviewMsg(null);
     try {
@@ -322,6 +327,9 @@ export default function TeacherMissions() {
         xp_reward: Number(editForm.xp_reward),
         max_score: Number(editForm.max_score),
         deadline: editForm.deadline || null,
+        deadline_at: editForm.deadline ? new Date(`${editForm.deadline}T${editForm.deadline_time || '23:59'}:00+08:00`).toISOString() : null,
+        applies_to_all_classes: editForm.all_classes,
+        target_classroom_ids: editForm.all_classes ? [] : editForm.class_ids,
       };
       await updateMission(m.id, patch);
       setEditingId(null);
@@ -696,7 +704,7 @@ export default function TeacherMissions() {
                       <button onClick={() => { setEditingId(null); setEditForm(null); }} className="clay-btn bg-cream px-2 py-2" title="Cancel edit"><X className="w-4 h-4" /></button>
                     </>
                   ) : (
-                    <button onClick={() => startEdit(m)} className="clay-btn bg-clay-sky px-2 py-2" title="Edit this mission"><Pencil className="w-4 h-4" /></button>
+                    m.mission_source !== 'daily_foundation' && <button onClick={() => startEdit(m)} className="clay-btn bg-clay-sky px-2 py-2" title="Edit this mission" aria-label={`Edit ${m.title}`}><Pencil className="w-4 h-4" /></button>
                   )}
                   {approval !== 'approved' && (
                     <button onClick={() => reviewMission(m, approval === 'rejected' ? 'pending' : 'rejected')} disabled={reviewingId === m.id} className="clay-btn bg-clay-sun px-2 py-2" title={approval === 'rejected' ? 'Send back for review' : 'Withhold from students'}>
@@ -717,7 +725,7 @@ export default function TeacherMissions() {
             {editingId === m.id && editForm && (
               <div className="mt-3 rounded-xl border-2 border-ink/15 bg-cream p-3">
                 <p className="text-xs font-display font-bold">Edit mission</p>
-                <p className="text-[11px] text-ink/60 mt-0.5">Saving keeps this mission exactly as visible to students right now.</p>
+                <p className="text-[11px] text-ink/60 mt-0.5">Changes to classes and the deadline affect where this mission is available. Existing submissions are kept.</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <label className="text-xs font-semibold sm:col-span-2">Title
                     <input className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.title} onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} />
@@ -734,6 +742,14 @@ export default function TeacherMissions() {
                   <label className="text-xs font-semibold">Due date
                     <input type="date" className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.deadline || ''} onChange={(e) => setEditForm((f) => ({ ...f, deadline: e.target.value }))} />
                   </label>
+                  <label className="text-xs font-semibold">Due time (Manila time)
+                    <input type="time" disabled={!editForm.deadline} className="clay-input mt-1 w-full bg-cream px-2 py-1.5 text-sm" value={editForm.deadline_time} onChange={(e) => setEditForm((f) => ({ ...f, deadline_time: e.target.value }))} />
+                  </label>
+                  <fieldset className="sm:col-span-2 rounded-xl border border-ink/15 p-2">
+                    <legend className="text-xs font-semibold">Assigned classes</legend>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.all_classes} onChange={(e) => setEditForm((f) => ({ ...f, all_classes: e.target.checked }))} /> All my classes</label>
+                    {!editForm.all_classes && <div className="mt-2 grid gap-2 sm:grid-cols-2">{teacherClasses.map((item) => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.class_ids.includes(item.id)} onChange={(e) => setEditForm((f) => ({ ...f, class_ids: e.target.checked ? [...f.class_ids, item.id] : f.class_ids.filter((id) => id !== item.id) }))} /> {item.grade_level} · {item.section}{item.subject ? ` · ${item.subject}` : ''}</label>)}</div>}
+                  </fieldset>
                 </div>
               </div>
             )}
