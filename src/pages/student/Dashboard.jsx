@@ -10,7 +10,7 @@ import { supabase } from '@/api/supabaseClient';
 
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
@@ -20,6 +20,7 @@ import { UIAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from "@/components/PanelSkeleton";
 import { getDailyMotivationQuote } from "@/lib/dailyQuote";
+import { getPersonalRewardDashboard } from "@/lib/secureActions";
 
 let studentDashboardCache = null;
 const STUDENT_DASHBOARD_CACHE_MS = 30_000;
@@ -88,7 +89,7 @@ export default function StudentDashboard() {
         badges: [], badgeDefinitions: [], terms: [], memberCards: [],
         groupLeaderboard: [{ group: { id: group.id, group_number: group.group_number }, points: 0 }],
         indLeaderboard: [], personalStreak: 0, myAvatarKey: user?.avatar_key || null,
-        missions: [], missionSubmissions: [], announcements: [],
+        missions: [], missionSubmissions: [], announcements: [], personalReward: null,
       };
       studentDashboardCache = { userId: user.id, classroomId, data: immediate, savedAt: Date.now() };
       if (!active) return;
@@ -149,7 +150,8 @@ export default function StudentDashboard() {
         supabase.rpc('get_student_missions', { p_classroom_id: classroomId }),
         db.entities.Badge.filter({ classroom_id: classroomId }),
         db.entities.BadgeDefinition.filter({ classroom_id: classroomId }),
-      ]).then(([announcements, missions, badges, badgeDefinitions]) => {
+        getPersonalRewardDashboard(classroomId),
+      ]).then(([announcements, missions, badges, badgeDefinitions, personalReward]) => {
         if (!active) return;
         setData((current) => {
           const next = current && ({
@@ -158,6 +160,7 @@ export default function StudentDashboard() {
           badgeDefinitions,
           missions: missions.data || [],
           announcements: announcements.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")),
+          personalReward,
           });
           if (next) studentDashboardCache = { userId: user.id, classroomId, data: next, savedAt: Date.now() };
           return next;
@@ -177,7 +180,7 @@ export default function StudentDashboard() {
   if (loading) return <PanelSkeleton />;
   if (!data) return <ClayCard className="mx-auto max-w-xl p-6 text-center"><h1 className="font-display text-xl font-extrabold">Dashboard unavailable</h1><p className="mt-2 text-sm text-ink/60">{loadError || "Please refresh and try again."}</p><ClayButton className="mt-4" onClick={() => window.location.reload()}>Try again</ClayButton></ClayCard>;
 
-  const { account, group, classroom, members, attendance, scores, activities, logs, missionSubmissions, badges, badgeDefinitions, terms, memberCards, personalStreak, myAvatarKey, missions, announcements } = data;
+  const { account, group, classroom, members, attendance, scores, activities, logs, missionSubmissions, badges, badgeDefinitions, terms, memberCards, personalStreak, myAvatarKey, missions, announcements, personalReward } = data;
   const myMemberId = account.group_member_id;
   const selectedDate = anchorDate || getTodayManila();
   const selectedTerm = (terms || []).find((term) => term.start_date <= selectedDate && term.end_date >= selectedDate)
@@ -256,6 +259,19 @@ export default function StudentDashboard() {
         <DashboardRangeTabs value={range} onChange={setRange} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
         <p className="w-full text-xs text-ink/55 sm:w-auto">Showing {selectedPeriod.label}</p>
       </div>
+
+      {personalReward?.style_streak_ready && !(personalReward.claims || []).some((claim) => claim.status === "active" && ["avatar_choice", "theme_choice", "name_effect_choice"].includes(claim.reward_type)) && (
+        <ClayCard color="lime" className="no-print p-4" role="status">
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-7 w-7 shrink-0 text-clay-purple" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-extrabold">You reached 5 learning actions!</p>
+              <p className="mt-1 text-xs text-ink/65">Your avatar, learner theme, or name style is ready to unlock.</p>
+            </div>
+            <Link to={ROUTES.STUDENT.SETTINGS} className="clay-btn shrink-0 bg-white px-3 py-2 text-xs font-display font-bold text-ink">Customize</Link>
+          </div>
+        </ClayCard>
+      )}
 
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
