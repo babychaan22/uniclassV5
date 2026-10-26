@@ -1,12 +1,12 @@
 
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, getClassroomDataset, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 import { removeStudentFromClass } from "@/lib/secureActions";
-import { supabase } from "@/api/supabaseClient";
+import { invalidateReadCache, supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -30,41 +30,54 @@ export default function TeacherStudentManagement() {
   const [actionError, setActionError] = useState("");
   const [removeTarget, setRemoveTarget] = useState(null);
   const [pendingDeleteTarget, setPendingDeleteTarget] = useState(null);
+  const loadSequence = useRef(0);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    void load();
+    const refresh = () => { invalidateClassroomDataset(); invalidateReadCache('group_accounts'); void load(); };
+    window.addEventListener('uniclass-teacher-class-changed', refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('uniclass-connection-restored', refresh);
+    const unsubscribe = db.entities.GroupAccount.subscribe(refresh);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 15000);
+    return () => { loadSequence.current += 1; window.removeEventListener('uniclass-teacher-class-changed', refresh); window.removeEventListener('focus', refresh); window.removeEventListener('uniclass-connection-restored', refresh); window.clearInterval(timer); unsubscribe(); };
+  }, [user]);
 
   async function load() {
     if (!user) return;
+    const sequence = ++loadSequence.current;
+    try {
     const c = await getTeacherClassroom(user.id);
-    if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
+    if (!c) { if (sequence === loadSequence.current) navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const ds = await getClassroomDataset(c.id, ['groups','groupAccounts']);
+    if (sequence !== loadSequence.current) return;
     const accounts = ds.groupAccounts;
     setGroups(ds.groups);
     setPending(accounts.filter((a) => !a.is_approved && !a.transferred_at));
     const approvedAccounts = accounts.filter((a) => a.is_approved);
     setApproved(approvedAccounts);
     setApprovedCount(approvedAccounts.length);
-    setLoading(false);
+    } catch (err) {
+      if (sequence === loadSequence.current) setActionError(err?.message || 'Student requests could not load. Please try again.');
+    } finally { if (sequence === loadSequence.current) setLoading(false); }
   }
 
   function gnum(a) { return groups.find((g) => g.id === a.group_id)?.group_number ?? "—"; }
 
   async function approve(a) {
-    await db.entities.GroupAccount.update(a.id, { is_approved: true });
-    invalidateClassroomDataset();
-    load();
+    setBusy(true); setActionError('');
+    try { await db.entities.GroupAccount.update(a.id, { is_approved: true }); invalidateClassroomDataset(); await load(); }
+    catch (err) { setActionError(err?.message || 'The student could not be approved. Please try again.'); }
+    finally { setBusy(false); }
   }
   async function deletePendingRequest(a) {
     await removeStudent(a);
   }
   async function bulkApprove() {
-    setBusy(true);
-    await db.entities.GroupAccount.bulkUpdate(
-      pending.map((a) => ({ id: a.id, is_approved: true }))
-    );
-    setBusy(false);
-    invalidateClassroomDataset();
-    load();
+    setBusy(true); setActionError('');
+    try { await db.entities.GroupAccount.bulkUpdate(pending.map((a) => ({ id: a.id, is_approved: true }))); }
+    catch (err) { setActionError(err?.message || 'Some requests could not be approved. Review the list and try again.'); }
+    finally { invalidateReadCache('group_accounts'); invalidateClassroomDataset(); await load(); setBusy(false); }
   }
 
   async function removeStudent(account) {
@@ -117,7 +130,7 @@ export default function TeacherStudentManagement() {
       ) : (
         <div className="space-y-3">
           {pending.map((a) => (
-            <ClayCard key={a.id} className="p-4 flex items-center justify-between gap-3">
+            <ClayCard key={a.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3"><UserAvatar name={a.email || `${a.last_name}-${a.first_name}`} size="sm" /><div>
                 <p className="font-display font-bold flex items-center gap-2">
                   {a.last_name}, {a.first_name}
@@ -125,8 +138,8 @@ export default function TeacherStudentManagement() {
                 </p>
                 <p className="text-xs text-ink/60 font-mono">Group {gnum(a)} · Role: {a.is_representative ? "Representative" : "Member"}{a.email ? ` · ${a.email}` : ""}</p>
               </div></div>
-              <div className="flex gap-2">
-                <ClayButton size="sm" color="lime" onClick={() => approve(a)}><Check className="w-4 h-4" /> Approve</ClayButton>
+              <div className="flex flex-wrap gap-2">
+                <ClayButton size="sm" color="lime" onClick={() => approve(a)} disabled={busy}><Check className="w-4 h-4" /> Approve</ClayButton>
                 <ClayButton size="sm" color="coral" onClick={() => setPendingDeleteTarget(a)} disabled={busy}><Trash2 className="w-4 h-4" /> Delete</ClayButton>
               </div>
             </ClayCard>

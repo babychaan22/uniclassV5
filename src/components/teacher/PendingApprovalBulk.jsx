@@ -21,8 +21,8 @@ export default function PendingApprovalBulk({ pending, groups, onApproveAll, onA
               <p className="font-display font-bold text-sm">{a.last_name}, {a.first_name}</p>
               <p className="text-xs text-ink/50 font-mono">Group {gnum(a)}</p>
             </div>
-            <ClayButton size="sm" color="lime" onClick={() => onApproveOne(a.id)}>
-              <Check className="w-4 h-4" />
+            <ClayButton size="sm" color="lime" onClick={() => onApproveOne(a.id)} aria-label={`Approve ${a.first_name || ''} ${a.last_name || 'student'}`}>
+              <Check className="w-4 h-4" /> Approve
             </ClayButton>
           </div>
         ))}

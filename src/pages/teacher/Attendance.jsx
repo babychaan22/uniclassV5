@@ -39,14 +39,21 @@ export default function TeacherAttendance() {
         if (sequence === loadSequenceRef.current) navigate(ROUTES.TEACHER.ONBOARDING);
         return;
       }
-      const dataset = await getClassroomDataset(activeClassroom.id, ["groups", "members", "attendance"]);
+      // Query just the selected day: fetching the entire year can silently hit
+      // the database row limit and omit the date the teacher is viewing.
+      const [dataset, attendance] = await Promise.all([
+        getClassroomDataset(activeClassroom.id, ["groups", "members"]),
+        db.entities.Attendance.filter({ classroom_id: activeClassroom.id, attendance_date: selectedDate }),
+      ]);
       // A save or newer refresh happened while this request was in flight.
       // Its result is authoritative, so never let this older payload replace it.
       if (sequence !== loadSequenceRef.current) return;
       setClassroom(activeClassroom);
       setGroups(dataset.groups || []);
       setMembers((dataset.members || []).slice().sort((a, b) => fullName(a).localeCompare(fullName(b))));
-      setRecords(dataset.attendance || []);
+      setRecords(attendance || []);
+    } catch (error) {
+      if (sequence === loadSequenceRef.current) setMessage(error?.message || 'Attendance could not load. Please try again.');
     } finally {
       if (sequence === loadSequenceRef.current) setLoading(false);
     }
@@ -76,7 +83,7 @@ export default function TeacherAttendance() {
       window.removeEventListener('focus', refreshInPlace);
       window.clearInterval(syncTimer);
     };
-  }, [user]);
+  }, [user, selectedDate]);
 
   useEffect(() => {
     if (!classroom?.id) return undefined;
@@ -96,7 +103,7 @@ export default function TeacherAttendance() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [classroom?.id, user]);
+  }, [classroom?.id, user, selectedDate]);
 
   const attendanceByMember = useMemo(() => Object.fromEntries(
     records.filter((record) => record.attendance_date === selectedDate).map((record) => [record.group_member_id, record]),

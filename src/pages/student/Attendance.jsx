@@ -1,7 +1,7 @@
 
 const db = globalThis.__B44_DB__;
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 
 import ClayCard from "@/components/ClayCard";
@@ -10,7 +10,7 @@ import ClayButton from "@/components/ClayButton";
 import { getTodayManila } from "@/lib/week";
 import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import { ACTIVE_CLASS_CHANGED_EVENT, getActiveStudentAccount } from "@/lib/studentContext";
-import { supabase } from "@/api/supabaseClient";
+import { invalidateReadCache, supabase } from "@/api/supabaseClient";
 import { Check, X, ClipboardCheck, Lock, CalendarDays, TrendingUp } from "lucide-react";
 import RepresentativeRosterPanel from "@/components/student/RepresentativeRosterPanel";
 
@@ -29,9 +29,11 @@ export default function StudentAttendance() {
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [loadVersion, setLoadVersion] = useState(0);
+  const dirtyRef = useRef(false);
   const today = getTodayManila();
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       if (!user) { setLoading(false); return; }
       // Keep the current roster visible during a background refresh. This is
@@ -50,37 +52,43 @@ export default function StudentAttendance() {
           db.entities.Attendance.filter({ group_id: a.group_id, attendance_date: today }),
           db.entities.Attendance.filter({ classroom_id: a.classroom_id, group_member_id: a.group_member_id }, { orderBy: 'attendance_date', ascending: false }),
         ]);
+        if (cancelled) return;
         const map = {};
         for (const r of att) map[r.group_member_id] = r;
         const init = {};
-        for (const m of mem) init[m.id] = map[m.id]?.status || "present";
+        for (const m of mem) init[m.id] = map[m.id]?.status || (a.is_representative ? "present" : null);
         setAccount(a);
         setClassroom(classroomRecord);
         setMembers(mem);
         setExisting(map);
-        setStatuses(init);
+        if (!dirtyRef.current || Object.keys(map).length > 0) { setStatuses(init); dirtyRef.current = false; }
         setHistory(personalHistory || []);
       } catch (error) {
+        if (cancelled) return;
         console.error('[StudentAttendance] load failed', error);
-        setAccount(null);
         setLoadError('We could not load attendance right now. Please try again.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
-    const refresh = () => setLoadVersion((current) => current + 1);
-    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, refresh);
+    const refresh = () => { invalidateReadCache('attendances'); setLoadVersion((current) => current + 1); };
+    const classChanged = () => { dirtyRef.current = false; refresh(); };
+    window.addEventListener(ACTIVE_CLASS_CHANGED_EVENT, classChanged);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('uniclass-connection-restored', refresh);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 15000);
+    return () => { cancelled = true; window.removeEventListener(ACTIVE_CLASS_CHANGED_EVENT, classChanged); window.removeEventListener('focus', refresh); window.removeEventListener('uniclass-connection-restored', refresh); window.clearInterval(timer); };
   }, [user, loadVersion, today]);
 
   const hasSchedule = hasClassDays(classroom?.class_days);
   const todayIsClassDay = !hasSchedule || isScheduledClassDay(new Date(`${today}T00:00:00Z`), classroom?.class_days);
   const canEdit = !!account?.is_representative && Object.keys(existing).length === 0 && todayIsClassDay;
 
-  function toggle(memberId) {
+  function setStatus(memberId, status) {
     if (!canEdit) return;
-    setStatuses({ ...statuses, [memberId]: statuses[memberId] === "present" ? "absent" : "present" });
+    dirtyRef.current = true;
+    setStatuses((current) => ({ ...current, [memberId]: status }));
   }
 
   async function save() {
@@ -94,6 +102,8 @@ export default function StudentAttendance() {
         p_statuses: statuses,
       });
       if (error) throw error;
+      dirtyRef.current = false;
+      invalidateReadCache('attendances');
       setLoadVersion((current) => current + 1);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -107,9 +117,9 @@ export default function StudentAttendance() {
 
   if (loading && !account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
 
-  if (loadError) return <div className="mx-auto max-w-lg py-8"><ClayCard color="coral" className="p-5 text-center"><p className="font-display text-lg font-extrabold">Attendance could not load</p><p className="mt-2 text-sm text-ink/70">{loadError}</p><ClayButton type="button" color="purple" className="mt-4" onClick={() => setLoadVersion((current) => current + 1)}>Try again</ClayButton></ClayCard></div>;
+  if (loadError && !account) return <div className="mx-auto max-w-lg py-8"><ClayCard color="coral" className="p-5 text-center"><p className="font-display text-lg font-extrabold">Attendance could not load</p><p className="mt-2 text-sm text-ink/70">{loadError}</p><ClayButton type="button" color="purple" className="mt-4" onClick={() => setLoadVersion((current) => current + 1)}>Try again</ClayButton></ClayCard></div>;
 
-  if (!account) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
+  if (!account) return <div className="mx-auto max-w-lg py-8"><ClayCard className="p-5 text-center"><p className="font-display font-bold">No approved class is available yet.</p><p className="mt-2 text-sm text-ink/70">Ask your teacher to approve your class request, then try again.</p><ClayButton type="button" color="purple" className="mt-4" onClick={() => { invalidateReadCache('group_accounts'); setLoadVersion((current) => current + 1); }}>Try again</ClayButton></ClayCard></div>;
 
   const rangeStart = (() => { if (historyRange === 'all') return null; const date = new Date(`${today}T00:00:00Z`); date.setUTCDate(date.getUTCDate() - (Number(historyRange) - 1)); return date.toISOString().slice(0, 10); })();
   const visibleHistory = history.filter((record) => !rangeStart || record.attendance_date >= rangeStart);
@@ -121,6 +131,7 @@ export default function StudentAttendance() {
       <div>
         <h1 className="text-2xl font-display font-extrabold mb-1 flex items-center gap-2"><ClipboardCheck className="w-6 h-6" /> Attendance</h1>
         <p className="text-ink/60 font-mono text-sm">{today}</p>
+        {loadError && <p role="status" className="text-sm text-clay-coral">{loadError} Showing the last loaded records.</p>}
       </div>
 
       {!todayIsClassDay ? (
@@ -131,7 +142,7 @@ export default function StudentAttendance() {
       ) : !canEdit && (
         <ClayCard color="sun" className="p-4 flex items-center gap-3">
           <Lock className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-display font-bold">Attendance is locked after the representative saves it. Only the teacher can make a correction.</p>
+          <p className="text-sm font-display font-bold">{Object.keys(existing).length ? 'Attendance has been recorded. Only the teacher can make a correction.' : 'The group representative records attendance. No attendance has been recorded yet.'}</p>
         </ClayCard>
       )}
 
@@ -147,15 +158,15 @@ export default function StudentAttendance() {
               </div>
               {canEdit ? (
                 <div className="grid grid-cols-2 gap-2 sm:flex">
-                  <button onClick={() => toggle(m.id)} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${present ? "bg-clay-lime text-ink" : "bg-cream text-ink/40"}`}>
+                  <button onClick={() => setStatus(m.id, "present")} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${present ? "bg-clay-lime text-ink" : "bg-cream text-ink/40"}`}>
                     <Check className="w-5 h-5" /> Present
                   </button>
-                  <button onClick={() => toggle(m.id)} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${!present ? "bg-clay-coral text-white" : "bg-cream text-ink/40"}`}>
+                  <button onClick={() => setStatus(m.id, "absent")} className={`clay-btn w-full justify-center px-3 py-2 sm:w-auto sm:px-4 ${!present ? "bg-clay-coral text-white" : "bg-cream text-ink/40"}`}>
                     <X className="w-5 h-5" /> Absent
                   </button>
                 </div>
               ) : (
-                <ClayChip color={present ? "lime" : "coral"}>{present ? "Present" : "Absent"}</ClayChip>
+                <ClayChip color={existing[m.id]?.status === "present" ? "lime" : existing[m.id]?.status === "absent" ? "coral" : "cream"}>{existing[m.id]?.status === "present" ? "Present" : existing[m.id]?.status === "absent" ? "Absent" : "Not recorded"}</ClayChip>
               )}
             </ClayCard>
           );
