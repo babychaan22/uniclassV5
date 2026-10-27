@@ -129,7 +129,7 @@ export default function TeacherMissions() {
   const [viewTemplateId, setViewTemplateId] = useState(null);
   const [targetAllClasses, setTargetAllClasses] = useState(true);
   const [targetClassIds, setTargetClassIds] = useState([]);
-  const [targetStatuses, setTargetStatuses] = useState(["On Track", "Developing", "At Risk"]);
+  const [targetStatuses, setTargetStatuses] = useState(["On Track", "Developing", "At Risk", "Not enough data"]);
   const [reviewingId, setReviewingId] = useState(null);
   const [approvingAll, setApprovingAll] = useState(false);
   const [archivingId, setArchivingId] = useState(null);
@@ -240,7 +240,7 @@ export default function TeacherMissions() {
     setGenMsg(null);
     setTargetAllClasses(true);
     setTargetClassIds([classroom.id]);
-    setTargetStatuses(["On Track", "Developing", "At Risk"]);
+    setTargetStatuses(["On Track", "Developing", "At Risk", "Not enough data"]);
     invalidateClassroomDataset();
     try {
       await load();
@@ -596,7 +596,7 @@ export default function TeacherMissions() {
             <label className="font-display font-bold text-sm block">Student status</label>
             <p className="text-xs text-ink/55 mb-2">Show this mission to all learners, or only the statuses you select.</p>
             <div className="flex flex-wrap gap-2">
-              {["On Track", "Developing", "At Risk"].map((status) => {
+              {["On Track", "Developing", "At Risk", "Not enough data"].map((status) => {
                 const selected = targetStatuses.includes(status);
                 return <button type="button" key={status} onClick={() => setTargetStatuses((statuses) => selected ? statuses.filter((item) => item !== status) : [...statuses, status])} className={`clay-chip px-3 py-1 text-sm ${selected ? 'bg-clay-purple text-white' : 'bg-cream text-ink'}`}>{status}</button>;
               })}
