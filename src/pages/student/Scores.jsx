@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { getActiveStudentAccount } from "@/lib/studentContext";
 import { supabase } from "@/api/supabaseClient";
-import { ensureGroupActivity, recordActivityEvidence, requestActivityScoreEdit } from "@/lib/secureActions";
+import { ensureGroupActivity, recordActivityEvidence, requestActivityScoreEdit, submitGroupActivityScores } from "@/lib/secureActions";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -24,6 +24,7 @@ export default function StudentScores() {
   const [activity, setActivity] = useState(null);
   const [maxScore, setMaxScore] = useState(10);
   const [scores, setScores] = useState({});
+  const [absentMembers, setAbsentMembers] = useState({});
   const [locked, setLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -78,6 +79,7 @@ export default function StudentScores() {
         const saved = Object.fromEntries(existing.map((item) => [item.group_member_id, item]));
         setExistingScores(saved);
         setScores(Object.fromEntries(existing.map((item) => [item.group_member_id, item.score])));
+        setAbsentMembers(Object.fromEntries(existing.filter((item) => item.is_absent).map((item) => [item.group_member_id, true])));
         // Keep the newest request for each score so a representative can see
         // whether the teacher approved, declined, or still needs to decide.
         setEditRequests((requests.data || []).reduce((byScore, item) => (
@@ -99,6 +101,7 @@ export default function StudentScores() {
         setEditGroupProofId(null);
         setExistingScores({});
         setEditRequests({});
+        setAbsentMembers({});
       }
       if (!acts.length) setScores({});
     }
@@ -156,13 +159,19 @@ export default function StudentScores() {
     if (!canEdit) return;
     const num = Math.max(0, Math.min(Number(val) || 0, maxScore));
     setScores({ ...scores, [memberId]: num });
+    setAbsentMembers((current) => ({ ...current, [memberId]: false }));
+  }
+
+  function toggleAbsent(memberId) {
+    if (!canEdit) return;
+    setAbsentMembers((current) => ({ ...current, [memberId]: !current[memberId] }));
   }
 
   async function confirmSave() {
     if (!canEdit) return;
-    const scoredMembers = members.filter((member) => Number(scores[member.id] || 0) > 0);
-    if (!scoredMembers.length) {
-      setError("Enter at least one score above zero. Students without a score will remain unsubmitted for this activity.");
+    const incompleteMembers = members.filter((member) => !absentMembers[member.id] && !Object.hasOwn(scores, member.id));
+    if (incompleteMembers.length) {
+      setError("Enter every score, including zero, or mark an absent group member before submitting.");
       return;
     }
     if (!groupProofs.length) {
@@ -179,12 +188,13 @@ export default function StudentScores() {
       setSaving(false);
       return;
     }
-    const records = scoredMembers.map((m) => ({
-      group_member_id: m.id, activity_id: act.id, classroom_id: account.classroom_id, group_id: account.group_id,
-      score: Number(scores[m.id]), encoded_by: user.id,
+    const records = members.map((m) => ({
+      group_member_id: m.id,
+      score: absentMembers[m.id] ? 0 : Number(scores[m.id]),
+      is_absent: !!absentMembers[m.id],
     }));
     try {
-      await db.entities.ActivityScore.bulkCreate(records);
+      await submitGroupActivityScores(act.id, records);
       setLocked(true);
       setLockedActivities({ ...lockedActivities, [activityNum]: true });
       setShowConfirm(false);
@@ -289,8 +299,7 @@ export default function StudentScores() {
                 <ClayCard key={member.id} className="p-3 flex flex-wrap items-center gap-3">
                   <UserAvatar name={`${member.last_name}-${member.first_name}`} size="sm" />
                   <p className="min-w-0 flex-1 truncate font-display font-bold text-sm">{member.last_name}, {member.first_name}</p>
-                  <input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} />
-                  <span className="text-xs font-mono text-ink/50">/ {maxScore}</span>
+                  {saved.is_absent ? <span className="rounded-full bg-cream px-2 py-1 text-xs font-display font-bold text-ink/60">Absent — excluded</span> : <><input aria-label={`Proposed score for ${member.first_name}`} type="number" min="0" max={maxScore} disabled={!canEdit || !!pendingRequest} className="clay-input w-20 py-1.5 text-center font-mono" value={scores[member.id] ?? ""} onChange={(event) => setScore(member.id, event.target.value)} /><span className="text-xs font-mono text-ink/50">/ {maxScore}</span></>}
                   {pendingRequest && <span className="text-[10px] font-display font-bold text-clay-purple">Teacher review pending</span>}
                   {request?.status === 'approved' && <span className="text-[10px] font-display font-bold text-clay-lime">Approved</span>}
                   {request?.status === 'rejected' && <span className="text-[10px] font-display font-bold text-clay-coral">Not approved — revise and send fresh proof</span>}
@@ -331,10 +340,11 @@ export default function StudentScores() {
             {members.map((m) => (
               <ClayCard key={m.id} className="p-4 flex items-center gap-3">
                 <UserAvatar name={`${m.last_name}-${m.first_name}`} size="sm" />
-                <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className="text-xs font-bold text-ink/55">Covered by the group proof</p></div>
+                <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className="text-xs font-bold text-ink/55">{absentMembers[m.id] ? "Absent — excluded from this activity average" : "Covered by the group proof"}</p></div>
                 <div className="flex items-center gap-2">
-                  <input type="number" min="0" max={maxScore} className="clay-input w-20 text-center font-mono text-lg" value={scores[m.id] ?? ""} onChange={(e) => setScore(m.id, e.target.value)} />
+                  <input type="number" min="0" max={maxScore} disabled={!!absentMembers[m.id]} className="clay-input w-20 text-center font-mono text-lg" value={scores[m.id] ?? ""} onChange={(e) => setScore(m.id, e.target.value)} />
                   <span className="font-mono text-ink/50">/ {maxScore}</span>
+                  <button type="button" onClick={() => toggleAbsent(m.id)} className={`clay-btn px-2 py-1 text-[10px] ${absentMembers[m.id] ? "bg-clay-coral text-white" : "bg-cream text-ink/65"}`}>{absentMembers[m.id] ? "Marked absent" : "Mark absent"}</button>
                 </div>
               </ClayCard>
             ))}
@@ -356,7 +366,7 @@ export default function StudentScores() {
         anchorElement={confirmAnchor}
         busy={saving}
         title="Submit scores for your group?"
-        description="Only members with a score above zero will be submitted. Scores can later be corrected only after teacher approval."
+        description="Enter every score, including zero, or mark an absent member. Absent members are excluded from this activity’s group average. Scores can later be corrected only after teacher approval."
         confirmLabel="Confirm & Lock"
         onConfirm={confirmSave}
       />

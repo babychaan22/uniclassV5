@@ -54,6 +54,15 @@ export async function ensureGroupActivity(classroomId, groupId, activityNumber, 
   return data;
 }
 
+export async function submitGroupActivityScores(activityId, scores) {
+  const { data, error } = await supabase.rpc('submit_group_activity_scores', {
+    p_activity_id: activityId,
+    p_scores: scores,
+  });
+  if (error) throw error;
+  return finishMutation(data ?? []);
+}
+
 export async function createGeneralQrBatch(qrType, basePoints, batchSize) {
   const { data, error } = await supabase.rpc('create_general_qr_batch', {
     p_qr_type: qrType,

@@ -195,8 +195,9 @@ export default function TeacherDashboard() {
   // Older score records may not carry a timestamp. Keep those included rather
   // than hiding valid grades when the date selector is changed.
   const rangeScores = scores.filter((score) => isInRange(score.created_date) || (!score.created_date && isInRange(activityById.get(score.activity_id)?.created_date)));
-  const activityAverage = rangeScores.length
-    ? Math.round((rangeScores.reduce((sum, score) => sum + (Number(score.score || 0) / Math.max(1, Number(activityById.get(score.activity_id)?.max_score || 1))) * 100, 0) / rangeScores.length))
+  const scoredRangeScores = rangeScores.filter((score) => !score.is_absent);
+  const activityAverage = scoredRangeScores.length
+    ? Math.round((scoredRangeScores.reduce((sum, score) => sum + (Number(score.score || 0) / Math.max(1, Number(activityById.get(score.activity_id)?.max_score || 1))) * 100, 0) / scoredRangeScores.length))
     : 0;
   const classProgress = Math.round((attendanceRate + activityAverage) / (attendanceRate > 0 || activityAverage > 0 ? 2 : 1)) || 0;
   const rangeActivities = activities.filter((activity) => isInRange(activity.created_date));
@@ -243,6 +244,7 @@ export default function TeacherDashboard() {
   }
   const rangeActivityStats = new Map(memberRows.map((row) => [row.member.id, { earned: 0, max: 0 }]));
   for (const score of rangeScores) {
+    if (score.is_absent) continue;
     const stats = rangeActivityStats.get(score.group_member_id);
     const max = Number(activityById.get(score.activity_id)?.max_score) || 0;
     if (stats && max) { stats.earned += Number(score.score) || 0; stats.max += max; }

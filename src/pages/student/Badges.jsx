@@ -18,7 +18,7 @@ import { notifyGroupBadgesUpdated } from "@/components/GroupBadgeContext";
 import { UIAsset } from "@/components/visual/UIAsset";
 
 const BADGE_INFO = {
-  weekly_90_activity: { label: "90% Activity Squad", desc: "All members ≥90% activity avg this week", points: 10, asset: "badge" },
+  weekly_90_activity: { label: "90% Activity Squad", desc: "Your group's combined activity total from Activity 1 onward is ≥90%", points: 10, asset: "badge" },
   weekly_full_attendance: { label: "Perfect Attendance", desc: "Every member present all week", points: 10, asset: "attendance" },
   weekly_top_group_points: { label: "Top Group Points", desc: "Highest group participation this week", points: 10, asset: "leaderboard" },
   weekly_top_individual_points: { label: "Top Point Earner", desc: "Highest individual points in the whole class this week", points: 10, asset: "points" },
@@ -207,8 +207,9 @@ function metricLine(type, metric) {
   if (!metric || typeof metric !== "object") return "";
   const parts = [];
   if (type === "weekly_90_activity") {
-    if (metric.weakest_member_pct != null) parts.push(`lowest member ${metric.weakest_member_pct}%`);
-    if (metric.members_below_90 != null) parts.push(`${metric.members_below_90} of ${metric.members} below 90%`);
+    if (metric.group_activity_pct != null) parts.push(`group overall ${metric.group_activity_pct}%`);
+    if (metric.activities != null) parts.push(`${metric.activities} activities counted`);
+    if (metric.missing_scores) parts.push(`${metric.missing_scores} score(s) missing`);
   } else if (type === "weekly_full_attendance") {
     if (metric.marked != null) parts.push(`${metric.present}/${metric.marked} present`);
     if (metric.members_without_mark) parts.push(`${metric.members_without_mark} unmarked`);

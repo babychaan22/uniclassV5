@@ -216,6 +216,7 @@ export default function TeacherAnalytics() {
     const activityMaxById = new Map((data.activities || []).map((activity) => [activity.id, Number(activity.max_score) || 0]));
     const scoreTotalsByMember = new Map();
     for (const score of data.scores || []) {
+      if (score.is_absent) continue;
       const max = activityMaxById.get(score.activity_id);
       if (!max) continue;
       const current = scoreTotalsByMember.get(score.group_member_id) || { earned: 0, max: 0 };

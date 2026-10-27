@@ -44,7 +44,9 @@ export function computeAttendanceStreak(memberId, attendance, classDays) {
 }
 
 export function computeActivityPct(memberId, activityScores, activities) {
-  const memberScores = activityScores.filter((s) => s.group_member_id === memberId);
+  // An absence is a recorded participation state, not a zero grade. It is
+  // excluded from both earned and possible totals.
+  const memberScores = activityScores.filter((s) => s.group_member_id === memberId && !s.is_absent);
   if (memberScores.length === 0) return { pct: 0, count: 0 };
   let totalScore = 0;
   let totalMax = 0;
@@ -98,7 +100,7 @@ export function computeEngagementStreak(memberId, attendance, scores, todayStr, 
     }
   }
   for (const s of scores) {
-    if (s.group_member_id === memberId && s.created_date) {
+    if (s.group_member_id === memberId && !s.is_absent && s.created_date) {
       days.add(toManilaDate(s.created_date));
     }
   }
