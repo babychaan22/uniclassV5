@@ -72,6 +72,22 @@ export default function StudentScan() {
     load();
   }, [user]);
 
+  // A risk result is decided and recorded by the database before the spinner
+  // begins. Keep that result available if a student briefly leaves the page so
+  // they return to the result, never to another chance at the same QR code.
+  useEffect(() => {
+    if (!account?.id) return;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(`uniclass:gacha-result:${account.id}`) || 'null');
+      if (saved?.gacha && saved?.points !== undefined) {
+        setResult(saved);
+        setPhase('result');
+      }
+    } catch {
+      // Recovery is a convenience only; the server remains the source of truth.
+    }
+  }, [account?.id]);
+
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener('online', update);
@@ -92,6 +108,16 @@ export default function StudentScan() {
   }
 
   useEffect(() => () => { stopCamera(); }, []);
+
+  useEffect(() => {
+    if (!resolving && phase !== 'spinning') return undefined;
+    const warnBeforeLeaving = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [phase, resolving]);
 
   // FIX 6: Calculate week total and rank after a successful scan
   const computeSummary = useCallback(async (pointsThisScan) => {
@@ -217,6 +243,7 @@ export default function StudentScan() {
       computeSummary(res.points);
     } else {
       setResult(res);
+      try { window.sessionStorage.setItem(`uniclass:gacha-result:${account?.id}`, JSON.stringify(res)); } catch {}
       setPhase("spinning");
       refreshHistory();
       computeSummary(res.points);
@@ -224,6 +251,7 @@ export default function StudentScan() {
   }
 
   function reset() {
+    try { window.sessionStorage.removeItem(`uniclass:gacha-result:${account?.id}`); } catch {}
     setPhase("idle");
     setResult(null);
     setPendingHash(null);
