@@ -7,7 +7,12 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  // GitHub's own reporter places the failed test and location directly in the
+  // Actions annotations. That keeps a release failure diagnosable even when
+  // the detailed runner log is not available to a viewer.
+  reporter: process.env.GITHUB_ACTIONS
+    ? [['list'], ['github']]
+    : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173',
     ...devices['iPhone 13'],
