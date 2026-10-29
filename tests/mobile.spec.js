@@ -14,6 +14,20 @@ async function login(page, email, password, path) {
   await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 20_000 });
 }
 
+async function selectE2EClass(page) {
+  const selector = page.getByLabel('Active class');
+  if (await selector.count() === 0) return;
+  await expect(selector).toBeVisible({ timeout: 20_000 });
+  const classId = await selector.locator('option').evaluateAll((options) => (
+    options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
+  ));
+  if (!classId) throw new Error('The seeded E2E-1 classroom was not available in the class switcher.');
+  await selector.selectOption(classId);
+  // Selecting a class intentionally refreshes only the current panel. Wait
+  // for that quiet update before looking for its fixture controls.
+  await page.waitForTimeout(300);
+}
+
 function collectBrowserErrors(page) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
@@ -49,6 +63,7 @@ test.describe('student mobile flows', () => {
   test('mission submission reaches grading or shows an actionable result', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/missions');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Missions/i }).first()).toBeVisible();
     const trueAnswer = page.getByRole('button', { name: 'True', exact: true }).first();
     const falseAnswer = page.getByRole('button', { name: 'False', exact: true }).first();
@@ -83,6 +98,7 @@ test.describe('student mobile flows', () => {
   test('activity proof upload is available and compressed', async ({ page }, testInfo) => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/scores');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
     const fileInput = page.locator('label').filter({ hasText: 'Upload proof' }).locator('input[type="file"]').first();
     // The heading paints immediately; the editable roster follows three
@@ -98,6 +114,7 @@ test.describe('student mobile flows', () => {
   test('QR page keeps a manual fallback and loads camera on demand', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/scan');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Scan QR/i })).toBeVisible();
     await expect(page.getByPlaceholder(/hash|code/i).first()).toBeVisible();
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
@@ -106,6 +123,7 @@ test.describe('student mobile flows', () => {
   test('student can switch classes when multiple accounts are configured', async ({ page }) => {
     test.skip(process.env.TEST_STUDENT_HAS_MULTIPLE_CLASSES !== '1', 'Set TEST_STUDENT_HAS_MULTIPLE_CLASSES=1 for this scenario.');
     await login(page, studentEmail, studentPassword, '/student/dashboard');
+    await selectE2EClass(page);
     const selector = page.getByLabel('Active class');
     const selectorReady = await selector.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false);
     if (skipScenario(test, !selectorReady, 'The test student does not have two approved class memberships; add a second approved class account to exercise switching.')) return;
@@ -115,9 +133,11 @@ test.describe('student mobile flows', () => {
 
   test('XP redemption remains a confirmed action', async ({ page }) => {
     await login(page, studentEmail, studentPassword, '/student/rewards');
+    await selectE2EClass(page);
     const redeem = page.getByRole('button', { name: /Redeem 10 XP/i });
-    // A fresh test run completes the mission scenario first. Keep the check
-    // explicit so a missing wallet credit is a failure, not a skipped release.
+    // The seed gives this isolated learner a separate wallet credit. Keep the
+    // check explicit so a missing redemption control is a release failure,
+    // not a skipped scenario.
     await expect(redeem).toBeVisible({ timeout: 20_000 });
     await redeem.click();
     const confirm = page.getByRole('button', { name: 'Redeem 10 XP', exact: true });
@@ -128,6 +148,7 @@ test.describe('student mobile flows', () => {
 
   test('Gacha code requires Risk It and cannot be rolled twice', async ({ page }) => {
     await login(page, studentEmail, studentPassword, '/student/scan');
+    await selectE2EClass(page);
     const code = page.getByPlaceholder('ENTER HASH');
     await code.fill('E2E-GACHA-CI');
     await page.getByRole('button', { name: 'Go', exact: true }).click();
@@ -143,6 +164,7 @@ test.describe('student mobile flows', () => {
 
   test('representative can choose zero or absent for group activity work', async ({ page }) => {
     await login(page, studentEmail, studentPassword, '/student/scores');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
     const zero = page.getByLabel(/Score for TEST/i).first();
     await expect(zero).toBeVisible({ timeout: 20_000 });
@@ -166,6 +188,7 @@ test.describe('teacher mobile flows', () => {
   test('activity logs paginate without duplicate rendering', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/activity-logs');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Logs/i })).toBeVisible();
     const older = page.getByRole('button', { name: /Load older activity/i });
     if (await older.count()) await older.click();
@@ -175,6 +198,7 @@ test.describe('teacher mobile flows', () => {
   test('activity proof review renders mobile evidence cards', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/evidence');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Proof/i })).toBeVisible();
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
@@ -182,6 +206,7 @@ test.describe('teacher mobile flows', () => {
   test('PDF export loads on demand and completes', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/export-data');
+    await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Data Export/i })).toBeVisible();
     const pdfButton = page.getByText('PDF Report', { exact: true }).locator('..').getByRole('button', { name: 'Download', exact: true });
     const download = page.waitForEvent('download');
@@ -196,6 +221,7 @@ test.describe('teacher mobile flows', () => {
 
   test('teacher can save and correct attendance in place', async ({ page }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/attendance');
+    await selectE2EClass(page);
     const present = page.getByRole('button', { name: /Mark TEST, STUDENT present/i });
     await expect(present).toBeVisible({ timeout: 20_000 });
     await present.click();
@@ -207,6 +233,7 @@ test.describe('teacher mobile flows', () => {
 
   test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/student-management');
+    await selectE2EClass(page);
     const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
     await expect(approve).toBeVisible({ timeout: 20_000 });
     await approve.click();

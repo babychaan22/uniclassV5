@@ -141,7 +141,7 @@ for (const index of [0, 1]) {
     max_score: 10,
     is_published: true,
   });
-  await insert('missions', {
+  const activeMission = await insert('missions', {
     classroom_id: classroom.id,
     title: 'E2E Mission',
     description: 'Answer this test mission.',
@@ -156,6 +156,32 @@ for (const index of [0, 1]) {
     ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is blue.' }] }),
     answer_key: JSON.stringify([true]),
   });
+
+  // Redemption must not depend on another browser test completing first.
+  // Give each isolated E2E learner a separate, already-earned 10-XP credit.
+  // The active assessment above remains untouched for the submission test.
+  const walletMission = await insert('missions', {
+    classroom_id: classroom.id,
+    title: 'E2E Wallet Credit',
+    description: 'Seeded XP credit for the redemption scenario.',
+    xp_reward: 10,
+    max_score: 1,
+    is_active: false,
+    approval_status: 'approved',
+    created_by: teacher.id,
+    formative_type: 'manual',
+  });
+  await insert('mission_submissions', {
+    mission_id: walletMission.id,
+    group_id: group.id,
+    group_member_id: member.id,
+    classroom_id: classroom.id,
+    score: 1,
+    xp_earned: 10,
+    graded_by: student.id,
+    answers: '{}',
+  });
+  if (!activeMission.id) throw new Error('E2E active mission fixture was not created.');
 
   // Keep a second member without an account so the representative's zero-score
   // and absence choices have a real group roster to exercise.

@@ -6,7 +6,11 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // These scenarios deliberately save real, isolated fixture data (a
+  // submission, redemption, approval, or one-time QR scan). Retrying one in
+  // the same seeded database would test a different state and turn a useful
+  // failure into misleading noise. Every workflow starts with a fresh seed.
+  retries: 0,
   // GitHub's own reporter places the failed test and location directly in the
   // Actions annotations. That keeps a release failure diagnosable even when
   // the detailed runner log is not available to a viewer.
