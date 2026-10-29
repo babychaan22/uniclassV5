@@ -22,10 +22,15 @@ async function selectE2EClass(page) {
   const switcherReady = await selector.waitFor({ state: 'attached', timeout: 15_000 }).then(() => true).catch(() => false);
   if (!switcherReady) return;
   await expect(selector).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => selector.locator('option').evaluateAll((options) => (
+    options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
+  )), {
+    message: 'The seeded E2E-1 classroom was not available in the class switcher.',
+    timeout: 20_000,
+  }).not.toBe('');
   const classId = await selector.locator('option').evaluateAll((options) => (
     options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
   ));
-  if (!classId) throw new Error('The seeded E2E-1 classroom was not available in the class switcher.');
   await selector.selectOption(classId);
   // Selecting a class intentionally refreshes only the current panel. Wait
   // for that quiet update before looking for its fixture controls.
