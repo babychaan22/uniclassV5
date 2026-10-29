@@ -16,7 +16,11 @@ async function login(page, email, password, path) {
 
 async function selectE2EClass(page) {
   const selector = page.getByLabel('Active class');
-  if (await selector.count() === 0) return;
+  // The page body can render before the shared class switcher finishes loading.
+  // Wait for it instead of accidentally exercising the teacher or student's
+  // previously selected real classroom.
+  const switcherReady = await selector.waitFor({ state: 'attached', timeout: 15_000 }).then(() => true).catch(() => false);
+  if (!switcherReady) return;
   await expect(selector).toBeVisible({ timeout: 20_000 });
   const classId = await selector.locator('option').evaluateAll((options) => (
     options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
@@ -100,7 +104,7 @@ test.describe('student mobile flows', () => {
     await login(page, studentEmail, studentPassword, '/student/scores');
     await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
-    const fileInput = page.locator('label').filter({ hasText: 'Upload proof' }).locator('input[type="file"]').first();
+    const fileInput = page.getByText('Upload group proof images', { exact: true }).locator('..').locator('input[type="file"]');
     // The heading paints immediately; the editable roster follows three
     // classroom requests. Wait for the input instead of treating that normal
     // loading window as an absent activity.
@@ -140,9 +144,11 @@ test.describe('student mobile flows', () => {
     // not a skipped scenario.
     await expect(redeem).toBeVisible({ timeout: 20_000 });
     await redeem.click();
-    const confirm = page.getByRole('button', { name: 'Redeem 10 XP', exact: true });
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    const confirm = dialog.getByRole('button', { name: 'Redeem 10 XP', exact: true });
     await expect(confirm).toBeVisible();
-    await confirm.click();
+    await confirm.click({ force: true });
     await expect(page.getByText(/XP converted to 1 participation point/i)).toBeVisible({ timeout: 20_000 });
   });
 
@@ -155,6 +161,7 @@ test.describe('student mobile flows', () => {
     await expect(page.getByText('Gacha Code Detected!')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: 'Scan Another', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: /Risk It/i }).click();
+    await page.getByRole('button', { name: 'Pull lever to spin', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Scan Another', exact: true })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Scan Another', exact: true }).click();
     await code.fill('E2E-GACHA-CI');
@@ -166,7 +173,7 @@ test.describe('student mobile flows', () => {
     await login(page, studentEmail, studentPassword, '/student/scores');
     await selectE2EClass(page);
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
-    const zero = page.getByLabel(/Score for TEST/i).first();
+    const zero = page.getByLabel(/Score for STUDENT/i).first();
     await expect(zero).toBeVisible({ timeout: 20_000 });
     await zero.fill('0');
     const absent = page.getByRole('button', { name: 'Mark absent', exact: true }).first();
@@ -234,6 +241,7 @@ test.describe('teacher mobile flows', () => {
   test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/student-management');
     await selectE2EClass(page);
+    await expect(page.getByText('PENDING, LEARNER', { exact: true })).toBeVisible({ timeout: 20_000 });
     const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
     await expect(approve).toBeVisible({ timeout: 20_000 });
     await approve.click();
