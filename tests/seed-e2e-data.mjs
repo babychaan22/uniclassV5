@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 const url = process.env.VITE_SUPABASE_URL;
+const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const serviceKey = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
 const teacherEmail = process.env.TEST_TEACHER_EMAIL;
 const studentEmail = process.env.TEST_STUDENT_EMAIL;
 const password = process.env.TEST_E2E_PASSWORD;
 
-if (!url || !serviceKey || !teacherEmail || !studentEmail || !password) {
+if (!url || !anonKey || !serviceKey || !teacherEmail || !studentEmail || !password) {
   throw new Error('Set VITE_SUPABASE_URL, TEST_SUPABASE_SERVICE_ROLE_KEY, TEST_TEACHER_EMAIL, TEST_STUDENT_EMAIL, and TEST_E2E_PASSWORD.');
 }
 if (process.env.TEST_E2E_SEED !== '1') {
@@ -17,6 +18,7 @@ if (process.env.ALLOW_REAL_TEST_ACCOUNTS !== '1' && (!teacherEmail.endsWith('@ex
 }
 
 const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+const studentSession = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
 async function ensureUser(email, role) {
   const { data: listed, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 });
@@ -44,6 +46,8 @@ async function insert(table, row) {
 const teacher = await ensureUser(teacherEmail, 'teacher');
 const student = await ensureUser(studentEmail, 'student');
 const pendingStudent = await ensureUser(`e2e-pending-${teacher.id.slice(0, 8)}@example.test`, 'student');
+const { error: studentLoginError } = await studentSession.auth.signInWithPassword({ email: studentEmail, password });
+if (studentLoginError) throw new Error(`Could not authenticate the E2E student: ${studentLoginError.message}`);
 
 // A dedicated test account can accumulate memberships from older runs or a
 // manually tested class. Clear only its account links before recreating the
@@ -166,21 +170,22 @@ for (const index of [0, 1]) {
     description: 'Seeded XP credit for the redemption scenario.',
     xp_reward: 10,
     max_score: 1,
-    is_active: false,
+    is_active: true,
     approval_status: 'approved',
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'],
     created_by: teacher.id,
-    formative_type: 'manual',
+    formative_type: 'true_false',
+    ai_content: JSON.stringify({ questions: [{ prompt: 'A seeded wallet credit can be redeemed manually.' }] }),
+    answer_key: JSON.stringify([true]),
   });
-  await insert('mission_submissions', {
-    mission_id: walletMission.id,
-    group_id: group.id,
-    group_member_id: member.id,
-    classroom_id: classroom.id,
-    score: 1,
-    xp_earned: 10,
-    graded_by: student.id,
-    answers: '{}',
+  const { error: walletCreditError } = await studentSession.rpc('submit_mission', {
+    p_mission_id: walletMission.id,
+    p_group_id: group.id,
+    p_score: 0,
+    p_answers: JSON.stringify({ 0: true }),
+    p_retry_attempt_id: null,
   });
+  if (walletCreditError) throw new Error(`Could not seed the E2E wallet credit: ${walletCreditError.message}`);
   if (!activeMission.id) throw new Error('E2E active mission fixture was not created.');
 
   // Keep a second member without an account so the representative's zero-score
