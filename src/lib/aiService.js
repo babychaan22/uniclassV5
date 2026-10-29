@@ -83,7 +83,7 @@ export async function generateMissionImage({ prompt, draftKey }) {
   return data.imageUrl;
 }
 
-/** Strip markdown fences and parse JSON, with a fallback regex extraction. */
+/** Strip markdown fences and parse the first complete JSON object in a model response. */
 function parseJsonFromModel(text) {
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -94,12 +94,27 @@ function parseJsonFromModel(text) {
   try {
     return JSON.parse(cleaned);
   } catch {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]);
-      } catch {
-        // fall through
+    const start = cleaned.indexOf('{');
+    if (start >= 0) {
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (let index = start; index < cleaned.length; index += 1) {
+        const char = cleaned[index];
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (char === '\\') escaped = true;
+          else if (char === '"') inString = false;
+          continue;
+        }
+        if (char === '"') inString = true;
+        else if (char === '{') depth += 1;
+        else if (char === '}') {
+          depth -= 1;
+          if (depth === 0) {
+            try { return JSON.parse(cleaned.slice(start, index + 1)); } catch { break; }
+          }
+        }
       }
     }
     throw new Error("The AI response wasn't valid JSON. Try again or simplify the topic.");

@@ -18,11 +18,16 @@ const APP_ORIGIN = Deno.env.get('APP_ORIGIN') ?? 'https://uniclass.app';
 
 const CONFIGURED_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? '';
 const IMAGE_MODEL = Deno.env.get('OPENROUTER_IMAGE_MODEL') ?? 'google/gemini-3.1-flash-image-preview';
+const MODEL_CACHE_MS = 5 * 60 * 1000;
+let cachedFreeModels: { expiresAt: number; models: string[] } | null = null;
 
 async function getFreeModelChain(apiKey: string): Promise<string[]> {
   const chain = CONFIGURED_MODEL && CONFIGURED_MODEL !== 'openrouter/free'
     ? [CONFIGURED_MODEL]
     : [];
+  if (cachedFreeModels && cachedFreeModels.expiresAt > Date.now()) {
+    return [...new Set([...chain, ...cachedFreeModels.models])];
+  }
   let catalogError = '';
   // Prefer the user-filtered catalog. It reflects provider preferences and
   // guardrails, unlike the public catalog which can contain stale entries.
@@ -51,7 +56,10 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
         })
         .slice(0, 12);
       chain.push(...freeModels);
-      if (freeModels.length > 0) break;
+      if (freeModels.length > 0) {
+        cachedFreeModels = { models: freeModels, expiresAt: Date.now() + MODEL_CACHE_MS };
+        break;
+      }
     } catch (error) {
       catalogError = `Network error reading OpenRouter model catalog: ${(error as Error).message}`;
     }
@@ -200,6 +208,8 @@ Deno.serve(async (req: Request) => {
         },
         body: JSON.stringify({
           model,
+          response_format: { type: 'json_object' },
+          max_tokens: 8192,
           messages: [
             {
               role: 'system',

@@ -10,6 +10,8 @@ const PENALTY_REASONS = [
   { value: "Inattentiveness", label: "Inattentiveness — disengaged or distracted" },
   { value: "Disruptive Behavior", label: "Disruptive Behavior — noise, notes, or horseplay" },
   { value: "Inappropriate Language", label: "Inappropriate Language — foul or disrespectful language" },
+  { value: "Activity Deductions", label: "Activity Deductions — points removed for an activity-related reason" },
+  { value: "Incomplete/Non-submission of Activity", label: "Incomplete/Non-submission of Activity — required activity work was incomplete or not submitted" },
 ];
 
 export default function BehaviorPenalty({ groups, onPenalty, penaltyLogs, wholeGroupPointsByGroup = {} }) {

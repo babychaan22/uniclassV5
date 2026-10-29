@@ -15,6 +15,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CONFIGURED_MODEL = Deno.env.get('GEMINI_MODEL') ?? '';
+const MODEL_CACHE_MS = 5 * 60 * 1000;
+let cachedModels: { expiresAt: number; models: string[] } | null = null;
 
 const SYSTEM_PROMPT =
   'You are a precise assistant that replies with ONLY valid JSON. ' +
@@ -34,6 +36,9 @@ function json(body: unknown, status = 200): Response {
 
 async function getModelChain(apiKey: string): Promise<string[]> {
   const models: string[] = CONFIGURED_MODEL ? [CONFIGURED_MODEL] : [];
+  if (cachedModels && cachedModels.expiresAt > Date.now()) {
+    return [...new Set([...models, ...cachedModels.models])];
+  }
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
     if (response.ok) {
@@ -44,6 +49,7 @@ async function getModelChain(apiKey: string): Promise<string[]> {
         .map((model: { name: string }) => model.name.replace(/^models\//, ''))
         .filter((name: string) => /flash/i.test(name) && !/embedding|image|tts/i.test(name));
       models.push(...discovered);
+      if (discovered.length > 0) cachedModels = { models: discovered, expiresAt: Date.now() + MODEL_CACHE_MS };
     }
   } catch {
     // The configured model can still be attempted when model discovery fails.
@@ -103,7 +109,8 @@ Deno.serve(async (req: Request) => {
         ],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
+          responseMimeType: 'application/json',
         },
       }),
     });

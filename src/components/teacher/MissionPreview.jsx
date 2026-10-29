@@ -8,6 +8,20 @@ import { Eye, CheckCircle2 } from "lucide-react";
 
 // Read-only visual preview of AI-generated mission content for the teacher.
 // Distinct from the student-facing instructions in MissionAssessment/DragDropMatch.
+function WorkedGuide({ guide }) {
+  const steps = Array.isArray(guide?.solution_steps)
+    ? guide.solution_steps.map((step) => String(step || "").trim()).filter(Boolean)
+    : [];
+  const remember = String(guide?.remember || "").trim();
+  return <div className="mt-2 rounded-lg border border-ink/10 bg-white/75 p-2 text-xs text-ink/80">
+    <p className="font-display font-bold text-ink">Student review after submission</p>
+    <ol className="mt-1 list-decimal space-y-1 pl-4 leading-relaxed">
+      {steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+    </ol>
+    {remember && <p className="mt-2 border-t border-ink/10 pt-2"><b>Remember:</b> {remember}</p>}
+  </div>;
+}
+
 export default function MissionPreview({ type, content }) {
   const [previewAnswers, setPreviewAnswers] = useState({});
   if (!content) return null;
@@ -65,6 +79,33 @@ export default function MissionPreview({ type, content }) {
       {type === "fill_in_blank" && (
         <FillInTheBlank questions={questions} answers={previewAnswers} onChange={setPreviewAnswers} preview />
       )}
+
+      <details className="mt-4 rounded-xl border-2 border-clay-purple/25 bg-clay-purple/10 p-3">
+        <summary className="cursor-pointer font-display text-sm font-bold text-ink">Teacher review: answer key and learning feedback</summary>
+        <p className="mt-1 text-xs text-ink/65">Students see these worked steps only after they submit. Check that every answer and explanation is accurate before publishing.</p>
+        <div className="mt-3 space-y-2">
+          {(type === "true_false" || type === "multiple_choice") && questions.map((question, index) => {
+            const correct = type === "true_false"
+              ? (answers[index] ? "True" : "False")
+              : (question.options || [])[Number(answers[index])] ?? "Missing answer";
+            return <div key={index} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
+              <p className="font-display font-bold">Question {index + 1} · Correct answer: {correct}</p>
+              <WorkedGuide guide={question} />
+            </div>;
+          })}
+          {type === "drag_drop" && (content.left || []).map((item) => <div key={item} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
+            <p className="font-display font-bold">{item} · Correct category: {answers[item] || "Missing answer"}</p>
+            <WorkedGuide guide={content.feedback?.[item]} />
+          </div>)}
+          {type === "fill_in_blank" && Object.entries(answers).map(([key, answer]) => {
+            const question = questions[Number(key.split(":")[0])] || {};
+            return <div key={key} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
+              <p className="font-display font-bold">Blank {key} · Correct answer: {String(answer)}</p>
+              <WorkedGuide guide={question} />
+            </div>;
+          })}
+        </div>
+      </details>
     </ClayCard>
   );
 }

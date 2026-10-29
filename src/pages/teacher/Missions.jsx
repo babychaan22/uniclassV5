@@ -44,11 +44,26 @@ const PROMPT_TEMPLATES = {
 };
 
 function validateGeneratedMission(type, content) {
+  const genericGuide = /^(try again|review this idea|read the question|check the steps|choose the correct|match the meaning|this belongs in)/i;
+  const validateWorkedGuide = (guide, label) => {
+    const steps = Array.isArray(guide?.solution_steps)
+      ? guide.solution_steps.map((step) => String(step || "").trim()).filter(Boolean)
+      : [];
+    const remember = String(guide?.remember || "").trim();
+    if (steps.length < 2 || steps.some((step) => step.length < 12 || genericGuide.test(step))) {
+      throw new Error(`${label} needs two short, specific solution steps. Generate it again.`);
+    }
+    if (remember.length < 8 || genericGuide.test(remember)) {
+      throw new Error(`${label} needs a useful Remember tip. Generate it again.`);
+    }
+  };
+
   if (type === 'fill_in_blank') {
     const { questions, answers } = content || {};
     if (!Array.isArray(questions) || !questions.length || !answers || typeof answers !== 'object' || Array.isArray(answers)) throw new Error('The generated Fill in the Blank activity is incomplete. Generate it again.');
     const expected = [];
     for (const [index, question] of questions.entries()) {
+      validateWorkedGuide(question, `Sentence ${index + 1}`);
       const blanks = Array.from(String(question?.prompt || '').matchAll(/\{\{([^}]+)\}\}/g), (match) => match[1].trim());
       if (!blanks.length || new Set(blanks).size !== blanks.length || !Array.isArray(question.word_bank) || question.word_bank.some((word) => typeof word !== 'string' || !word.trim())) throw new Error(`Sentence ${index + 1} needs clear blanks and a word bank. Generate the activity again.`);
       const words = [...question.word_bank];
@@ -63,12 +78,22 @@ function validateGeneratedMission(type, content) {
     if (Object.keys(answers).length !== expected.length || Object.keys(answers).some((key) => !expected.includes(key))) throw new Error('The answer key does not match the blanks. Generate the activity again.');
     return;
   }
-  if (type !== 'drag_drop') return;
+  if (type !== 'drag_drop') {
+    const questions = content?.questions;
+    if (!Array.isArray(questions) || !questions.length) throw new Error('The generated mission has no questions. Generate it again.');
+    questions.forEach((question, index) => validateWorkedGuide(question, `Question ${index + 1}`));
+    const retryQuestions = content?.retry_variants?.[0]?.questions;
+    if (Array.isArray(retryQuestions)) retryQuestions.forEach((question, index) => validateWorkedGuide(question, `Practice question ${index + 1}`));
+    return;
+  }
   const { left, right, answers } = content || {};
   const validList = (items) => Array.isArray(items) && items.length > 0 && items.every((item) => typeof item === 'string' && item.trim()) && new Set(items).size === items.length;
   if (!validList(left) || !validList(right) || !answers || typeof answers !== 'object' || Array.isArray(answers) || left.some((item) => !right.includes(answers[item])) || Object.keys(answers).length !== left.length) {
     throw new Error('The generated Drag & Drop activity is incomplete. Generate it again and check that every tile has one matching category.');
   }
+  const feedback = content?.feedback;
+  if (!feedback || typeof feedback !== 'object' || left.some((item) => !feedback[item])) throw new Error('Every Drag & Drop tile needs a worked explanation. Generate the activity again.');
+  left.forEach((item) => validateWorkedGuide(feedback[item], `Tile “${item}”`));
 }
 
 function missionPreviewContent(m) {
