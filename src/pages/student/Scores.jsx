@@ -342,7 +342,7 @@ export default function StudentScores() {
                 <UserAvatar name={`${m.last_name}-${m.first_name}`} size="sm" />
                 <div className="flex-1"><p className="font-display font-bold">{m.last_name}, {m.first_name}</p><p className="text-xs font-bold text-ink/55">{absentMembers[m.id] ? "Absent — excluded from this activity average" : "Covered by the group proof"}</p></div>
                 <div className="flex items-center gap-2">
-                  <input type="number" min="0" max={maxScore} disabled={!!absentMembers[m.id]} className="clay-input w-20 text-center font-mono text-lg" value={scores[m.id] ?? ""} onChange={(e) => setScore(m.id, e.target.value)} />
+                  <input aria-label={`Score for ${m.first_name}`} type="number" min="0" max={maxScore} disabled={!!absentMembers[m.id]} className="clay-input w-20 text-center font-mono text-lg" value={scores[m.id] ?? ""} onChange={(e) => setScore(m.id, e.target.value)} />
                   <span className="font-mono text-ink/50">/ {maxScore}</span>
                   <button type="button" onClick={() => toggleAbsent(m.id)} className={`clay-btn px-2 py-1 text-[10px] ${absentMembers[m.id] ? "bg-clay-coral text-white" : "bg-cream text-ink/65"}`}>{absentMembers[m.id] ? "Marked absent" : "Mark absent"}</button>
                 </div>

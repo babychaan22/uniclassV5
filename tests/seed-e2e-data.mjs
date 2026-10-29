@@ -43,6 +43,7 @@ async function insert(table, row) {
 
 const teacher = await ensureUser(teacherEmail, 'teacher');
 const student = await ensureUser(studentEmail, 'student');
+const pendingStudent = await ensureUser(`e2e-pending-${teacher.id.slice(0, 8)}@example.test`, 'student');
 
 // A dedicated test account can accumulate memberships from older runs or a
 // manually tested class. Clear only its account links before recreating the
@@ -62,6 +63,19 @@ if (old.data.length) {
 // dedicated teacher identity so another test environment cannot collide with
 // this seed's previous fixed E2E01A/E2E02B codes.
 const joinCodePrefix = teacher.id.replace(/-/g, '').slice(0, 8).toUpperCase();
+// Reset the one deterministic test-only Gacha code so its one-time-use rule
+// can be verified on every CI run without relying on a real classroom code.
+const testGachaHash = 'E2E-GACHA-CI';
+const oldGacha = await admin.from('qr_codes').delete().eq('hash', testGachaHash);
+if (oldGacha.error) throw oldGacha.error;
+const gacha = await insert('qr_codes', {
+  hash: testGachaHash,
+  classroom_id: null,
+  qr_type: 'gacha',
+  base_points: 10,
+  created_by: teacher.id,
+});
+
 for (const index of [0, 1]) {
   const classroom = await insert('classrooms', {
     teacher_id: teacher.id,
@@ -81,6 +95,18 @@ for (const index of [0, 1]) {
     first_name: 'STUDENT',
     is_account_holder: true,
   });
+  const absentMember = await insert('group_members', {
+    classroom_id: classroom.id,
+    group_id: group.id,
+    last_name: 'ABSENT',
+    first_name: 'MEMBER',
+  });
+  const pendingMember = await insert('group_members', {
+    classroom_id: classroom.id,
+    group_id: group.id,
+    last_name: 'PENDING',
+    first_name: 'LEARNER',
+  });
   await insert('group_accounts', {
     user_id: student.id,
     classroom_id: classroom.id,
@@ -91,6 +117,17 @@ for (const index of [0, 1]) {
     email: studentEmail,
     is_approved: true,
     is_representative: true,
+  });
+  await insert('group_accounts', {
+    user_id: pendingStudent.id,
+    classroom_id: classroom.id,
+    group_id: group.id,
+    group_member_id: pendingMember.id,
+    last_name: 'PENDING',
+    first_name: 'LEARNER',
+    email: pendingStudent.email,
+    is_approved: false,
+    is_representative: false,
   });
   await insert('class_settings', { classroom_id: classroom.id });
 
@@ -119,6 +156,10 @@ for (const index of [0, 1]) {
     ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is blue.' }] }),
     answer_key: JSON.stringify([true]),
   });
+
+  // Keep a second member without an account so the representative's zero-score
+  // and absence choices have a real group roster to exercise.
+  if (!absentMember.id) throw new Error('E2E absent-member fixture was not created.');
 }
 
-console.log(`Seeded two approved classes for ${studentEmail} and teacher ${teacherEmail}.`);
+console.log(`Seeded two approved classes for ${studentEmail} and teacher ${teacherEmail}; Gacha fixture ${gacha.hash}.`);

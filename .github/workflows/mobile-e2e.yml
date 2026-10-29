@@ -19,6 +19,10 @@ jobs:
       TEST_TEACHER_PASSWORD: ${{ secrets.TEST_E2E_PASSWORD }}
       TEST_STUDENT_PASSWORD: ${{ secrets.TEST_E2E_PASSWORD }}
       TEST_E2E_SEED: '1'
+      # These are dedicated test accounts configured in this repository's
+      # secrets. The seed script still refuses arbitrary accounts unless this
+      # explicit CI-only flag is present.
+      ALLOW_REAL_TEST_ACCOUNTS: '1'
       TEST_E2E_STRICT: '1'
       TEST_STUDENT_HAS_MULTIPLE_CLASSES: '1'
 

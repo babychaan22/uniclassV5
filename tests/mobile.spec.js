@@ -112,6 +112,46 @@ test.describe('student mobile flows', () => {
     await expect(selector).toBeVisible();
     await expect(selector.locator('option')).toHaveCount(2, { timeout: 10_000 });
   });
+
+  test('XP redemption remains a confirmed action', async ({ page }) => {
+    await login(page, studentEmail, studentPassword, '/student/rewards');
+    const redeem = page.getByRole('button', { name: /Redeem 10 XP/i });
+    // A fresh test run completes the mission scenario first. Keep the check
+    // explicit so a missing wallet credit is a failure, not a skipped release.
+    await expect(redeem).toBeVisible({ timeout: 20_000 });
+    await redeem.click();
+    const confirm = page.getByRole('button', { name: 'Redeem 10 XP', exact: true });
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+    await expect(page.getByText(/XP converted to 1 participation point/i)).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('Gacha code requires Risk It and cannot be rolled twice', async ({ page }) => {
+    await login(page, studentEmail, studentPassword, '/student/scan');
+    const code = page.getByPlaceholder('ENTER HASH');
+    await code.fill('E2E-GACHA-CI');
+    await page.getByRole('button', { name: 'Go', exact: true }).click();
+    await expect(page.getByText('Gacha Code Detected!')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Scan Another', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: /Risk It/i }).click();
+    await expect(page.getByRole('button', { name: 'Scan Another', exact: true })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Scan Another', exact: true }).click();
+    await code.fill('E2E-GACHA-CI');
+    await page.getByRole('button', { name: 'Go', exact: true }).click();
+    await expect(page.getByText(/already been used/i)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('representative can choose zero or absent for group activity work', async ({ page }) => {
+    await login(page, studentEmail, studentPassword, '/student/scores');
+    await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
+    const zero = page.getByLabel(/Score for TEST/i).first();
+    await expect(zero).toBeVisible({ timeout: 20_000 });
+    await zero.fill('0');
+    const absent = page.getByRole('button', { name: 'Mark absent', exact: true }).first();
+    await expect(absent).toBeVisible();
+    await absent.click();
+    await expect(page.getByRole('button', { name: 'Marked absent', exact: true }).first()).toBeVisible();
+  });
 });
 
 test.describe('teacher mobile flows', () => {
@@ -152,5 +192,31 @@ test.describe('teacher mobile flows', () => {
     await pdfButton.click({ force: true });
     await (await download).path();
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
+  });
+
+  test('teacher can save and correct attendance in place', async ({ page }) => {
+    await login(page, teacherEmail, teacherPassword, '/teacher/attendance');
+    const present = page.getByRole('button', { name: /Mark TEST, STUDENT present/i });
+    await expect(present).toBeVisible({ timeout: 20_000 });
+    await present.click();
+    await expect(page.getByText(/TEST, STUDENT marked present/i)).toBeVisible({ timeout: 15_000 });
+    const absent = page.getByRole('button', { name: /Mark TEST, STUDENT absent/i });
+    await absent.click();
+    await expect(page.getByText(/TEST, STUDENT marked absent/i)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
+    await login(page, teacherEmail, teacherPassword, '/teacher/student-management');
+    const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
+    await expect(approve).toBeVisible({ timeout: 20_000 });
+    await approve.click();
+    await expect(approve).toHaveCount(0, { timeout: 15_000 });
+
+    await page.goto('/teacher/roster');
+    const move = page.getByRole('button', { name: 'Move records here', exact: true }).first();
+    await expect(move).toBeVisible({ timeout: 20_000 });
+    await move.click();
+    await expect(page.getByRole('dialog', { name: /Move records into/i })).toBeVisible();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
   });
 });

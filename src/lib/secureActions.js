@@ -379,3 +379,19 @@ export async function completeLearningReview(reviewId, correct) {
   if (error) throw error;
   return finishMutation(data);
 }
+
+// A teacher reminder is an in-app notification, not an email or a public
+// message. The database limits it to approved account holders in that teacher's
+// own classroom.
+export async function sendStudentReminder({ classroomId, memberIds, kind, title, body, link }) {
+  const { data, error } = await supabase.rpc('send_student_reminder', {
+    p_classroom_id: classroomId,
+    p_member_ids: memberIds,
+    p_kind: kind,
+    p_title: title,
+    p_body: body,
+    p_link: link || null,
+  });
+  if (error) throw error;
+  return finishMutation(data);
+}

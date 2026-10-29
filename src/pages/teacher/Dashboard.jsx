@@ -23,6 +23,7 @@ import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
+import { sendStudentReminder } from '@/lib/secureActions';
 import PanelSkeleton from "@/components/PanelSkeleton";
 
 let teacherDashboardCache = null;
@@ -48,6 +49,8 @@ export default function TeacherDashboard() {
   const [anchorDate, setAnchorDate] = useState(() => getTodayManila());
   const [expandedAttentionClass, setExpandedAttentionClass] = useState(null);
   const [attentionLoading, setAttentionLoading] = useState(true);
+  const [reminding, setReminding] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -266,12 +269,28 @@ export default function TeacherDashboard() {
   });
   const memberLabel = (row) => `${row.member.last_name}, ${row.member.first_name}`;
   const attentionCategories = [
-    { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => { const stats = rangeAttendanceStats.get(row.member.id); return `${Math.round((stats.present / stats.total) * 100)}%`; } },
-    { label: "Low activity average", rows: lowActivityRows, detail: (row) => { const stats = rangeActivityStats.get(row.member.id); return `${Math.round((stats.earned / stats.max) * 100)}%`; } },
-    { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${rangePointsByMember.get(row.member.id) || 0} pts` },
+    { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => { const stats = rangeAttendanceStats.get(row.member.id); return `${Math.round((stats.present / stats.total) * 100)}%`; }, reminder: { kind: 'attendance', title: 'Attendance check-in', body: 'Please check your attendance record and speak with your teacher if it needs attention.', link: ROUTES.STUDENT.ATTENDANCE } },
+    { label: "Low activity average", rows: lowActivityRows, detail: (row) => { const stats = rangeActivityStats.get(row.member.id); return `${Math.round((stats.earned / stats.max) * 100)}%`; }, reminder: { kind: 'mission', title: 'Activity support reminder', body: 'Please review your activity scores and ask your teacher for support with any difficult work.', link: ROUTES.STUDENT.SCORES } },
+    { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${rangePointsByMember.get(row.member.id) || 0} pts`, reminder: { kind: 'points', title: 'Keep participating', body: 'Your teacher would like you to take part in the next class activity and check your progress.', link: ROUTES.STUDENT.DASHBOARD } },
     { label: "Join approvals", rows: pending, detail: () => "Awaiting approval", account: true },
     { label: "Score edit approvals", rows: scoreEdits, detail: () => "Review score edit", edit: true },
   ].filter((category) => category.rows.length);
+
+  async function remindCategory(category) {
+    if (!category.reminder || reminding) return;
+    const memberIds = category.rows.map((row) => row.member?.id).filter(Boolean);
+    if (!memberIds.length) return;
+    setReminding(category.label);
+    setReminderMessage('');
+    try {
+      const count = await sendStudentReminder({ classroomId: classroom.id, memberIds, ...category.reminder });
+      setReminderMessage(`${count} learner${count === 1 ? '' : 's'} received a private reminder.`);
+    } catch (error) {
+      setReminderMessage(error?.message || 'The reminder could not be sent. Please try again.');
+    } finally {
+      setReminding('');
+    }
+  }
 
   async function approveAll(ids) {
     await db.entities.GroupAccount.bulkUpdate(ids.map((id) => ({ id, is_approved: true })));
@@ -361,7 +380,8 @@ export default function TeacherDashboard() {
         <ClayCard className="p-4">
           <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink/60"><UIAsset name="attention" className="h-7 w-7" /> Needs Attention · {rangeLabel}</h3>
           <p className="mb-3 text-xs text-ink/50">Learners’ quick snapshot for the selected period, plus approvals that need teacher decisions.</p>
-          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="uc-compact-scroll flex max-h-28 flex-wrap content-start gap-1 overflow-y-auto pr-1">{category.rows.map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : category.account ? ROUTES.TEACHER.STUDENT_MANAGEMENT : ROUTES.TEACHER.ROSTER} className="max-w-full shrink-0 truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div></div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
+          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="uc-compact-scroll flex max-h-28 flex-wrap content-start gap-1 overflow-y-auto pr-1">{category.rows.map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : category.account ? ROUTES.TEACHER.STUDENT_MANAGEMENT : ROUTES.TEACHER.ROSTER} className="max-w-full shrink-0 truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div>{category.reminder && <ClayButton color="sky" size="sm" className="mt-2 w-full" disabled={Boolean(reminding)} onClick={() => remindCategory(category)}>{reminding === category.label ? 'Sending…' : 'Send reminder'}</ClayButton>}</div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
+          {reminderMessage && <p role="status" className="mt-2 text-xs font-display font-bold text-ink/65">{reminderMessage}</p>}
         </ClayCard>
       </section>
 
