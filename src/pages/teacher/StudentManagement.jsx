@@ -14,7 +14,7 @@ import ClayChip from "@/components/ClayChip";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar from "@/components/visual/UserAvatar";
 import { UIAsset } from "@/components/visual/UIAsset";
-import { Check, Trash2, Loader2 } from "lucide-react";
+import { Check, Trash2, Loader2, X } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
 import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 
