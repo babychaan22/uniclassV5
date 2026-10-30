@@ -246,8 +246,10 @@ test.describe('teacher mobile flows', () => {
     const move = page.getByRole('button', { name: 'Move records here', exact: true }).first();
     await expect(move).toBeVisible({ timeout: 20_000 });
     await move.click();
-    await expect(page.getByRole('dialog', { name: /Move records into/i })).toBeVisible();
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    const transferDialog = page.getByRole('dialog', { name: /Move records into/i });
+    await expect(transferDialog).toBeVisible();
+    await transferDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(transferDialog).toHaveCount(0);
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 });
