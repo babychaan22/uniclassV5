@@ -22,19 +22,16 @@ async function selectE2EClass(page) {
   const switcherReady = await selector.waitFor({ state: 'attached', timeout: 15_000 }).then(() => true).catch(() => false);
   if (!switcherReady) return;
   await expect(selector).toBeVisible({ timeout: 20_000 });
-  await expect.poll(async () => selector.locator('option').evaluateAll((options) => (
-    options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
-  )), {
-    message: 'The seeded E2E-1 classroom was not available in the class switcher.',
-    timeout: 20_000,
-  }).not.toBe('');
   const classId = await selector.locator('option').evaluateAll((options) => (
     options.find((option) => option.textContent?.includes('E2E-1'))?.value || ''
   ));
+  // Student options deliberately say “Class 1 / Class 2”, so the freshly
+  // seeded student naturally opens its first E2E class. Teacher options show
+  // the section name; select and reload once so every teacher scenario uses
+  // E2E-1 even when the teacher owns older real classes too.
+  if (!classId) return;
   await selector.selectOption(classId);
-  // Selecting a class intentionally refreshes only the current panel. Wait
-  // for that quiet update before looking for its fixture controls.
-  await page.waitForTimeout(300);
+  await page.reload();
 }
 
 function collectBrowserErrors(page) {
