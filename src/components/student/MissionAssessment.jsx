@@ -22,6 +22,231 @@ function questionBlanks(question, questionIndex) {
   return Array.from(String(question?.prompt || '').matchAll(/\{\{([^}]+)\}\}/g)).map((match) => `${questionIndex}:${match[1].trim()}`);
 }
 
+// Daily Math Power-Ups created from the original foundation bank have a short
+// rule but not always a saved worked solution.  When the prompt is a simple
+// integer operation, turn the actual numbers into a small, readable solution
+// instead of leaving learners with a generic "ask your teacher" message.
+function integerOperationGuide(prompt, studentAnswer) {
+  const match = String(prompt || "").match(/^\s*What is\s*\(?(-?\d+(?:\.\d+)?)\)?\s*([+−\-×x÷/])\s*\(?(-?\d+(?:\.\d+)?)\)?\s*\?\s*$/i);
+  if (!match) return null;
+  const [, leftText, operator, rightText] = match;
+  const left = Number(leftText);
+  const right = Number(rightText);
+  if (!Number.isFinite(left) || !Number.isFinite(right) || (/[÷/]/.test(operator) && right === 0)) return null;
+
+  const shownOperator = operator === "-" ? "−" : operator === "x" ? "×" : operator === "/" ? "÷" : operator;
+  const expression = `${left} ${shownOperator} ${right}`;
+  let answer;
+  let steps;
+  let remember;
+
+  if (operator === "×" || operator.toLowerCase() === "x") {
+    const magnitude = Math.abs(left) * Math.abs(right);
+    answer = left * right;
+    const differentSigns = (left < 0) !== (right < 0);
+    steps = [
+      `Multiply the number parts first: ${Math.abs(left)} × ${Math.abs(right)} = ${magnitude}.`,
+      `The signs are ${differentSigns ? "different" : "the same"}, so the answer is ${differentSigns ? "negative" : "positive"}: ${answer}.`,
+    ];
+    remember = "For multiplication, multiply the number parts first. Same signs make a positive; different signs make a negative.";
+  } else if (operator === "÷" || operator === "/") {
+    const magnitude = Math.abs(left) / Math.abs(right);
+    answer = left / right;
+    const differentSigns = (left < 0) !== (right < 0);
+    steps = [
+      `Divide the number parts first: ${Math.abs(left)} ÷ ${Math.abs(right)} = ${magnitude}.`,
+      `The signs are ${differentSigns ? "different" : "the same"}, so the answer is ${differentSigns ? "negative" : "positive"}: ${answer}.`,
+    ];
+    remember = "For division, divide the number parts first. Same signs make a positive; different signs make a negative.";
+  } else if (operator === "+") {
+    answer = left + right;
+    steps = [`Add the signed numbers: ${expression} = ${answer}.`, `The answer is ${answer} because the signs and values were kept as written.`];
+    remember = "When adding integers, keep each number's sign and combine the values carefully.";
+  } else {
+    answer = left - right;
+    steps = [`Change subtraction to adding the opposite: ${left} − (${right}) = ${left} + (${-right}).`, `Now add: ${left} + (${-right}) = ${answer}.`];
+    remember = "Subtracting a number means adding its opposite.";
+  }
+
+  const selected = String(studentAnswer ?? "").trim();
+  return {
+    solution_steps: steps,
+    why_wrong: selected && selected !== String(answer)
+      ? `${selected} is not correct because ${expression} = ${answer}. Follow the two steps above before choosing your answer.`
+      : "Use the two steps above to check the operation and its sign.",
+    remember,
+  };
+}
+
+function unitConversionGuide(prompt, studentAnswer) {
+  const match = String(prompt || "").match(/^\s*How many\s+([a-z]+)\s+are in\s+(\d+)\s+([a-z]+)\s*\?\s*$/i);
+  if (!match) return null;
+  const [, targetUnitRaw, amountText, sourceUnitRaw] = match;
+  const targetUnit = targetUnitRaw.toLowerCase();
+  const sourceUnit = sourceUnitRaw.toLowerCase();
+  const amount = Number(amountText);
+  const factors = {
+    "kilometers:meters": 1000,
+    "kilograms:grams": 1000,
+    "meters:centimeters": 100,
+    "hours:minutes": 60,
+  };
+  const factor = factors[`${sourceUnit}:${targetUnit}`];
+  if (!factor || !Number.isFinite(amount)) return null;
+
+  const answer = amount * factor;
+  const selected = String(studentAnswer ?? "").trim();
+  const singularSource = amount === 1 ? sourceUnit.slice(0, -1) : sourceUnit;
+  const singularTarget = targetUnit.slice(0, -1);
+  return {
+    solution_steps: [
+      `Use the conversion: 1 ${singularSource} = ${factor} ${targetUnit}.`,
+      `Multiply ${amount} by ${factor}: ${amount} × ${factor} = ${answer} ${targetUnit}.`,
+    ],
+    why_wrong: selected && selected !== String(answer)
+      ? `${selected} is not correct because each ${singularSource} contains ${factor} ${targetUnit}. Multiply ${amount} by ${factor} to get ${answer}.`
+      : `Each ${singularSource} contains ${factor} ${targetUnit}, so the total is ${amount} × ${factor} = ${answer}.`,
+    remember: `When changing ${sourceUnit} to smaller ${targetUnit}, multiply by the number of ${singularTarget}s in one ${singularSource}.`,
+  };
+}
+
+function detailedMathGuide(prompt, skill, correctAnswer, studentAnswer) {
+  const question = String(prompt || "").trim();
+  const selected = String(studentAnswer ?? "").trim();
+  const incorrect = (reason) => selected && selected !== String(correctAnswer) ? `${selected} is not correct. ${reason}` : reason;
+  const arithmetic = integerOperationGuide(question, studentAnswer);
+  if (arithmetic) return arithmetic;
+  const conversion = unitConversionGuide(question, studentAnswer);
+  if (conversion) return conversion;
+
+  let match = question.match(/^What is\s+(\d+)\/(\d+)\s*([+−-])\s*(\d+)\/(\d+)\?$/i);
+  if (match && match[2] === match[5]) {
+    const [, left, denominator, operator, right] = match;
+    const numerator = operator === "+" ? Number(left) + Number(right) : Number(left) - Number(right);
+    return {
+      solution_steps: [`The denominators match, so keep ${denominator} as the denominator.`, `${left} ${operator} ${right} = ${numerator}, so the answer is ${numerator}/${denominator}.`],
+      why_wrong: incorrect(`Only the numerators change when the denominators are the same: ${left} ${operator} ${right} = ${numerator}.`),
+      remember: "With like denominators, add or subtract the numerators and keep the denominator.",
+    };
+  }
+
+  match = question.match(/^A [^\d]*₱(\d+(?:\.\d+)?) [^.]*? discounted by (\d+(?:\.\d+)?)%\. How much is the discount\?$/i);
+  if (match) {
+    const [, whole, percent] = match;
+    const result = Number(whole) * (Number(percent) / 100);
+    return {
+      solution_steps: [`Change ${percent}% to a decimal: ${percent} ÷ 100 = ${Number(percent) / 100}.`, `Multiply the price by the decimal: ${whole} × ${Number(percent) / 100} = ${result}.`],
+      why_wrong: incorrect(`The discount is ${percent}% of ₱${whole}, so calculate ${whole} × ${Number(percent) / 100} = ${result}.`),
+      remember: "To find a percentage of an amount, change the percent to a decimal and multiply.",
+    };
+  }
+
+  match = question.match(/^What is the perimeter of a square with side length (\d+(?:\.\d+)?)\s*([^?]*)\?$/i);
+  if (match) {
+    const [, side, unit] = match;
+    const result = Number(side) * 4;
+    return {
+      solution_steps: ["A square has 4 equal sides.", `Multiply the side length by 4: ${side} × 4 = ${result}${unit || ""}.`],
+      why_wrong: incorrect(`Perimeter means all four sides added together: ${side} + ${side} + ${side} + ${side} = ${result}.`),
+      remember: "For a square, perimeter = 4 × side length.",
+    };
+  }
+
+  match = question.match(/^What is the ([xy])-coordinate of \((-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\)\?$/i);
+  if (match) {
+    const [, axis, x, y] = match;
+    const answer = axis.toLowerCase() === "x" ? x : y;
+    return {
+      solution_steps: ["An ordered pair is written as (x, y).", `The ${axis}-coordinate is the ${axis.toLowerCase() === "x" ? "first" : "second"} number: ${answer}.`],
+      why_wrong: incorrect(`In (${x}, ${y}), the ${axis}-coordinate is ${answer}.`),
+      remember: "Read coordinates in order: x first, then y.",
+    };
+  }
+
+  match = question.match(/^What is the next number:\s*([\d,\s-]+),\s*__\?$/i);
+  if (match) {
+    const values = match[1].split(",").map((value) => Number(value.trim())).filter(Number.isFinite);
+    const differences = values.slice(1).map((value, index) => value - values[index]);
+    if (values.length >= 2 && differences.every((difference) => difference === differences[0])) {
+      const next = values.at(-1) + differences[0];
+      const direction = differences[0] >= 0 ? "add" : "subtract";
+      return {
+        solution_steps: [`The pattern changes by ${differences[0]} each time.`, `${direction === "add" ? values.at(-1) + " + " + differences[0] : values.at(-1) + " − " + Math.abs(differences[0])} = ${next}.`],
+        why_wrong: incorrect(`Continue the same change of ${differences[0]} from ${values.at(-1)} to get ${next}.`),
+        remember: "Compare nearby terms to find the rule, then use the same rule one more time.",
+      };
+    }
+  }
+
+  match = question.match(/^Solve:\s*(-?\d+)x\s*([+−-])\s*(\d+)\s*=\s*(-?\d+)\.?$/i);
+  if (match) {
+    const [, coefficientText, sign, constantText, totalText] = match;
+    const coefficient = Number(coefficientText);
+    const constant = Number(constantText) * (sign === "+" ? 1 : -1);
+    const total = Number(totalText);
+    const isolated = total - constant;
+    const answer = isolated / coefficient;
+    return {
+      solution_steps: [`Undo ${constant >= 0 ? "the + " + constant : "the − " + Math.abs(constant)} on both sides: ${coefficient}x = ${isolated}.`, `Divide both sides by ${coefficient}: x = ${isolated} ÷ ${coefficient} = ${answer}.`],
+      why_wrong: incorrect(`First isolate ${coefficient}x, then divide by ${coefficient}; this gives x = ${answer}.`),
+      remember: "Undo addition or subtraction first, then divide by the coefficient.",
+    };
+  }
+
+  match = question.match(/^If x = (-?\d+(?:\.\d+)?), (?:evaluate|what is)\s+(-?\d*)x(?:\s*([+−-])\s*(\d+(?:\.\d+)?))?\?$/i);
+  if (match) {
+    const [, valueText, coefficientText, sign, constantText] = match;
+    const value = Number(valueText);
+    const coefficient = Number(coefficientText || 1);
+    const constant = constantText ? Number(constantText) * (sign === "+" ? 1 : -1) : 0;
+    const product = coefficient * value;
+    const answer = product + constant;
+    return {
+      solution_steps: [`Replace x with ${value}: ${coefficient} × ${value}${constant ? ` ${constant >= 0 ? "+" : "−"} ${Math.abs(constant)}` : ""}.`, `Calculate: ${product}${constant ? ` ${constant >= 0 ? "+" : "−"} ${Math.abs(constant)} = ${answer}` : ""}.`],
+      why_wrong: incorrect(`Substitute ${value} for x before calculating; the result is ${answer}.`),
+      remember: "Substitution means replacing the variable with its given value before doing the arithmetic.",
+    };
+  }
+
+  match = question.match(/^A [^.]* has (\d+(?:\.\d+)?) [^.]* and uses (\d+(?:\.\d+)?)[^.]*\. How many remain\?$/i);
+  if (match) {
+    const [, start, used] = match;
+    const answer = Number(start) - Number(used);
+    return {
+      solution_steps: [`Start with ${start}.`, `Take away ${used}: ${start} − ${used} = ${answer}.`],
+      why_wrong: incorrect(`“Uses” means take away, so subtract ${used} from ${start}.`),
+      remember: "When an amount is used or removed, subtract it from the starting amount.",
+    };
+  }
+
+  if (/even or odd/i.test(question)) {
+    const number = question.match(/\b(\d+)\b/)?.[1];
+    if (number) {
+      const lastDigit = Number(number.at(-1));
+      const answer = lastDigit % 2 === 0 ? "even" : "odd";
+      return {
+        solution_steps: [`Look at the last digit of ${number}: it is ${lastDigit}.`, `${lastDigit} is ${answer}, so ${number} is ${answer}.`],
+        why_wrong: incorrect(`A number is even only when its last digit is 0, 2, 4, 6, or 8. ${number} ends in ${lastDigit}.`),
+        remember: "To check even or odd, look only at the last digit.",
+      };
+    }
+  }
+
+  if (/Comparing & Ordering Numbers/i.test(skill || "")) {
+    match = question.match(/(\d+(?:\.\d+)?)\s*__\s*(\d+(?:\.\d+)?)/);
+    if (match) {
+      const [, left, right] = match;
+      return {
+        solution_steps: [`Compare ${left} and ${right} from the leftmost digit.`, `${left} is ${Number(left) < Number(right) ? "less than" : Number(left) > Number(right) ? "greater than" : "equal to"} ${right}, so use ${correctAnswer}.`],
+        why_wrong: incorrect(`Compare the values, not just the last digit: ${left} ${correctAnswer} ${right}.`),
+        remember: "Compare numbers from the greatest place value first.",
+      };
+    }
+  }
+
+  return null;
+}
+
 // ai_content is a text column, but RPC payloads can hand back an already-parsed
 // object. Accept either instead of blanking the mission when the shape drifts.
 function parseAiContent(raw) {
@@ -39,19 +264,24 @@ function readDraft(key) {
   }
 }
 
-function SolutionGuide({ item, correctAnswer, correct }) {
+function SolutionGuide({ item, correctAnswer, correct, studentAnswer }) {
   const explanation = typeof item.explanation === "string" ? item.explanation.trim() : "";
   const redundantAnswer = /^The correct answer is [A-D]\. .+\. Why\? .+$/i.test(explanation);
   const suppliedSteps = Array.isArray(item.solution_steps)
     ? item.solution_steps.map((step) => String(step || "").trim()).filter(Boolean)
     : [];
+  const explanationSteps = explanation
+    ? explanation.split(/\r?\n+/).map((step) => step.replace(/^\s*\d+\.\s*/, "").trim()).filter(Boolean)
+    : [];
   const workedTriangle = triangleSideSteps(item.item, correctAnswer);
+  const workedGuide = detailedMathGuide(item.prompt || item.question, item.skill, correctAnswer, studentAnswer);
   const genericExplanation = item.item && (explanation === `${item.item} belongs in ${correctAnswer}.` || explanation === "Read the complete sentence and choose the word that makes its meaning correct.");
-  const steps = workedTriangle || (suppliedSteps.length ? suppliedSteps : explanation && !redundantAnswer && !genericExplanation ? [explanation] : []);
-  const remember = item.remember || (typeof item.feedback === "string" ? item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "") : "");
-  const whyWrong = String(item.why_wrong || item.misconception || "").trim();
+  const steps = workedTriangle || workedGuide?.solution_steps || (suppliedSteps.length ? suppliedSteps : explanation && !redundantAnswer && !genericExplanation ? explanationSteps : []);
+  const remember = item.remember || workedGuide?.remember || (typeof item.feedback === "string" ? item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "") : "");
+  const whyWrong = String(item.why_wrong || item.misconception || workedGuide?.why_wrong || "").trim();
   return <div className="mt-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/85">
-    <p className="font-display font-extrabold text-ink">A clear way to work it out</p>
+    <p className="font-display font-extrabold text-ink">How to solve it</p>
+    {correct && <p className="mt-1 leading-relaxed text-ink/70">You got it right. Review these steps so you can use the same method on the next question.</p>}
     {steps.length ? <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
       {steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
       <li><b>Check:</b> the correct answer is <b>{correctAnswer}</b>.</li>
@@ -153,7 +383,8 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
         const question = questions[item.index];
         const correctAnswer = displayAnswer(question, item.correct_answer, mission.formative_type);
         const guideItem = { ...question, ...item, solution_steps: question?.solution_steps || item.solution_steps, remember: question?.remember || item.remember, why_wrong: question?.why_wrong || item.why_wrong, misconception: question?.misconception || item.misconception };
-        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={guideItem} correctAnswer={correctAnswer} correct={item.correct} /></div>;
+        const studentAnswer = displayAnswer(question, item.selected, mission.formative_type);
+        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — learn from the method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{studentAnswer}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={guideItem} correctAnswer={correctAnswer} correct={item.correct} studentAnswer={studentAnswer} /></div>;
       })}</div>}
       {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => { const question = questions[Number(String(item.item || '').match(/Blank\s+(\d+):/)?.[1])] || {}; const guideItem = { ...question, ...item, solution_steps: question.solution_steps || item.solution_steps, remember: question.remember || item.remember, why_wrong: question.why_wrong || item.why_wrong, misconception: question.misconception || item.misconception }; return <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={guideItem} correctAnswer={item.correct_answer} correct={item.correct} /></div>; })}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
