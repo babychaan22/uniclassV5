@@ -105,6 +105,12 @@ for (const index of [0, 1]) {
     last_name: 'ABSENT',
     first_name: 'MEMBER',
   });
+  const duplicateMember = await insert('group_members', {
+    classroom_id: classroom.id,
+    group_id: group.id,
+    last_name: 'DUPLICATE',
+    first_name: 'RECORD',
+  });
   const pendingMember = await insert('group_members', {
     classroom_id: classroom.id,
     group_id: group.id,
@@ -191,6 +197,7 @@ for (const index of [0, 1]) {
   // Keep a second member without an account so the representative's zero-score
   // and absence choices have a real group roster to exercise.
   if (!absentMember.id) throw new Error('E2E absent-member fixture was not created.');
+  if (!duplicateMember.id) throw new Error('E2E duplicate-member fixture was not created.');
 }
 
 console.log(`Seeded two approved classes for ${studentEmail} and teacher ${teacherEmail}; Gacha fixture ${gacha.hash}.`);

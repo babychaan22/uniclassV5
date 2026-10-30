@@ -183,16 +183,26 @@ test.describe('student mobile flows', () => {
     await expect(page.getByText(/already been used/i)).toBeVisible({ timeout: 15_000 });
   });
 
-  test('representative can choose zero or absent for group activity work', async ({ page }) => {
+  test('representative can save zero and absent activity scores', async ({ page }, testInfo) => {
     await login(page, studentEmail, studentPassword, '/student/scores', 'uniclass.activeClassroomId');
     await expect(page.getByRole('heading', { name: /Activity Scores/i })).toBeVisible();
-    const zero = page.getByLabel(/Score for STUDENT/i).first();
-    await expect(zero).toBeVisible({ timeout: 20_000 });
-    await zero.fill('0');
+    const fileInput = page.getByText('Upload group proof images', { exact: true }).locator('..').locator('input[type="file"]');
+    await expect(fileInput).toBeAttached({ timeout: 20_000 });
+    await fileInput.setInputFiles(await createProofFixture(testInfo));
+    await expect(page.getByText(/group proof image.*uploaded/i)).toBeVisible({ timeout: 20_000 });
+    const scoreInputs = page.getByLabel(/^Score for /);
+    await expect(scoreInputs).toHaveCount(4, { timeout: 20_000 });
+    for (let index = 0; index < await scoreInputs.count(); index += 1) await scoreInputs.nth(index).fill('0');
     const absent = page.getByRole('button', { name: 'Mark absent', exact: true }).first();
     await expect(absent).toBeVisible();
     await absent.click();
     await expect(page.getByRole('button', { name: 'Marked absent', exact: true }).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Submit Scores', exact: true }).click();
+    const dialog = page.getByRole('alertdialog', { name: /Submit scores for your group/i });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Confirm & Lock', exact: true }).click();
+    await expect(page.getByText(/Activity 1 is submitted/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Absent — excluded/i)).toBeVisible();
   });
 });
 
@@ -247,7 +257,7 @@ test.describe('teacher mobile flows', () => {
     await expect(page.getByText(/TEST, STUDENT marked absent/i)).toBeVisible({ timeout: 15_000 });
   });
 
-  test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
+  test('teacher can approve, transfer, and remove roster records', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/student-management', 'uniclass.teacher.activeClassroomId');
     const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
@@ -261,8 +271,14 @@ test.describe('teacher mobile flows', () => {
     await move.click();
     const transferDialog = page.getByRole('dialog', { name: /Move records into/i });
     await expect(transferDialog).toBeVisible();
-    await transferDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await transferDialog.getByRole('button', { name: /DUPLICATE, RECORD/i }).click();
+    await transferDialog.getByRole('button', { name: 'Move 1 record', exact: true }).click();
+    const transferConfirmation = page.getByRole('alertdialog', { name: /Move selected student records/i });
+    await expect(transferConfirmation).toBeVisible();
+    await transferConfirmation.getByRole('button', { name: 'Move records', exact: true }).click();
     await expect(transferDialog).toHaveCount(0);
+    await expect(page.getByText(/Merged 1 record into TEST, STUDENT/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('DUPLICATE, RECORD', { exact: true })).toHaveCount(0);
 
     // Remove the seeded account-free member, not the signed-in learner, so
     // this verifies the destructive roster flow without affecting the other
