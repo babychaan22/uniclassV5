@@ -30,7 +30,9 @@ async function selectE2EClass(page) {
   // the section name; select and reload once so every teacher scenario uses
   // E2E-1 even when the teacher owns older real classes too.
   if (!classId) return;
-  await selector.selectOption(classId);
+  // Set the persisted teacher preference before reloading. This avoids a
+  // mid-load class switch racing the panel's first data request.
+  await page.evaluate((id) => window.localStorage.setItem('uniclass.teacher.activeClassroomId', id), classId);
   await page.reload();
 }
 
@@ -113,7 +115,7 @@ test.describe('student mobile flows', () => {
     await fileInput.waitFor({ state: 'attached', timeout: 15_000 }).catch(() => {});
     if (skipScenario(test, await fileInput.count() === 0, 'No editable activity is available in the test classroom.')) return;
     await fileInput.setInputFiles(await createProofFixture(testInfo));
-    await expect(page.getByText(/Proof uploaded and compressed|Proof upload failed/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/group proof image.*uploaded|No group proof images were uploaded|Proof upload failed/i)).toBeVisible({ timeout: 20_000 });
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 
