@@ -8,16 +8,19 @@ import { Eye, CheckCircle2 } from "lucide-react";
 
 // Read-only visual preview of AI-generated mission content for the teacher.
 // Distinct from the student-facing instructions in MissionAssessment/DragDropMatch.
-function WorkedGuide({ guide }) {
+function WorkedGuide({ guide, correctAnswer }) {
   const steps = Array.isArray(guide?.solution_steps)
     ? guide.solution_steps.map((step) => String(step || "").trim()).filter(Boolean)
     : [];
   const remember = String(guide?.remember || "").trim();
+  const whyWrong = String(guide?.why_wrong || guide?.misconception || "").trim();
   return <div className="mt-2 rounded-lg border border-ink/10 bg-white/75 p-2 text-xs text-ink/80">
     <p className="font-display font-bold text-ink">Student review after submission</p>
     <ol className="mt-1 list-decimal space-y-1 pl-4 leading-relaxed">
       {steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+      {correctAnswer && <li><b>Check:</b> the correct answer is <b>{correctAnswer}</b>.</li>}
     </ol>
+    {whyWrong && <p className="mt-2 rounded-md bg-clay-coral/10 px-2 py-1.5"><b>Why another answer would not work:</b> {whyWrong}</p>}
     {remember && <p className="mt-2 border-t border-ink/10 pt-2"><b>Remember:</b> {remember}</p>}
   </div>;
 }
@@ -90,18 +93,18 @@ export default function MissionPreview({ type, content }) {
               : (question.options || [])[Number(answers[index])] ?? "Missing answer";
             return <div key={index} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
               <p className="font-display font-bold">Question {index + 1} · Correct answer: {correct}</p>
-              <WorkedGuide guide={question} />
+              <WorkedGuide guide={question} correctAnswer={correct} />
             </div>;
           })}
           {type === "drag_drop" && (content.left || []).map((item) => <div key={item} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
             <p className="font-display font-bold">{item} · Correct category: {answers[item] || "Missing answer"}</p>
-            <WorkedGuide guide={content.feedback?.[item]} />
+            <WorkedGuide guide={content.feedback?.[item]} correctAnswer={answers[item]} />
           </div>)}
           {type === "fill_in_blank" && Object.entries(answers).map(([key, answer]) => {
             const question = questions[Number(key.split(":")[0])] || {};
             return <div key={key} className="rounded-lg border border-ink/10 bg-cream p-3 text-sm">
               <p className="font-display font-bold">Blank {key} · Correct answer: {String(answer)}</p>
-              <WorkedGuide guide={question} />
+              <WorkedGuide guide={question} correctAnswer={String(answer)} />
             </div>;
           })}
         </div>

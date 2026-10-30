@@ -39,7 +39,7 @@ function readDraft(key) {
   }
 }
 
-function SolutionGuide({ item, correctAnswer }) {
+function SolutionGuide({ item, correctAnswer, correct }) {
   const explanation = typeof item.explanation === "string" ? item.explanation.trim() : "";
   const redundantAnswer = /^The correct answer is [A-D]\. .+\. Why\? .+$/i.test(explanation);
   const suppliedSteps = Array.isArray(item.solution_steps)
@@ -49,12 +49,14 @@ function SolutionGuide({ item, correctAnswer }) {
   const genericExplanation = item.item && (explanation === `${item.item} belongs in ${correctAnswer}.` || explanation === "Read the complete sentence and choose the word that makes its meaning correct.");
   const steps = workedTriangle || (suppliedSteps.length ? suppliedSteps : explanation && !redundantAnswer && !genericExplanation ? [explanation] : []);
   const remember = item.remember || (typeof item.feedback === "string" ? item.feedback.replace(/^Try again\. Read the question slowly and check the steps\. Remember:\s*/i, "") : "");
+  const whyWrong = String(item.why_wrong || item.misconception || "").trim();
   return <div className="mt-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/85">
     <p className="font-display font-extrabold text-ink">A clear way to work it out</p>
     {steps.length ? <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
       {steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
       <li><b>Check:</b> the correct answer is <b>{correctAnswer}</b>.</li>
     </ol> : <p className="mt-2 leading-relaxed">A worked explanation was not saved for this question. Ask your teacher to explain how to reach this answer.</p>}
+    {!correct && <p className="mt-3 rounded-lg bg-clay-coral/10 px-2 py-1.5 leading-relaxed"><span className="font-display font-bold text-ink">Why your answer needs a change:</span> {whyWrong || `Compare your answer with “${correctAnswer}” and use the worked steps above to check the rule or clue.`}</p>}
     {remember && <p className="mt-3 border-t border-ink/10 pt-2 leading-relaxed"><span className="font-display font-bold text-ink">Remember:</span> {remember}</p>}
   </div>;
 }
@@ -150,16 +152,16 @@ export default function MissionAssessment({ mission, group, existing, onDone }) 
       {mission.formative_type !== 'drag_drop' && mission.formative_type !== 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Answer review</p>{review?.items?.map((item) => {
         const question = questions[item.index];
         const correctAnswer = displayAnswer(question, item.correct_answer, mission.formative_type);
-        const guideItem = { ...question, ...item, solution_steps: question?.solution_steps || item.solution_steps, remember: question?.remember || item.remember };
-        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={guideItem} correctAnswer={correctAnswer} /></div>;
+        const guideItem = { ...question, ...item, solution_steps: question?.solution_steps || item.solution_steps, remember: question?.remember || item.remember, why_wrong: question?.why_wrong || item.why_wrong, misconception: question?.misconception || item.misconception };
+        return <div key={item.index} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">Question {item.index + 1} · {item.correct ? 'Correct — check your method' : 'Not quite — learn the method'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{displayAnswer(question, item.selected, mission.formative_type)}</b></p><p className="mt-1">Correct answer: <b>{correctAnswer}</b></p><SolutionGuide item={guideItem} correctAnswer={correctAnswer} correct={item.correct} /></div>;
       })}</div>}
-      {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => { const question = questions[Number(String(item.item || '').match(/Blank\s+(\d+):/)?.[1])] || {}; const guideItem = { ...question, ...item, solution_steps: question.solution_steps || item.solution_steps, remember: question.remember || item.remember }; return <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={guideItem} correctAnswer={item.correct_answer} /></div>; })}</div>}
+      {mission.formative_type === 'fill_in_blank' && <div className="space-y-2"><p className="font-display font-bold text-sm">Blank-by-blank review</p>{review?.items?.map((item) => { const question = questions[Number(String(item.item || '').match(/Blank\s+(\d+):/)?.[1])] || {}; const guideItem = { ...question, ...item, solution_steps: question.solution_steps || item.solution_steps, remember: question.remember || item.remember, why_wrong: question.why_wrong || item.why_wrong, misconception: question.misconception || item.misconception }; return <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}><p className="font-display font-bold">{item.item} · {item.correct ? 'Correct' : 'Not quite'}</p><p className="mt-1 text-xs text-ink/70">Your answer: <b>{item.selected || 'No answer'}</b></p><p className="mt-1">Correct answer: <b>{item.correct_answer}</b></p><SolutionGuide item={guideItem} correctAnswer={item.correct_answer} correct={item.correct} /></div>; })}</div>}
       {mission.formative_type === 'drag_drop' && <div className="space-y-2"><p className="font-display font-bold text-sm">Placement feedback</p>{review?.items?.map((item) => (
         <div key={item.item} className={`rounded-xl border-2 p-3 text-sm ${item.correct ? 'border-clay-lime bg-clay-lime/15' : 'border-clay-coral bg-clay-coral/10'}`}>
           <p className="font-display font-bold">{item.item} · {item.correct ? 'Correct placement' : 'Try again'}</p>
           <p className="mt-1 text-xs">Your category: <b>{item.selected || 'No category selected'}</b></p>
           {!item.correct && <p className="mt-1">Correct category: <b>{item.correct_answer}</b></p>}
-          <SolutionGuide item={item} correctAnswer={item.correct_answer} />
+          <SolutionGuide item={item} correctAnswer={item.correct_answer} correct={item.correct} />
         </div>
       ))}</div>}
       {['true_false', 'multiple_choice'].includes(mission.formative_type) && reviewedScore < reviewedMax && <ClayButton color="sky" size="sm" className="w-full" onClick={beginRetry} disabled={retrying}>{retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RotateCcw className="w-4 h-4" /> Try a fresh variant</>}</ClayButton>}
