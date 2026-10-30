@@ -119,9 +119,9 @@ export default function StudentDashboard() {
       Promise.all([
         db.entities.Attendance.filter({ group_id: group.id }, { columns: 'group_member_id,status,attendance_date' }),
         db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,created_date' }),
-        db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,max_score,created_date' }),
+        db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,title,max_score,is_published,deadline,created_date' }),
         db.entities.ParticipationLog.filter({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
-        db.entities.MissionSubmission.filter({ group_id: group.id }, { columns: 'group_member_id,created_date' }),
+        db.entities.MissionSubmission.filter({ group_id: group.id }, { columns: 'mission_id,group_id,group_member_id,created_date' }),
         supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
       ]).then(([attendance, scores, activities, logs, missionSubmissions, avatarResult]) => {
         if (!active || avatarResult.error) return;
@@ -230,8 +230,23 @@ export default function StudentDashboard() {
   ];
   const dailyQuote = getDailyMotivationQuote(account.id || user?.id, new Date(`${getTodayManila()}T12:00:00Z`));
   const periodMissions = missions.filter(inSelectedPeriod);
-  const nextMission = periodMissions.find((mission) => mission.is_active && mission.approval_status === "approved") || periodMissions.find((mission) => mission.is_active);
+  const activeMissions = periodMissions.filter((mission) => mission.is_active && (mission.approval_status === "approved" || !mission.approval_status));
+  const completedMissionIds = new Set(periodMissionSubmissions
+    .filter((submission) => submission.group_member_id === myMemberId || (!submission.group_member_id && submission.group_id === group.id))
+    .map((submission) => submission.mission_id));
+  const completedMissions = activeMissions.filter((mission) => completedMissionIds.has(mission.id));
+  const pendingMissions = activeMissions.filter((mission) => !completedMissionIds.has(mission.id));
+  const dueMissions = pendingMissions.filter((mission) => mission.deadline)
+    .slice().sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""));
+  const nextMission = pendingMissions[0] || null;
   const nextMissionMinutes = missionEstimate(nextMission);
+  const improvementFocus = myActivityPct < 70
+    ? { label: "Activity skills", detail: `Your activity average is ${Math.round(myActivityPct)}%. Submit your next activity carefully.`, path: ROUTES.STUDENT.SCORES, action: "Open activity" }
+    : myAttendanceRate < 80
+      ? { label: "Attendance habit", detail: `Your attendance is ${myAttendanceRate}%. Scan your class QR code on class days.`, path: ROUTES.STUDENT.SCAN, action: "Open scanner" }
+      : pendingMissions.length
+        ? { label: "Mission practice", detail: `Complete “${pendingMissions[0].title}” to keep your learning moving.`, path: ROUTES.STUDENT.MISSIONS, action: "Open mission" }
+        : { label: "Keep your rhythm", detail: "Your current work is complete. Check back for the next class activity or mission.", path: ROUTES.STUDENT.MISSIONS, action: "View missions" };
   const dashboardAvatarKey = myAvatarKey || DEFAULT_STUDENT_AVATAR;
 
   return (
@@ -276,19 +291,16 @@ export default function StudentDashboard() {
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
           <div className="flex min-h-16 w-16 shrink-0 self-stretch items-center justify-center rounded-2xl bg-white/15 p-1 sm:min-h-20 sm:w-20" aria-hidden="true"><UIAsset name="missions" className="h-full w-full object-contain" /></div>
-          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : "Scan your class QR code"}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : "Every scan and completed activity moves your group closer to its next class goal."}</p></div>
-          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : ROUTES.STUDENT.SCAN} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : "Open scanner"}</Link>
+          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : improvementFocus.label}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : improvementFocus.detail}</p><p className="mt-1 text-[10px] font-display font-bold text-white/70">This period: {completedMissions.length}/{activeMissions.length} mission{activeMissions.length === 1 ? "" : "s"} complete</p></div>
+          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : improvementFocus.path} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : improvementFocus.action}</Link>
         </div>
       </ClayCard>
 
-      {(periodMissions.length > 0 || myActivityPct < 60) && (
+      {(dueMissions.length > 0 || myActivityPct < 70 || myAttendanceRate < 80) && (
         <ClayCard className="p-3">
-          <h3 className="font-display text-xs font-bold text-ink/60 mb-2">Needs attention</h3>
+          <h3 className="font-display text-xs font-bold text-ink/60 mb-2">Your focus for {selectedPeriod.label}</h3>
           <ul className="space-y-1 text-sm">
-            {periodMissions
-              .slice()
-              .sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""))
-              .filter((m) => m.deadline)
+            {dueMissions
               .slice(0, 2)
               .map((m) => (
                 <li key={m.id} className="flex items-center gap-2">
@@ -296,12 +308,13 @@ export default function StudentDashboard() {
                   <span>Due {m.deadline}: {m.title}</span>
                 </li>
               ))}
-            {myActivityPct < 60 && (
+            {myActivityPct < 70 && (
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-coral" />
-                <span>Your activity is below 60% — submit scores soon</span>
+                <span>Activity skills: {Math.round(myActivityPct)}% — submit your next work carefully</span>
               </li>
             )}
+            {myAttendanceRate < 80 && <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-sky" /><span>Attendance habit: {myAttendanceRate}% — scan on every class day</span></li>}
           </ul>
         </ClayCard>
       )}
@@ -327,12 +340,12 @@ export default function StudentDashboard() {
 
       <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-3">
       <NovaMessage variant="teacher" tone="violet" title="Nova's learning tip" className="nova-tip-compact min-w-0 flex-row-reverse !gap-2 !p-2 [&>img]:!h-14 [&>img]:!w-14 sm:[&>img]:!h-16 sm:[&>img]:!w-16 [&>div>h2]:!text-lg [&>div>div]:!text-[9px] [&>div>div]:!leading-snug">
-            {periodMissions.length ? (
+            {pendingMissions.length ? (
               <>
-                <p>You have {periodMissions.length} active mission{periodMissions.length === 1 ? "" : "s"} in this period.</p>
-                <p className="mt-1 text-xs text-ink/55 max-[420px]:hidden">Next up: {periodMissions[0].title}</p>
+                <p>You have {pendingMissions.length} mission{pendingMissions.length === 1 ? "" : "s"} left in this period.</p>
+                <p className="mt-1 text-xs text-ink/55 max-[420px]:hidden">Next up: {pendingMissions[0].title}</p>
               </>
-            ) : <p>No active missions right now. Keep your group streak going.</p>}
+            ) : <p>Mission work is complete for this period. Keep your group streak going.</p>}
             <Link to={ROUTES.STUDENT.MISSIONS} className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold underline">Open missions <ArrowRight className="w-3 h-3" /></Link>
       </NovaMessage>
 
