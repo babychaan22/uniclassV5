@@ -148,6 +148,7 @@ test.describe('student mobile flows', () => {
     await redeem.click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS('z-index', '111');
     const confirm = dialog.getByRole('button', { name: 'Redeem 10 XP', exact: true });
     await expect(confirm).toBeVisible();
     // Verify the protected wallet mutation, rather than the transient toast
@@ -155,7 +156,12 @@ test.describe('student mobile flows', () => {
     const redemption = page.waitForResponse((response) => (
       response.url().includes('/rest/v1/rpc/redeem_mission_points') && response.request().method() === 'POST'
     ));
-    await confirm.click();
+    // Anchored dialogs animate into their viewport position on touch devices.
+    // Use the same native activation the focused button receives from a
+    // keyboard or assistive technology, avoiding a synthetic coordinate that
+    // can race that entrance animation in headless Chromium.
+    await confirm.focus();
+    await page.keyboard.press('Enter');
     const response = await redemption;
     expect(response.ok()).toBeTruthy();
     await expect(dialog).toHaveCount(0, { timeout: 20_000 });
