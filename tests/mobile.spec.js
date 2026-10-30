@@ -235,10 +235,11 @@ test.describe('teacher mobile flows', () => {
   });
 
   test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
+    const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/student-management', 'uniclass.teacher.activeClassroomId');
     const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
     const approvalVisible = await approve.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false);
-    if (!approvalVisible) throw new Error(`The seeded approval control did not render. Visible panel: ${(await page.locator('main').innerText()).replace(/\s+/g, ' ').slice(0, 1200)}`);
+    if (!approvalVisible) throw new Error(`The seeded approval control did not render. Visible panel: ${(await page.locator('main').innerText()).replace(/\s+/g, ' ').slice(0, 1200)} Browser errors: ${errors.join(' | ')}`);
     await approve.click();
     await expect(approve).toHaveCount(0, { timeout: 15_000 });
 
