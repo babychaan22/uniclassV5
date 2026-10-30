@@ -236,6 +236,7 @@ test.describe('teacher mobile flows', () => {
 
   test('teacher can approve a pending account and review destructive flows', async ({ page }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/student-management', 'uniclass.teacher.activeClassroomId');
+    await expect(page.getByLabel('Active class')).toHaveValue(e2eClassroomId, { timeout: 20_000 });
     await expect(page.getByText('PENDING, LEARNER', { exact: true })).toBeVisible({ timeout: 20_000 });
     const approve = page.getByRole('button', { name: 'Approve', exact: true }).first();
     await expect(approve).toBeVisible({ timeout: 20_000 });
