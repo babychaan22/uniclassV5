@@ -263,6 +263,20 @@ test.describe('teacher mobile flows', () => {
     await expect(transferDialog).toBeVisible();
     await transferDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(transferDialog).toHaveCount(0);
+
+    // Remove the seeded account-free member, not the signed-in learner, so
+    // this verifies the destructive roster flow without affecting the other
+    // student scenarios in the same fresh classroom.
+    const absentMember = page.getByText('ABSENT, MEMBER', { exact: true });
+    await expect(absentMember).toBeVisible();
+    const absentRow = absentMember.locator('..');
+    await absentRow.getByRole('button', { name: 'Delete student', exact: true }).click();
+    const removeDialog = page.getByRole('alertdialog', { name: /Remove this student/i });
+    await expect(removeDialog).toBeVisible();
+    const confirmRemoval = removeDialog.getByRole('button', { name: 'Remove student', exact: true });
+    await confirmRemoval.focus();
+    await page.keyboard.press('Enter');
+    await expect(absentMember).toHaveCount(0, { timeout: 20_000 });
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 });
