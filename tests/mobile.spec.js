@@ -150,8 +150,15 @@ test.describe('student mobile flows', () => {
     await expect(dialog).toBeVisible();
     const confirm = dialog.getByRole('button', { name: 'Redeem 10 XP', exact: true });
     await expect(confirm).toBeVisible();
-    await confirm.click({ force: true });
-    await expect(page.getByText(/XP converted to 1 participation point/i)).toBeVisible({ timeout: 20_000 });
+    // Verify the protected wallet mutation, rather than the transient toast
+    // that is deliberately positioned beside the button on mobile screens.
+    const redemption = page.waitForResponse((response) => (
+      response.url().includes('/rest/v1/rpc/redeem_mission_points') && response.request().method() === 'POST'
+    ));
+    await confirm.click();
+    const response = await redemption;
+    expect(response.ok()).toBeTruthy();
+    await expect(dialog).toHaveCount(0, { timeout: 20_000 });
   });
 
   test('Gacha code requires Risk It and cannot be rolled twice', async ({ page }) => {
