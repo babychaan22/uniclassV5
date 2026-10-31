@@ -224,6 +224,21 @@ test.describe('teacher mobile flows', () => {
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 
+  test('teacher can send support reminders and extend an overdue mission', async ({ page }) => {
+    await login(page, teacherEmail, teacherPassword, '/teacher/dashboard', 'uniclass.teacher.activeClassroomId');
+    await expect(page.getByRole('heading', { name: /Needs Support/i })).toBeVisible({ timeout: 20_000 });
+
+    const reminder = page.getByRole('button', { name: 'Send reminder', exact: true }).first();
+    await expect(reminder).toBeVisible();
+    await reminder.click();
+    await expect(page.getByText(/received a private reminder/i)).toBeVisible({ timeout: 15_000 });
+
+    const extend = page.getByRole('button', { name: 'Extend 3 days', exact: true });
+    await expect(extend).toBeVisible({ timeout: 15_000 });
+    await extend.click();
+    await expect(page.getByText(/E2E Overdue Support Mission was extended through/i)).toBeVisible({ timeout: 15_000 });
+  });
+
   test('activity proof review renders mobile evidence cards', async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await login(page, teacherEmail, teacherPassword, '/teacher/evidence', 'uniclass.teacher.activeClassroomId');

@@ -166,6 +166,27 @@ for (const index of [0, 1]) {
     ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is blue.' }] }),
     answer_key: JSON.stringify([true]),
   });
+  // A separate expired assignment exercises the teacher's safe deadline
+  // extension action without changing the active mission used by the student
+  // submission scenario below.
+  const overdueDate = new Date();
+  overdueDate.setUTCDate(overdueDate.getUTCDate() - 1);
+  const overdueMission = await insert('missions', {
+    classroom_id: classroom.id,
+    title: 'E2E Overdue Support Mission',
+    description: 'An expired test assignment for teacher support actions.',
+    xp_reward: 10,
+    max_score: 1,
+    is_active: true,
+    approval_status: 'approved',
+    applies_to_all_classes: false,
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'],
+    created_by: teacher.id,
+    formative_type: 'true_false',
+    deadline: overdueDate.toISOString().slice(0, 10),
+    ai_content: JSON.stringify({ questions: [{ prompt: 'An overdue mission supports the release test.' }] }),
+    answer_key: JSON.stringify([true]),
+  });
 
   // Redemption must not depend on another browser test completing first.
   // Give each isolated E2E learner a separate, already-earned 10-XP credit.
@@ -193,6 +214,7 @@ for (const index of [0, 1]) {
   });
   if (walletCreditError) throw new Error(`Could not seed the E2E wallet credit: ${walletCreditError.message}`);
   if (!activeMission.id) throw new Error('E2E active mission fixture was not created.');
+  if (!overdueMission.id) throw new Error('E2E overdue mission fixture was not created.');
 
   // Keep a second member without an account so the representative's zero-score
   // and absence choices have a real group roster to exercise.
