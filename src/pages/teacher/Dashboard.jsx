@@ -23,7 +23,7 @@ import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaHero from "@/components/mascot/NovaHero";
 import { UIAsset } from "@/components/visual/UIAsset";
 import { ROUTES } from '@/lib/routes';
-import { sendStudentReminder } from '@/lib/secureActions';
+import { sendStudentReminder, updateMission } from '@/lib/secureActions';
 import PanelSkeleton from "@/components/PanelSkeleton";
 
 let teacherDashboardCache = null;
@@ -51,6 +51,7 @@ export default function TeacherDashboard() {
   const [attentionLoading, setAttentionLoading] = useState(true);
   const [reminding, setReminding] = useState('');
   const [reminderMessage, setReminderMessage] = useState('');
+  const [extendingMission, setExtendingMission] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -223,6 +224,31 @@ export default function TeacherDashboard() {
     else if (submission.group_id) members.filter((member) => member.group_id === submission.group_id).forEach((member) => submittedMissionMembers.add(member.id));
   }
   const noRangeMission = rangeMissions.length ? membersWithoutRecord(memberRows, submittedMissionMembers) : [];
+  const now = new Date();
+  const overdueTeacherMissions = missions.filter((mission) => {
+    if (!mission.is_active || mission.approval_status !== 'approved' || mission.mission_source === 'daily_foundation') return false;
+    const deadline = mission.deadline_at || mission.deadline;
+    return deadline && new Date(deadline) < now;
+  });
+  const missedOverdueMissionRows = memberRows.filter((row) => overdueTeacherMissions.some((mission) => !submissions.some((submission) => (
+    submission.mission_id === mission.id
+    && (submission.group_member_id === row.member.id || (!submission.group_member_id && submission.group_id === row.member.group_id))
+  ))));
+  const recentStart = new Date(`${todayStr}T12:00:00+08:00`);
+  recentStart.setDate(recentStart.getDate() - 7);
+  const recentStartDay = recentStart.toISOString().slice(0, 10);
+  const recentlyActiveMemberIds = new Set([
+    ...attendance.filter((record) => String(record.attendance_date || '').slice(0, 10) >= recentStartDay).map((record) => record.group_member_id),
+    ...scores.filter((score) => String(score.created_date || '').slice(0, 10) >= recentStartDay).map((score) => score.group_member_id),
+    ...logs.filter((log) => String(log.created_date || '').slice(0, 10) >= recentStartDay).map((log) => log.group_member_id),
+  ].filter(Boolean));
+  for (const submission of submissions) {
+    const submittedDay = String(submission.submitted_at || submission.created_date || '').slice(0, 10);
+    if (submittedDay < recentStartDay) continue;
+    if (submission.group_member_id) recentlyActiveMemberIds.add(submission.group_member_id);
+    else if (submission.group_id) members.filter((member) => member.group_id === submission.group_id).forEach((member) => recentlyActiveMemberIds.add(member.id));
+  }
+  const noRecentActivityRows = memberRows.filter((row) => !recentlyActiveMemberIds.has(row.member.id));
   // This is the classroom's earned-points ledger, not the personal-points
   // classification metric. It intentionally includes QR scans, mission XP
   // redemptions, manual awards, and every other positive participation event.
@@ -269,8 +295,12 @@ export default function TeacherDashboard() {
   });
   const memberLabel = (row) => `${row.member.last_name}, ${row.member.first_name}`;
   const attentionCategories = [
+    { label: "Missing attendance", rows: noAttendanceInRange, detail: () => `No record ${rangeLabel}`, reminder: { kind: 'attendance', title: 'Attendance reminder', body: 'Please record your attendance for your scheduled class day.', link: ROUTES.STUDENT.ATTENDANCE }, action: { label: 'Take attendance', path: ROUTES.TEACHER.ATTENDANCE } },
+    { label: "Missing activity work", rows: noRangeActivity, detail: () => `No score ${rangeLabel}`, reminder: { kind: 'mission', title: 'Activity reminder', body: 'Your group has activity work that still needs a score or absence record.', link: ROUTES.STUDENT.SCORES }, action: { label: 'Review activities', path: ROUTES.TEACHER.ACTIVITIES } },
+    { label: "Missed teacher missions", rows: missedOverdueMissionRows, detail: () => `${overdueTeacherMissions.length} overdue`, reminder: { kind: 'mission', title: 'Mission support reminder', body: 'A teacher-assigned mission needs your attention. Check Missions for the next step.', link: ROUTES.STUDENT.MISSIONS } },
     { label: "Low attendance", rows: lowAttendanceRows, detail: (row) => { const stats = rangeAttendanceStats.get(row.member.id); return `${Math.round((stats.present / stats.total) * 100)}%`; }, reminder: { kind: 'attendance', title: 'Attendance check-in', body: 'Please check your attendance record and speak with your teacher if it needs attention.', link: ROUTES.STUDENT.ATTENDANCE }, action: { label: 'Review attendance', path: ROUTES.TEACHER.ATTENDANCE } },
-    { label: "Low activity average", rows: lowActivityRows, detail: (row) => { const stats = rangeActivityStats.get(row.member.id); return `${Math.round((stats.earned / stats.max) * 100)}%`; }, reminder: { kind: 'mission', title: 'Activity support reminder', body: 'Please review your activity scores and ask your teacher for support with any difficult work.', link: ROUTES.STUDENT.SCORES }, action: { label: 'Plan reteach', path: ROUTES.TEACHER.ANALYTICS } },
+    { label: "Low activity average", rows: lowActivityRows, detail: (row) => { const stats = rangeActivityStats.get(row.member.id); return `${Math.round((stats.earned / stats.max) * 100)}%`; }, reminder: { kind: 'mission', title: 'Activity support reminder', body: 'Please review your activity scores and ask your teacher for support with any difficult work.', link: ROUTES.STUDENT.SCORES }, action: { label: 'Plan reteach', onClick: planReteach } },
+    { label: "No recent activity", rows: noRecentActivityRows, detail: () => "7 days", reminder: { kind: 'mission', title: 'We miss your learning progress', body: 'Open UniClass to see your next attendance, activity, or mission step.', link: ROUTES.STUDENT.DASHBOARD } },
     { label: "Below class points", rows: lowParticipationRows, detail: (row) => `${rangePointsByMember.get(row.member.id) || 0} pts`, reminder: { kind: 'points', title: 'Keep participating', body: 'Your teacher would like you to take part in the next class activity and check your progress.', link: ROUTES.STUDENT.DASHBOARD }, action: { label: 'View progress', path: ROUTES.TEACHER.ANALYTICS } },
     { label: "Join approvals", rows: pending, detail: () => "Awaiting approval", account: true },
     { label: "Score edit approvals", rows: scoreEdits, detail: () => "Review score edit", edit: true },
@@ -290,6 +320,38 @@ export default function TeacherDashboard() {
     } finally {
       setReminding('');
     }
+  }
+
+  async function extendMission(mission) {
+    if (!mission?.id || extendingMission) return;
+    const extension = new Date(`${todayStr}T12:00:00+08:00`);
+    extension.setDate(extension.getDate() + 3);
+    const deadline = extension.toISOString().slice(0, 10);
+    setExtendingMission(mission.id);
+    setReminderMessage('');
+    try {
+      await updateMission(mission.id, { deadline, deadline_at: new Date(`${deadline}T23:59:00+08:00`).toISOString() });
+      invalidateClassroomDataset();
+      setReminderMessage(`${mission.title || 'Mission'} was extended through ${deadline}.`);
+      await refresh();
+    } catch (error) {
+      setReminderMessage(error?.message || 'The mission deadline could not be extended.');
+    } finally {
+      setExtendingMission('');
+    }
+  }
+
+  function planReteach() {
+    navigate(ROUTES.TEACHER.MISSIONS, {
+      state: {
+        intervention: {
+          title: 'Reteach: activity support',
+          content: 'Create a short, targeted reteach mission for learners with low activity results.',
+          learning_target: 'I can use the skill I need more practice with.',
+          assessment_purpose: 'reteach',
+        },
+      },
+    });
   }
 
   async function approveAll(ids) {
@@ -378,9 +440,10 @@ export default function TeacherDashboard() {
           </div>
         </ClayCard>
         <ClayCard className="p-4">
-          <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink/60"><UIAsset name="attention" className="h-7 w-7" /> Needs Attention · {rangeLabel}</h3>
-          <p className="mb-3 text-xs text-ink/50">Learners’ quick snapshot for the selected period, plus approvals that need teacher decisions.</p>
-          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="uc-compact-scroll flex max-h-28 flex-wrap content-start gap-1 overflow-y-auto pr-1">{category.rows.map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : category.account ? ROUTES.TEACHER.STUDENT_MANAGEMENT : ROUTES.TEACHER.ROSTER} className="max-w-full shrink-0 truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div>{category.reminder && <ClayButton color="sky" size="sm" className="mt-2 w-full" disabled={Boolean(reminding)} onClick={() => remindCategory(category)}>{reminding === category.label ? 'Sending…' : 'Send reminder'}</ClayButton>}{category.action && <Link to={category.action.path} className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-white px-2 py-1.5 text-[10px] font-display font-extrabold text-clay-purple shadow-sm">{category.action.label} →</Link>}</div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
+          <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink/60"><UIAsset name="attention" className="h-7 w-7" /> Needs Support · {rangeLabel}</h3>
+          <p className="mb-3 text-xs text-ink/50">Quickly identify missed work, low results, and learners who have been inactive—then remind, extend, or plan support.</p>
+          {attentionCategories.length ? <div className="flex flex-wrap gap-2">{attentionCategories.map((category) => <div key={category.label} className="min-w-44 flex-1 rounded-xl bg-[var(--uc-bg)] px-2.5 py-2"><p className="mb-1.5 text-[11px] font-display font-extrabold text-[var(--uc-navy-950)]">{category.label} <span className="text-ink/45">({category.rows.length})</span></p><div className="uc-compact-scroll flex max-h-28 flex-wrap content-start gap-1 overflow-y-auto pr-1">{category.rows.map((item) => { const row = category.edit ? memberRows.find((candidate) => candidate.member.id === item.group_member_id) : item; const label = category.account ? `${item.first_name || "Student"} ${item.last_name || "account"}` : category.edit ? row ? memberLabel(row) : "Student" : memberLabel(item); return <Link key={item.id || item.member?.id} to={category.edit ? ROUTES.TEACHER.EVIDENCE : category.account ? ROUTES.TEACHER.STUDENT_MANAGEMENT : ROUTES.TEACHER.ROSTER} className="max-w-full shrink-0 truncate rounded-full bg-white px-2 py-1 text-[10px] font-display font-bold text-[var(--uc-navy-950)] shadow-sm">{label} <span className="text-ink/45">· {category.detail(item)}</span></Link>; })}</div>{category.reminder && <ClayButton color="sky" size="sm" className="mt-2 w-full" disabled={Boolean(reminding)} onClick={() => remindCategory(category)}>{reminding === category.label ? 'Sending…' : 'Send reminder'}</ClayButton>}{category.action && (category.action.onClick ? <ClayButton color="purple" size="sm" className="mt-2 w-full" onClick={category.action.onClick}>{category.action.label}</ClayButton> : <Link to={category.action.path} className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-white px-2 py-1.5 text-[10px] font-display font-extrabold text-clay-purple shadow-sm">{category.action.label} →</Link>)}</div>)}</div> : <p className="rounded-xl bg-[var(--uc-bg)] px-3 py-2 text-xs text-ink/55">All clear — no learner or approval needs a decision right now.</p>}
+          {overdueTeacherMissions.length > 0 && <div className="mt-3 rounded-xl border border-clay-coral/25 bg-clay-coral/10 p-2.5"><p className="text-[11px] font-display font-extrabold text-clay-coral">Overdue teacher missions</p><div className="mt-2 flex flex-wrap gap-2">{overdueTeacherMissions.map((mission) => <div key={mission.id} className="flex min-w-48 flex-1 items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2"><span className="min-w-0 truncate text-[10px] font-display font-bold text-[var(--uc-navy-950)]">{mission.title || 'Untitled mission'}</span><ClayButton color="coral" size="sm" disabled={Boolean(extendingMission)} onClick={() => extendMission(mission)}>{extendingMission === mission.id ? 'Extending…' : 'Extend 3 days'}</ClayButton></div>)}</div></div>}
           {reminderMessage && <p role="status" className="mt-2 text-xs font-display font-bold text-ink/65">{reminderMessage}</p>}
         </ClayCard>
       </section>
