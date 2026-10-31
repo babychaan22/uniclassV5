@@ -13,6 +13,7 @@ import ClayChip from "@/components/ClayChip";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { computeAttendanceStreak, computeActivityPct, computeParticipationPoints, computeEngagementStreak } from "@/lib/stats";
 import { getTodayManila, getWeekStartManila, isDateInRange } from "@/lib/week";
+import { hasClassDays, isScheduledClassDay } from "@/lib/classDays";
 import DashboardRangeTabs from "@/components/DashboardRangeTabs";
 import NovaMessage from "@/components/NovaMessage";
 import UserAvatar, { DEFAULT_STUDENT_AVATAR } from "@/components/visual/UserAvatar";
@@ -118,7 +119,7 @@ export default function StudentDashboard() {
       // delayed historical dataset cannot make the page appear broken.
       Promise.all([
         db.entities.Attendance.filter({ group_id: group.id }, { columns: 'group_member_id,status,attendance_date' }),
-        db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,created_date' }),
+        db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,is_absent,created_date' }),
         db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,title,max_score,is_published,deadline,created_date' }),
         db.entities.ParticipationLog.filter({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
         db.entities.MissionSubmission.filter({ group_id: group.id }, { columns: 'mission_id,group_id,group_member_id,created_date' }),
@@ -215,7 +216,7 @@ export default function StudentDashboard() {
     .reduce((total, log) => total + Number(log.points_awarded || 0), 0);
   const qrParticipationRate = groupQrScanPoints > 0 ? Math.round((myQrScanPoints / groupQrScanPoints) * 100) : 0;
   const statusAction = [
-    myAttendanceRate < 60 && "Scan QR",
+    myAttendanceRate < 60 && "record attendance",
     myActivityPct < 60 && "submit work",
   ].filter(Boolean).slice(0, 2).join(" + ") || "Keep going";
   const progressStatus = myAttendanceRate >= 80 && myActivityPct >= 70
@@ -238,15 +239,29 @@ export default function StudentDashboard() {
   const pendingMissions = activeMissions.filter((mission) => !completedMissionIds.has(mission.id));
   const dueMissions = pendingMissions.filter((mission) => mission.deadline)
     .slice().sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""));
-  const nextMission = pendingMissions[0] || null;
+  const today = getTodayManila();
+  const todayIsClassDay = !hasClassDays(classroom?.class_days)
+    || isScheduledClassDay(new Date(`${today}T00:00:00Z`), classroom?.class_days);
+  const hasRecordedAttendanceToday = attendance.some((entry) => entry.group_member_id === myMemberId && entry.attendance_date === today);
+  const overdueMission = dueMissions.find((mission) => mission.deadline < today) || null;
+  const dueSoonMission = dueMissions.find((mission) => {
+    if (mission.deadline < today) return false;
+    const daysAway = Math.round((new Date(`${mission.deadline}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / 86_400_000);
+    return daysAway <= 3;
+  }) || null;
+  const nextMission = overdueMission || dueSoonMission || pendingMissions[0] || null;
   const nextMissionMinutes = missionEstimate(nextMission);
-  const improvementFocus = myActivityPct < 70
-    ? { label: "Activity skills", detail: `Your activity average is ${Math.round(myActivityPct)}%. Submit your next activity carefully.`, path: ROUTES.STUDENT.SCORES, action: "Open activity" }
-    : myAttendanceRate < 80
-      ? { label: "Attendance habit", detail: `Your attendance is ${myAttendanceRate}%. Scan your class QR code on class days.`, path: ROUTES.STUDENT.SCAN, action: "Open scanner" }
-      : pendingMissions.length
-        ? { label: "Mission practice", detail: `Complete “${pendingMissions[0].title}” to keep your learning moving.`, path: ROUTES.STUDENT.MISSIONS, action: "Open mission" }
-        : { label: "Keep your rhythm", detail: "Your current work is complete. Check back for the next class activity or mission.", path: ROUTES.STUDENT.MISSIONS, action: "View missions" };
+  const nextAction = overdueMission
+    ? { label: "Finish an overdue mission", detail: `“${overdueMission.title}” was due ${overdueMission.deadline}. Complete it now and ask your teacher if you need support.`, path: ROUTES.STUDENT.MISSIONS, action: "Open mission", mission: overdueMission, tone: "urgent" }
+    : dueSoonMission
+      ? { label: "Mission due soon", detail: `“${dueSoonMission.title}” is due ${dueSoonMission.deadline}. Start it before the deadline.`, path: ROUTES.STUDENT.MISSIONS, action: "Start mission", mission: dueSoonMission, tone: "soon" }
+      : todayIsClassDay && !hasRecordedAttendanceToday
+        ? { label: "Record today’s attendance", detail: "Your class is scheduled today. Record and submit your attendance, or ask your group representative to submit it for the group.", path: ROUTES.STUDENT.ATTENDANCE, action: "Record attendance", tone: "today" }
+        : myActivityPct < 70
+          ? { label: "Strengthen activity skills", detail: `Your activity average is ${Math.round(myActivityPct)}%. Open activity scores to see what needs attention.`, path: ROUTES.STUDENT.SCORES, action: "View activity", tone: "support" }
+          : nextMission
+            ? { label: "Continue mission practice", detail: `Complete “${nextMission.title}” to keep your learning moving.`, path: ROUTES.STUDENT.MISSIONS, action: "Start mission", mission: nextMission, tone: "normal" }
+            : { label: "Keep your rhythm", detail: "Your current work is complete. Check back for the next class activity or mission.", path: ROUTES.STUDENT.MISSIONS, action: "View missions", tone: "complete" };
   const dashboardAvatarKey = myAvatarKey || DEFAULT_STUDENT_AVATAR;
 
   return (
@@ -291,8 +306,8 @@ export default function StudentDashboard() {
       <ClayCard color="purple" className="no-print p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-4 text-white">
           <div className="flex min-h-16 w-16 shrink-0 self-stretch items-center justify-center rounded-2xl bg-white/15 p-1 sm:min-h-20 sm:w-20" aria-hidden="true"><UIAsset name="missions" className="h-full w-full object-contain" /></div>
-          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextMission ? nextMission.title : improvementFocus.label}</p><p className="text-xs text-white/75">{nextMission ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextMission.xp_reward || 0} personal XP.` : improvementFocus.detail}</p><p className="mt-1 text-[10px] font-display font-bold text-white/70">This period: {completedMissions.length}/{activeMissions.length} mission{activeMissions.length === 1 ? "" : "s"} complete</p></div>
-          <Link to={nextMission ? ROUTES.STUDENT.MISSIONS : improvementFocus.path} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextMission ? "Start mission" : improvementFocus.action}</Link>
+          <div className="min-w-0 flex-1"><p className="font-display text-sm font-bold text-white/75">Your next step</p><p className="font-display text-lg font-extrabold">{nextAction.label}</p><p className="text-xs text-white/75">{nextAction.mission && nextAction.tone === "normal" ? `${nextMissionMinutes ? `${nextMissionMinutes} min · ` : ""}Earn up to ${nextAction.mission.xp_reward || 0} personal XP.` : nextAction.detail}</p><p className="mt-1 text-[10px] font-display font-bold text-white/70">This period: {completedMissions.length}/{activeMissions.length} mission{activeMissions.length === 1 ? "" : "s"} complete</p></div>
+          <Link to={nextAction.path} className="clay-btn shrink-0 bg-clay-lime px-4 py-2 text-sm font-display font-bold text-ink">{nextAction.action}</Link>
         </div>
       </ClayCard>
 
@@ -314,7 +329,7 @@ export default function StudentDashboard() {
                 <span>Activity skills: {Math.round(myActivityPct)}% — submit your next work carefully</span>
               </li>
             )}
-            {myAttendanceRate < 80 && <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-sky" /><span>Attendance habit: {myAttendanceRate}% — scan on every class day</span></li>}
+            {myAttendanceRate < 80 && <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay-sky" /><span>Attendance habit: {myAttendanceRate}% — submit attendance on every class day</span></li>}
           </ul>
         </ClayCard>
       )}
