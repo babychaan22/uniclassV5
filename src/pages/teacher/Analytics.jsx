@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { BarChart3, CheckCircle2, ClipboardCheck, Medal, Target, TrendingUp } from "lucide-react";
@@ -114,6 +114,24 @@ function QuestionMasteryInsights({ questions = [], onReteach }) {
   </div>;
 }
 
+function ClassLearningInsights({ missions = [], source, onSourceChange, onInspect, onReteach }) {
+  const measured = missions.flatMap((mission) => (mission.questions || [])
+    .filter((question) => question.total > 0)
+    .map((question) => ({ ...question, mission })));
+  if (!measured.length) return null;
+  const strongest = measured.reduce((best, item) => item.pct > best.pct ? item : best);
+  const weakest = measured.reduce((worst, item) => item.pct < worst.pct ? item : worst);
+  const allMastered = weakest.pct >= 80;
+  const answerCount = measured.reduce((total, item) => total + item.total, 0);
+  return <ClayCard className="p-4">
+    <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-2"><Target className="mt-0.5 h-4 w-4 text-[var(--uc-purple)]" /><div><h2 className="font-display text-sm font-extrabold">Class learning signals</h2><p className="mt-0.5 text-xs text-ink/55">Based on {answerCount.toLocaleString()} answer record{answerCount === 1 ? "" : "s"} in the selected mission source.</p></div></div><MissionSourceFilters value={source} onChange={onSourceChange} /></div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="rounded-xl bg-[var(--uc-green-soft)] px-3 py-2 text-xs text-[#477f28]"><p className="font-display font-extrabold">Strongest skill · {strongest.pct}%</p><p className="mt-1 line-clamp-2">{strongest.prompt}</p><p className="mt-1 text-[10px] opacity-80">Evidence: {strongest.mission.label}</p><button type="button" className="mt-2 text-[10px] font-display font-extrabold underline" onClick={() => onInspect(strongest.mission)}>Review mission evidence</button></div>
+      {allMastered ? <div className="rounded-xl bg-[var(--uc-green-soft)] px-3 py-2 text-xs text-[#477f28]"><p className="font-display font-extrabold">No urgent reteach signal</p><p className="mt-1">Every measured question is at least 80% correct. Keep the next practice fresh and challenging.</p><button type="button" className="mt-2 text-[10px] font-display font-extrabold underline" onClick={() => onInspect(weakest.mission)}>Review mission evidence</button></div> : <div className="rounded-xl bg-[#FFF0F3] px-3 py-2 text-xs text-[#B94B63]"><p className="font-display font-extrabold">Priority skill · {weakest.pct}%</p><p className="mt-1 line-clamp-2">{weakest.prompt}</p>{weakest.commonWrongAnswer && <p className="mt-1 line-clamp-2"><span className="font-display font-bold">Common wrong response:</span> {weakest.commonWrongAnswer}</p>}{weakest.misconception && <p className="mt-1 line-clamp-2"><span className="font-display font-bold">Likely gap:</span> {weakest.misconception}</p>}<div className="mt-2 flex flex-wrap gap-2"><button type="button" className="text-[10px] font-display font-extrabold underline" onClick={() => onInspect(weakest.mission)}>Review evidence</button><button type="button" className="text-[10px] font-display font-extrabold underline" onClick={() => onReteach(weakest.mission, weakest)}>Create targeted reteach mission</button></div></div>}
+    </div>
+  </ClayCard>;
+}
+
 function InterventionPlan({ mission, onReteach }) {
   const measured = mission?.questions?.filter((question) => question.total > 0) || [];
   if (!mission || !measured.length) return null;
@@ -161,6 +179,7 @@ export default function TeacherAnalytics() {
   const [hovered, setHovered] = useState({ attendance: null, activities: null, points: null, mastery: null, completion: null });
   const [error, setError] = useState("");
   const [missionSource, setMissionSource] = useState("all");
+  const missionMasteryRef = useRef(null);
 
   function startReteach(mission, question) {
     navigate(ROUTES.TEACHER.MISSIONS, {
@@ -181,6 +200,11 @@ export default function TeacherAnalytics() {
         },
       },
     });
+  }
+
+  function inspectMissionEvidence(mission) {
+    setHovered((current) => ({ ...current, mastery: mission }));
+    window.requestAnimationFrame(() => missionMasteryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   useEffect(() => { load(); }, [user]);
@@ -333,6 +357,7 @@ export default function TeacherAnalytics() {
 
   return <div className="mx-auto max-w-4xl space-y-5">
     <div><h1 className="flex items-center gap-2 text-2xl font-display font-extrabold"><BarChart3 className="h-6 w-6" /> Teacher analytics</h1><p className="mt-1 text-sm text-ink/60">Select any bar—or choose it below—to open a contained student or group breakdown.</p></div>
+    <ClassLearningInsights missions={visibleMissions} source={missionSource} onSourceChange={setMissionSource} onInspect={inspectMissionEvidence} onReteach={startReteach} />
 
     <ClayCard className="p-4"><div className="mb-2 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-display font-bold"><ClipboardCheck className="h-4 w-4" /> Attendance rate</h2><select aria-label="Analytics date range" className="clay-input w-auto py-1 text-xs" value={range} onChange={(event) => setRange(event.target.value)}><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="12">12 weeks</option><option value="all">All</option></select></div>{visibleAttendance.length ? <ResponsiveContainer width="100%" height={160}><BarChart data={visibleAttendance} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("attendance")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="week" tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#8B5CF61A" }} /><Bar dataKey="rate" fill="#8B5CF6" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No attendance recorded yet.</p>}<ChartDetailPicker label="week" entries={visibleAttendance} selected={hovered.attendance} onSelect={(entry) => setHovered((current) => ({ ...current, attendance: entry }))} /><ContainedDetail title="Attendance" entry={hovered.attendance}><div className="grid grid-cols-2 gap-3"><div><p className="font-display font-bold text-clay-lime">Present ({hovered.attendance?.present || 0})</p><CompactNameList names={hovered.attendance?.presentNames} /></div><div><p className="font-display font-bold text-clay-coral">Absent ({hovered.attendance?.absent || 0})</p><CompactNameList names={hovered.attendance?.absentNames} /></div></div></ContainedDetail></ClayCard>
 
@@ -341,7 +366,7 @@ export default function TeacherAnalytics() {
     <ClayCard className="p-4"><h2 className="mb-2 flex items-center gap-2 text-sm font-display font-bold"><Medal className="h-4 w-4" /> Participation points</h2>{analytics.points.some((item) => item.points !== 0) ? <ResponsiveContainer width="100%" height={160}><BarChart data={analytics.points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} {...chartProps("points")}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#17162B18" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip content={() => null} cursor={{ fill: "#FF5FA81A" }} /><Bar dataKey="points" fill="#FF5FA8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-6 text-center text-sm text-ink/50">No participation points logged yet.</p>}<ChartDetailPicker label="group" entries={analytics.points} selected={hovered.points} onSelect={(entry) => setHovered((current) => ({ ...current, points: entry }))} /><ContainedDetail title="Participation points" entry={hovered.points}><p className="font-display font-bold">Whole Group: {hovered.points?.wholeGroup || 0} points</p>{hovered.points?.wholeGroupDeductions < 0 && <p className="mt-1 text-xs font-display font-bold text-clay-coral">Whole-group deductions: {hovered.points.wholeGroupDeductions} · personal points are unchanged</p>}{hovered.points?.students?.length ? <ul className="mt-1 space-y-0.5">{hovered.points.students.map((student) => <li key={student.name} className="flex justify-between gap-3"><span className="truncate">{student.name}</span><span className="font-mono">{student.points}</span></li>)}</ul> : <p className="mt-1">No individual point entries.</p>}<p className="mt-2 border-t border-ink/10 pt-1 font-display font-extrabold">Group total: {hovered.points?.points || 0} points</p></ContainedDetail></ClayCard>
 
     <div className="grid gap-4 lg:grid-cols-2">
-      <ClayCard className="p-4">
+      <ClayCard ref={missionMasteryRef} className="p-4">
         <h2 className="flex items-center gap-2 text-sm font-display font-bold"><Target className="h-4 w-4" /> Mission mastery</h2>
         <p className="mt-1 text-xs text-ink/55">Accuracy across active and archived teacher/AI missions and Daily Power-Ups.</p>
         <MissionSourceFilters value={missionSource} onChange={setMissionSource} />
