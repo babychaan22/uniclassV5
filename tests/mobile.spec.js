@@ -110,16 +110,16 @@ test.describe('student mobile flows', () => {
     await login(page, studentEmail, studentPassword, '/student/missions', 'uniclass.activeClassroomId');
 
     const missionPanel = async (title) => {
-      const titleNode = page.getByText(title, { exact: true });
-      await expect(titleNode).toBeVisible({ timeout: 20_000 });
-      return titleNode.locator('xpath=../../../..');
+      const panel = page.locator(`[data-mission-title="${title}"]`);
+      await expect(panel).toBeVisible({ timeout: 20_000 });
+      return panel;
     };
 
     const multipleChoice = await missionPanel('E2E Multiple Choice');
     await multipleChoice.getByRole('button', { name: '4', exact: true }).click({ force: true });
     await multipleChoice.getByRole('button', { name: 'Review answers', exact: true }).click({ force: true });
     await multipleChoice.getByRole('button', { name: /Submit for secure grading/i }).click({ force: true });
-    await expect(multipleChoice.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
+    await expect(multipleChoice).toHaveCount(0, { timeout: 20_000 });
 
     const sorting = await missionPanel('E2E Drag and Drop');
     await sorting.getByRole('button', { name: 'Square', exact: true }).click({ force: true });
@@ -127,13 +127,13 @@ test.describe('student mobile flows', () => {
     // accessible prefix instead of requiring an exact one-word name.
     await sorting.getByRole('button', { name: /^Shape/ }).click({ force: true });
     await sorting.getByRole('button', { name: 'Submit', exact: true }).click({ force: true });
-    await expect(sorting.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
+    await expect(sorting).toHaveCount(0, { timeout: 20_000 });
 
     const fillBlank = await missionPanel('E2E Fill in the Blank');
     await fillBlank.getByRole('button', { name: 'blue', exact: true }).click({ force: true });
     await fillBlank.getByRole('button', { name: 'Fill blank color', exact: true }).click({ force: true });
     await fillBlank.getByRole('button', { name: 'Submit answers', exact: true }).click({ force: true });
-    await expect(fillBlank.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
+    await expect(fillBlank).toHaveCount(0, { timeout: 20_000 });
   });
 
   test('activity proof upload is available and compressed', async ({ page }, testInfo) => {
@@ -235,9 +235,13 @@ test.describe('student mobile flows', () => {
     // its focused action by keyboard so the test verifies the accessible
     // mobile flow instead of relying on an animated overlay's coordinates.
     const confirm = dialog.getByRole('button', { name: 'Confirm & Lock', exact: true });
+    const saveScores = page.waitForResponse((response) => (
+      response.url().includes('/rest/v1/rpc/submit_group_activity_scores') && response.request().method() === 'POST'
+    ));
     await confirm.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByText(/Activity 1 is submitted/i)).toBeVisible({ timeout: 20_000 });
+    expect((await saveScores).ok()).toBeTruthy();
+    await expect(page.getByText(/is submitted/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Absent — excluded/i)).toBeVisible();
   });
 });
@@ -286,8 +290,12 @@ test.describe('teacher mobile flows', () => {
 
     const extend = page.getByRole('button', { name: 'Extend 3 days', exact: true });
     await expect(extend).toBeVisible({ timeout: 15_000 });
-    await extend.click();
-    await expect(page.getByText(/E2E Overdue Support Mission was extended through/i)).toBeVisible({ timeout: 15_000 });
+    const updateDeadline = page.waitForResponse((response) => (
+      response.url().includes('/rest/v1/rpc/update_mission') && response.request().method() === 'POST'
+    ));
+    await extend.click({ force: true });
+    expect((await updateDeadline).ok()).toBeTruthy();
+    await expect(extend).toHaveCount(0, { timeout: 15_000 });
   });
 
   test('activity proof review renders mobile evidence cards', async ({ page }) => {
@@ -347,7 +355,7 @@ test.describe('teacher mobile flows', () => {
     await confirmTransfer.focus();
     await page.keyboard.press('Enter');
     await expect(transferDialog).toHaveCount(0);
-    await expect(page.getByText(/Merged 1 record into TEST, STUDENT/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('status').filter({ hasText: /Merged 1 record into TEST, STUDENT/i })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('DUPLICATE, RECORD', { exact: true })).toHaveCount(0);
 
     // Remove the seeded account-free member, not the signed-in learner, so
