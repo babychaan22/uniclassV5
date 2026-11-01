@@ -76,8 +76,10 @@ test.describe('student mobile flows', () => {
     const errors = collectBrowserErrors(page);
     await login(page, studentEmail, studentPassword, '/student/missions', 'uniclass.activeClassroomId');
     await expect(page.getByRole('heading', { name: /Missions/i }).first()).toBeVisible();
-    const trueAnswer = page.getByRole('button', { name: 'True', exact: true }).first();
-    const falseAnswer = page.getByRole('button', { name: 'False', exact: true }).first();
+    const mission = page.locator('[data-mission-title="E2E Mission"]');
+    await expect(mission).toBeVisible({ timeout: 20_000 });
+    const trueAnswer = mission.getByRole('button', { name: 'True', exact: true });
+    const falseAnswer = mission.getByRole('button', { name: 'False', exact: true });
     if (skipScenario(test, await trueAnswer.count() === 0 && await falseAnswer.count() === 0, 'No active mission is available in the test classroom.')) return;
     // The clay card's entrance animation can momentarily overlap its answer
     // controls on a narrow viewport. This is a known, visible control, so use
@@ -85,11 +87,11 @@ test.describe('student mobile flows', () => {
     if (await trueAnswer.count()) await trueAnswer.click({ force: true });
     else await falseAnswer.click({ force: true });
 
-    const reviewAnswers = page.getByRole('button', { name: 'Review answers', exact: true }).first();
+    const reviewAnswers = mission.getByRole('button', { name: 'Review answers', exact: true });
     await expect(reviewAnswers).toBeEnabled();
     await reviewAnswers.click({ force: true });
 
-    const submit = page.getByRole('button', { name: /Submit for secure grading/i }).first();
+    const submit = mission.getByRole('button', { name: /Submit for secure grading/i });
     await expect(submit).toBeVisible();
     await expect(submit).toBeEnabled();
     // The mobile bottom navigation can overlap the transformed clay card by a
@@ -225,7 +227,10 @@ test.describe('student mobile flows', () => {
     await expect(page.getByText(/group proof image.*uploaded/i)).toBeVisible({ timeout: 20_000 });
     const scoreInputs = page.getByLabel(/^Score for /);
     await expect(scoreInputs).toHaveCount(4, { timeout: 20_000 });
-    for (let index = 0; index < await scoreInputs.count(); index += 1) await scoreInputs.nth(index).fill('0');
+    for (let index = 0; index < await scoreInputs.count(); index += 1) {
+      await scoreInputs.nth(index).fill('0');
+      await expect(scoreInputs.nth(index)).toHaveValue('0');
+    }
     const absent = page.getByRole('button', { name: 'Mark absent', exact: true }).first();
     await expect(absent).toBeVisible();
     await absent.click();
