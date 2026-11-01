@@ -123,7 +123,9 @@ test.describe('student mobile flows', () => {
 
     const sorting = await missionPanel('E2E Drag and Drop');
     await sorting.getByRole('button', { name: 'Square', exact: true }).click({ force: true });
-    await sorting.getByRole('button', { name: 'Shape', exact: true }).click({ force: true });
+    // The category contains helper text as well as its label, so use its
+    // accessible prefix instead of requiring an exact one-word name.
+    await sorting.getByRole('button', { name: /^Shape/ }).click({ force: true });
     await sorting.getByRole('button', { name: 'Submit', exact: true }).click({ force: true });
     await expect(sorting.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
 
@@ -229,7 +231,12 @@ test.describe('student mobile flows', () => {
     await page.getByRole('button', { name: 'Submit Scores', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: /Submit scores for your group/i });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Confirm & Lock', exact: true }).click();
+    // A portal-backed confirmation is visually on top of the page. Activate
+    // its focused action by keyboard so the test verifies the accessible
+    // mobile flow instead of relying on an animated overlay's coordinates.
+    const confirm = dialog.getByRole('button', { name: 'Confirm & Lock', exact: true });
+    await confirm.focus();
+    await page.keyboard.press('Enter');
     await expect(page.getByText(/Activity 1 is submitted/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Absent — excluded/i)).toBeVisible();
   });
@@ -309,10 +316,12 @@ test.describe('teacher mobile flows', () => {
     await login(page, teacherEmail, teacherPassword, '/teacher/attendance', 'uniclass.teacher.activeClassroomId');
     const present = page.getByRole('button', { name: /Mark TEST, STUDENT present/i });
     await expect(present).toBeVisible({ timeout: 20_000 });
-    await present.click();
+    await present.focus();
+    await page.keyboard.press('Enter');
     await expect(page.getByText(/TEST, STUDENT marked present/i)).toBeVisible({ timeout: 15_000 });
     const absent = page.getByRole('button', { name: /Mark TEST, STUDENT absent/i });
-    await absent.click();
+    await absent.focus();
+    await page.keyboard.press('Enter');
     await expect(page.getByText(/TEST, STUDENT marked absent/i)).toBeVisible({ timeout: 15_000 });
   });
 
@@ -334,7 +343,9 @@ test.describe('teacher mobile flows', () => {
     await transferDialog.getByRole('button', { name: 'Move 1 record', exact: true }).click();
     const transferConfirmation = page.getByRole('alertdialog', { name: /Move selected student records/i });
     await expect(transferConfirmation).toBeVisible();
-    await transferConfirmation.getByRole('button', { name: 'Move records', exact: true }).click();
+    const confirmTransfer = transferConfirmation.getByRole('button', { name: 'Move records', exact: true });
+    await confirmTransfer.focus();
+    await page.keyboard.press('Enter');
     await expect(transferDialog).toHaveCount(0);
     await expect(page.getByText(/Merged 1 record into TEST, STUDENT/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('DUPLICATE, RECORD', { exact: true })).toHaveCount(0);
