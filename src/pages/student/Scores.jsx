@@ -200,7 +200,16 @@ export default function StudentScores() {
       is_absent: !!absentMembers[m.id],
     }));
     try {
-      await submitGroupActivityScores(act.id, records);
+      const savedRows = await submitGroupActivityScores(act.id, records);
+      // Keep the just-saved rows available when the panel switches into its
+      // protected state. This makes zero scores and absent members visible
+      // immediately instead of requiring a page reload.
+      const saved = Array.isArray(savedRows) ? savedRows : [];
+      if (saved.length) {
+        setExistingScores(Object.fromEntries(saved.map((item) => [item.group_member_id, item])));
+        setScores(Object.fromEntries(saved.map((item) => [item.group_member_id, item.score])));
+        setAbsentMembers(Object.fromEntries(saved.filter((item) => item.is_absent).map((item) => [item.group_member_id, true])));
+      }
       setLocked(true);
       setLockedActivities({ ...lockedActivities, [activityNum]: true });
       setShowConfirm(false);
