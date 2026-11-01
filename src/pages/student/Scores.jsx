@@ -106,7 +106,10 @@ export default function StudentScores() {
       if (!acts.length) setScores({});
     }
     loadActivity();
-  }, [activityNum, account]);
+  // When uploading proof creates the first activity row, run this loader once
+  // more for that new id so an older in-flight request cannot replace the
+  // just-uploaded group proof list with an empty one.
+  }, [activityNum, account, activity?.id]);
 
   const canEdit = !!account?.is_representative;
 

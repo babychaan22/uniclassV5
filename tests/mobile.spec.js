@@ -225,6 +225,7 @@ test.describe('student mobile flows', () => {
     await expect(fileInput).toBeAttached({ timeout: 20_000 });
     await fileInput.setInputFiles(await createProofFixture(testInfo));
     await expect(page.getByText(/group proof image.*uploaded/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/No group proof images have been uploaded/i)).toHaveCount(0);
     const scoreInputs = page.getByLabel(/^Score for /);
     await expect(scoreInputs).toHaveCount(4, { timeout: 20_000 });
     for (let index = 0; index < await scoreInputs.count(); index += 1) {
@@ -354,7 +355,8 @@ test.describe('teacher mobile flows', () => {
     await expect(approve).toHaveCount(0, { timeout: 15_000 });
 
     await page.goto('/teacher/roster');
-    const move = page.getByRole('button', { name: 'Move records here', exact: true }).first();
+    const targetRow = page.getByText('TEST, STUDENT', { exact: true }).locator('..');
+    const move = targetRow.getByRole('button', { name: 'Move records here', exact: true });
     await expect(move).toBeVisible({ timeout: 20_000 });
     await move.click();
     const transferDialog = page.getByRole('dialog', { name: /Move records into/i });
