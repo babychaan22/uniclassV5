@@ -158,7 +158,10 @@ export default function StudentScores() {
   function setScore(memberId, val) {
     if (!canEdit) return;
     const num = Math.max(0, Math.min(Number(val) || 0, maxScore));
-    setScores({ ...scores, [memberId]: num });
+    // Representatives can enter several member scores quickly on a phone.
+    // Use the current state for every update so a rapid sequence cannot
+    // overwrite an earlier member's score and block submission as incomplete.
+    setScores((current) => ({ ...current, [memberId]: num }));
     setAbsentMembers((current) => ({ ...current, [memberId]: false }));
   }
 
