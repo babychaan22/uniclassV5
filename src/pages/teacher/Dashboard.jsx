@@ -332,8 +332,22 @@ export default function TeacherDashboard() {
     try {
       await updateMission(mission.id, { deadline, deadline_at: new Date(`${deadline}T23:59:00+08:00`).toISOString() });
       invalidateClassroomDataset();
+      // Keep the dashboard in place after a teacher action. Updating this
+      // mission locally removes it from the overdue card immediately, while
+      // the normal classroom cache is invalidated for the next quiet read.
+      setData((current) => {
+        if (!current) return current;
+        const deadlineAt = new Date(`${deadline}T23:59:00+08:00`).toISOString();
+        const next = {
+          ...current,
+          missions: current.missions.map((item) => item.id === mission.id
+            ? { ...item, deadline, deadline_at: deadlineAt }
+            : item),
+        };
+        teacherDashboardCache = { userId: user.id, classroomId: current.classroom.id, data: next, savedAt: Date.now() };
+        return next;
+      });
       setReminderMessage(`${mission.title || 'Mission'} was extended through ${deadline}.`);
-      await refresh();
     } catch (error) {
       setReminderMessage(error?.message || 'The mission deadline could not be extended.');
     } finally {

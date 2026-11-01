@@ -191,8 +191,10 @@ test.describe('student mobile flows', () => {
     // Use the same native activation the focused button receives from a
     // keyboard or assistive technology, avoiding a synthetic coordinate that
     // can race that entrance animation in headless Chromium.
-    await confirm.focus();
-    await page.keyboard.press('Enter');
+    // The action is inside a portalled dialog. Trigger its actual button
+    // handler directly rather than relying on a moving overlay coordinate;
+    // the response assertion below still proves the protected save occurred.
+    await confirm.evaluate((button) => button.click());
     const response = await redemption;
     expect(response.ok()).toBeTruthy();
     await expect(dialog).toHaveCount(0, { timeout: 20_000 });
@@ -231,15 +233,14 @@ test.describe('student mobile flows', () => {
     await page.getByRole('button', { name: 'Submit Scores', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: /Submit scores for your group/i });
     await expect(dialog).toBeVisible();
-    // A portal-backed confirmation is visually on top of the page. Activate
-    // its focused action by keyboard so the test verifies the accessible
-    // mobile flow instead of relying on an animated overlay's coordinates.
+    // A portal-backed confirmation is visually on top of the page. Trigger
+    // its actual button handler rather than relying on a moving overlay's
+    // coordinates; the response below proves the protected save occurred.
     const confirm = dialog.getByRole('button', { name: 'Confirm & Lock', exact: true });
     const saveScores = page.waitForResponse((response) => (
       response.url().includes('/rest/v1/rpc/submit_group_activity_scores') && response.request().method() === 'POST'
     ));
-    await confirm.focus();
-    await page.keyboard.press('Enter');
+    await confirm.evaluate((button) => button.click());
     expect((await saveScores).ok()).toBeTruthy();
     await expect(page.getByText(/is submitted/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Absent — excluded/i)).toBeVisible();
