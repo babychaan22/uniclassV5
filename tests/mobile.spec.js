@@ -237,11 +237,17 @@ test.describe('student mobile flows', () => {
     // its actual button handler rather than relying on a moving overlay's
     // coordinates; the response below proves the protected save occurred.
     const confirm = dialog.getByRole('button', { name: 'Confirm & Lock', exact: true });
+    await expect(confirm).toBeEnabled();
     const saveScores = page.waitForResponse((response) => (
       response.url().includes('/rest/v1/rpc/submit_group_activity_scores') && response.request().method() === 'POST'
-    ));
+    ), { timeout: 15_000 }).then((response) => ({ response })).catch(() => ({ response: null }));
     await confirm.evaluate((button) => button.click());
-    expect((await saveScores).ok()).toBeTruthy();
+    const { response } = await saveScores;
+    if (!response) {
+      const validation = await page.locator('p.text-clay-coral').allTextContents();
+      throw new Error(`Score submission did not start. Validation: ${validation.join(' | ') || 'none'}`);
+    }
+    expect(response.ok()).toBeTruthy();
     await expect(page.getByText(/is submitted/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Absent — excluded/i)).toBeVisible();
   });
