@@ -118,11 +118,16 @@ function ClassLearningInsights({ missions = [], source, onSourceChange, onInspec
   const measured = missions.flatMap((mission) => (mission.questions || [])
     .filter((question) => question.total > 0)
     .map((question) => ({ ...question, mission })));
-  if (!measured.length) return null;
-  const strongest = measured.reduce((best, item) => item.pct > best.pct ? item : best);
-  const weakest = measured.reduce((worst, item) => item.pct < worst.pct ? item : worst);
-  const allMastered = weakest.pct >= 80;
   const answerCount = measured.reduce((total, item) => total + item.total, 0);
+  const evidenceReady = measured.filter((item) => item.total >= 5);
+  if (!measured.length) return null;
+  if (!evidenceReady.length) return <ClayCard className="p-4">
+    <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-2"><Target className="mt-0.5 h-4 w-4 text-[var(--uc-purple)]" /><div><h2 className="font-display text-sm font-extrabold">Class learning signals</h2><p className="mt-0.5 text-xs text-ink/55">Based on {answerCount.toLocaleString()} answer record{answerCount === 1 ? "" : "s"} in the selected mission source.</p></div></div><MissionSourceFilters value={source} onChange={onSourceChange} /></div>
+    <p className="mt-3 rounded-xl bg-[var(--uc-blue-soft)] px-3 py-2 text-xs text-ink/70">Not enough evidence for a reteach recommendation yet. UniClass waits until at least five learners have answered the same question.</p>
+  </ClayCard>;
+  const strongest = evidenceReady.reduce((best, item) => item.pct > best.pct ? item : best);
+  const weakest = evidenceReady.reduce((worst, item) => item.pct < worst.pct ? item : worst);
+  const allMastered = weakest.pct >= 80;
   return <ClayCard className="p-4">
     <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-2"><Target className="mt-0.5 h-4 w-4 text-[var(--uc-purple)]" /><div><h2 className="font-display text-sm font-extrabold">Class learning signals</h2><p className="mt-0.5 text-xs text-ink/55">Based on {answerCount.toLocaleString()} answer record{answerCount === 1 ? "" : "s"} in the selected mission source.</p></div></div><MissionSourceFilters value={source} onChange={onSourceChange} /></div>
     <div className="mt-3 grid gap-2 sm:grid-cols-2">

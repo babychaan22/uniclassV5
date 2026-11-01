@@ -187,6 +187,27 @@ for (const index of [0, 1]) {
     ai_content: JSON.stringify({ questions: [{ prompt: 'An overdue mission supports the release test.' }] }),
     answer_key: JSON.stringify([true]),
   });
+  const multipleChoiceMission = await insert('missions', {
+    classroom_id: classroom.id, title: 'E2E Multiple Choice', description: 'A test multiple-choice mission.', xp_reward: 10, max_score: 1,
+    is_active: true, approval_status: 'approved', applies_to_all_classes: false,
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'], created_by: teacher.id, formative_type: 'multiple_choice',
+    ai_content: JSON.stringify({ questions: [{ prompt: 'Which number is even?', options: ['3', '4', '5', '7'], solution_steps: ['Check the last digit of each number.', '4 ends in 4, so it is even.'], why_wrong: 'The other choices end in odd digits.', remember: 'Even numbers end in 0, 2, 4, 6, or 8.' }] }),
+    answer_key: JSON.stringify([1]),
+  });
+  const dragDropMission = await insert('missions', {
+    classroom_id: classroom.id, title: 'E2E Drag and Drop', description: 'A test sorting mission.', xp_reward: 10, max_score: 1,
+    is_active: true, approval_status: 'approved', applies_to_all_classes: false,
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'], created_by: teacher.id, formative_type: 'drag_drop',
+    ai_content: JSON.stringify({ left: ['Square'], right: ['Shape'], answers: { Square: 'Shape' }, feedback: { Square: { solution_steps: ['Read the tile name: Square.', 'A square is a two-dimensional shape.'], why_wrong: 'A square is not a number or an action.', remember: 'Names of figures belong with shapes.' } } }),
+    answer_key: JSON.stringify({ Square: 'Shape' }),
+  });
+  const fillBlankMission = await insert('missions', {
+    classroom_id: classroom.id, title: 'E2E Fill in the Blank', description: 'A test word-bank mission.', xp_reward: 10, max_score: 1,
+    is_active: true, approval_status: 'approved', applies_to_all_classes: false,
+    target_statuses: ['On Track', 'Developing', 'At Risk', 'Not enough data'], created_by: teacher.id, formative_type: 'fill_in_blank',
+    ai_content: JSON.stringify({ questions: [{ prompt: 'The sky is {{color}}.', word_bank: ['blue', 'green'], solution_steps: ['Read the complete sentence.', 'Blue makes the sentence correct.'], why_wrong: 'Green does not describe the usual sky color.', remember: 'Use the word that makes the whole sentence true.' }] }),
+    answer_key: JSON.stringify({ '0:color': 'blue' }),
+  });
 
   // Redemption must not depend on another browser test completing first.
   // Give each isolated E2E learner a separate, already-earned 10-XP credit.
@@ -215,6 +236,7 @@ for (const index of [0, 1]) {
   if (walletCreditError) throw new Error(`Could not seed the E2E wallet credit: ${walletCreditError.message}`);
   if (!activeMission.id) throw new Error('E2E active mission fixture was not created.');
   if (!overdueMission.id) throw new Error('E2E overdue mission fixture was not created.');
+  if (!multipleChoiceMission.id || !dragDropMission.id || !fillBlankMission.id) throw new Error('E2E interactive mission fixtures were not created.');
 
   // Keep a second member without an account so the representative's zero-score
   // and absence choices have a real group roster to exercise.

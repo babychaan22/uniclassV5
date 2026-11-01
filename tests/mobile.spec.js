@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 import fs from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,6 +8,7 @@ const teacherEmail = process.env.TEST_TEACHER_EMAIL;
 const teacherPassword = process.env.TEST_TEACHER_PASSWORD;
 const serviceKey = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const baseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173';
 let e2eClassroomId = null;
 
 test.beforeAll(async () => {
@@ -32,7 +33,7 @@ async function login(page, email, password, path, activeClassKey) {
   if (e2eClassroomId && activeClassKey) {
     await page.addInitScript(({ key, id }) => window.localStorage.setItem(key, id), { key: activeClassKey, id: e2eClassroomId });
   }
-  await page.goto(`/login?returnUrl=${encodeURIComponent(path)}`);
+  await page.goto(`${baseUrl}/login?returnUrl=${encodeURIComponent(path)}`);
   await page.getByLabel('Email').fill(email);
   await page.getByRole('textbox', { name: 'Password' }).fill(password);
   await page.getByRole('button', { name: 'Log in' }).click();
@@ -103,6 +104,34 @@ test.describe('student mobile flows', () => {
     // intentionally allowed to evolve with student feedback.
     await expect(submit).toHaveCount(0, { timeout: 30_000 });
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
+  });
+
+  test('multiple choice, sorting, and fill-in-the-blank missions submit on mobile', async ({ page }) => {
+    await login(page, studentEmail, studentPassword, '/student/missions', 'uniclass.activeClassroomId');
+
+    const missionPanel = async (title) => {
+      const titleNode = page.getByText(title, { exact: true });
+      await expect(titleNode).toBeVisible({ timeout: 20_000 });
+      return titleNode.locator('xpath=../../../..');
+    };
+
+    const multipleChoice = await missionPanel('E2E Multiple Choice');
+    await multipleChoice.getByRole('button', { name: '4', exact: true }).click({ force: true });
+    await multipleChoice.getByRole('button', { name: 'Review answers', exact: true }).click({ force: true });
+    await multipleChoice.getByRole('button', { name: /Submit for secure grading/i }).click({ force: true });
+    await expect(multipleChoice.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
+
+    const sorting = await missionPanel('E2E Drag and Drop');
+    await sorting.getByRole('button', { name: 'Square', exact: true }).click({ force: true });
+    await sorting.getByRole('button', { name: 'Shape', exact: true }).click({ force: true });
+    await sorting.getByRole('button', { name: 'Submit', exact: true }).click({ force: true });
+    await expect(sorting.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
+
+    const fillBlank = await missionPanel('E2E Fill in the Blank');
+    await fillBlank.getByRole('button', { name: 'blue', exact: true }).click({ force: true });
+    await fillBlank.getByRole('button', { name: 'Fill blank color', exact: true }).click({ force: true });
+    await fillBlank.getByRole('button', { name: 'Submit answers', exact: true }).click({ force: true });
+    await expect(fillBlank.getByText(/This XP was added to your personal XP wallet/i)).toBeVisible({ timeout: 20_000 });
   });
 
   test('activity proof upload is available and compressed', async ({ page }, testInfo) => {
@@ -224,7 +253,7 @@ test.describe('teacher mobile flows', () => {
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 
-  test('teacher can send support reminders and extend an overdue mission', async ({ page }) => {
+  test('teacher can send support reminders and extend an overdue mission', async ({ page, browser }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/dashboard', 'uniclass.teacher.activeClassroomId');
     await expect(page.getByRole('heading', { name: /Needs Support/i })).toBeVisible({ timeout: 20_000 });
 
@@ -232,6 +261,21 @@ test.describe('teacher mobile flows', () => {
     await expect(reminder).toBeVisible();
     await reminder.click();
     await expect(page.getByText(/received a private reminder/i)).toBeVisible({ timeout: 15_000 });
+
+    const studentContext = await browser.newContext({ ...devices['iPhone 13'] });
+    const studentPage = await studentContext.newPage();
+    try {
+      await login(studentPage, studentEmail, studentPassword, '/student/dashboard', 'uniclass.activeClassroomId');
+      const notifications = studentPage.getByRole('button', { name: /Notifications/i });
+      await expect(notifications).toBeVisible({ timeout: 20_000 });
+      await notifications.click();
+      const attendanceReminder = studentPage.getByRole('link', { name: /Attendance reminder/i });
+      await expect(attendanceReminder).toBeVisible({ timeout: 15_000 });
+      await attendanceReminder.click();
+      await studentPage.waitForURL(/\/student\/attendance/, { timeout: 15_000 });
+    } finally {
+      await studentContext.close();
+    }
 
     const extend = page.getByRole('button', { name: 'Extend 3 days', exact: true });
     await expect(extend).toBeVisible({ timeout: 15_000 });
