@@ -30,6 +30,7 @@ export const ROUTES = {
     ACTIVITIES:         '/teacher/activities',
     ATTENDANCE:         '/teacher/attendance',
     EXPORT_DATA:        '/teacher/export-data',
+    FAMILY_SUMMARIES:    '/teacher/family-summaries',
     HELP_GUIDE:         '/teacher/help-guide',
     BADGES:             '/teacher/badges',
   },

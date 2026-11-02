@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -56,6 +57,9 @@ export default function Login() {
           {error}
         </div>
       )}
+
+      <GoogleSignInButton onError={setError} disabled={loading} />
+      <div className="my-5 flex items-center gap-3 text-xs text-ink/45" aria-hidden="true"><span className="h-px flex-1 bg-ink/10" />or use your email<span className="h-px flex-1 bg-ink/10" /></div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">

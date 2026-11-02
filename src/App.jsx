@@ -39,6 +39,7 @@ const TeacherEvidence = lazy(() => import('./pages/teacher/Evidence'));
 const TeacherMissionArchive = lazy(() => import('./pages/teacher/MissionArchive'));
 const TeacherHelpGuide = lazy(() => import('./pages/teacher/HelpGuide'));
 const TeacherExportData = lazy(() => import('./pages/teacher/ExportData'));
+const TeacherFamilySummaries = lazy(() => import('./pages/teacher/FamilySummaries'));
 const StudentOnboarding = lazy(() => import('./pages/student/Onboarding'));
 const StudentDashboard = lazy(() => import('./pages/student/Dashboard'));
 const StudentAttendance = lazy(() => import('./pages/student/Attendance'));
@@ -133,6 +134,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.TEACHER.ACTIVITIES} element={<TeacherActivities />} />
           <Route path={ROUTES.TEACHER.ATTENDANCE} element={<TeacherAttendance />} />
           <Route path={ROUTES.TEACHER.EXPORT_DATA} element={<TeacherExportData />} />
+          <Route path={ROUTES.TEACHER.FAMILY_SUMMARIES} element={<TeacherFamilySummaries />} />
           <Route path={ROUTES.TEACHER.HELP_GUIDE} element={<TeacherHelpGuide />} />
           <Route path={ROUTES.LEADERBOARD} element={<Leaderboard />} />
           <Route path={ROUTES.STUDENT.ONBOARDING} element={<StudentOnboarding />} />

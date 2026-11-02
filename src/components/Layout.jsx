@@ -97,6 +97,7 @@ const TEACHER_NAV_SECTIONS = [
       { label: "Activity Logs",   path: ROUTES.TEACHER.ACTIVITY_LOGS,  icon: ClipboardList },
       { label: "Activity Proof", path: ROUTES.TEACHER.EVIDENCE,        icon: Image },
       { label: "Export Data",     path: ROUTES.TEACHER.EXPORT_DATA,    icon: Download },
+      { label: "Family Summaries", path: ROUTES.TEACHER.FAMILY_SUMMARIES, icon: FileText },
       { label: "Mission Archive", path: ROUTES.TEACHER.MISSION_ARCHIVE, icon: Archive },
       { label: "Leaderboard",     path: ROUTES.LEADERBOARD,              icon: Trophy },
     ],

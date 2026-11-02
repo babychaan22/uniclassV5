@@ -1,6 +1,6 @@
 import { getWeekStartManila, isWeekdayManila } from "@/lib/week";
 
-const SYSTEM_BADGES = {
+export const SYSTEM_BADGES = {
   weekly_90_activity: { label: "90% Activity Squad", icon: "🎯" },
   weekly_full_attendance: { label: "Perfect Attendance", icon: "📅" },
   weekly_top_group_points: { label: "Top Group Points", icon: "🏆" },

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import AuthLayout from "@/components/AuthLayout";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { toast } from "@/components/ui/use-toast";
 
 export default function Register() {
@@ -147,6 +148,10 @@ export default function Register() {
           {error}
         </div>
       )}
+
+      <GoogleSignInButton onError={setError} disabled={loading} />
+      <p className="mt-2 text-center text-[11px] leading-relaxed text-ink/55">First time with Google? You will choose whether you are a teacher or student next.</p>
+      <div className="my-5 flex items-center gap-3 text-xs text-ink/45" aria-hidden="true"><span className="h-px flex-1 bg-ink/10" />or create with email<span className="h-px flex-1 bg-ink/10" /></div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">

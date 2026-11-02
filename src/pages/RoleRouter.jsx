@@ -53,19 +53,21 @@ export default function RoleRouter() {
           <div className="inline-flex w-20 h-20 rounded-full bg-clay-pink border-[4px] border-ink shadow-[4px_4px_0_#17162B] items-center justify-center mb-4">
             <Sparkles className="w-10 h-10 text-ink" />
           </div>
-          <h1 className="text-3xl font-display font-extrabold">UniClass</h1>
-          <p className="text-ink/70 mt-2 font-body">Gamified classroom tracker with QR rewards & gacha capsules</p>
+          <h1 className="text-3xl font-display font-extrabold">Welcome to UniClass</h1>
+          <p className="text-ink/70 mt-2 font-body">You are signed in. Choose how you will use UniClass first.</p>
+          {user?.email && <p className="mt-2 text-xs text-ink/50">Signed in as {user.email}</p>}
         </div>
         <ClayCard className="p-6">
-          <p className="font-display font-bold text-lg mb-4 text-center">Choose your role to get started</p>
+          <p className="font-display font-bold text-lg mb-1 text-center">How will you use UniClass?</p>
+          <p className="mb-4 text-center text-sm text-ink/60">Teachers set up classes. Students join with their teacher’s class code.</p>
           <div className="flex flex-col gap-4">
             <ClayButton color="purple" size="lg" onClick={() => navigate(ROUTES.TEACHER.ONBOARDING)}>
               <GraduationCap className="w-6 h-6" />
-              I'm a Teacher
+              I’m a Teacher
             </ClayButton>
             <ClayButton color="sky" size="lg" onClick={() => navigate(ROUTES.STUDENT.ONBOARDING)}>
               <Users className="w-6 h-6" />
-              I'm a Student
+              I’m a Student
             </ClayButton>
           </div>
         </ClayCard>
