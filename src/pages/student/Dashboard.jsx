@@ -263,6 +263,24 @@ export default function StudentDashboard() {
             ? { label: "Continue mission practice", detail: `Complete “${nextMission.title}” to keep your learning moving.`, path: ROUTES.STUDENT.MISSIONS, action: "Start mission", mission: nextMission, tone: "normal" }
             : { label: "Keep your rhythm", detail: "Your current work is complete. Check back for the next class activity or mission.", path: ROUTES.STUDENT.MISSIONS, action: "View missions", tone: "complete" };
   const dashboardAvatarKey = myAvatarKey || DEFAULT_STUDENT_AVATAR;
+  const activeStyleChoice = (personalReward?.claims || []).find((claim) => claim.status === "active" && ["avatar_choice", "theme_choice", "name_effect_choice"].includes(claim.reward_type));
+  const missingPersonalTouches = [
+    dashboardAvatarKey === DEFAULT_STUDENT_AVATAR ? "avatar" : null,
+    !user?.banner_theme ? "dashboard theme" : null,
+    (user?.name_effect || "opaque-ink") === "opaque-ink" ? "name design" : null,
+  ].filter(Boolean);
+  const personalStyleReminder = missingPersonalTouches.length > 0;
+  const personalStyleList = missingPersonalTouches.length === 1
+    ? missingPersonalTouches[0]
+    : missingPersonalTouches.length === 2
+      ? `${missingPersonalTouches[0]} and ${missingPersonalTouches[1]}`
+      : `${missingPersonalTouches.slice(0, -1).join(", ")}, and ${missingPersonalTouches.at(-1)}`;
+  const styleReminderAction = activeStyleChoice
+    ? { path: ROUTES.STUDENT.SETTINGS, label: "Customize" }
+    : personalReward?.style_streak_ready
+      ? { path: ROUTES.STUDENT.REWARDS, label: "Unlock style" }
+      : { path: ROUTES.STUDENT.REWARDS, label: "See rewards" };
+  const styleStreakPoints = Math.max(0, Number(personalReward?.style_streak_days || 0));
 
   return (
     <div className="student-dashboard space-y-4 sm:space-y-4">
@@ -290,15 +308,21 @@ export default function StudentDashboard() {
         <p className="w-full text-xs text-ink/55 sm:w-auto">Showing {selectedPeriod.label}</p>
       </div>
 
-      {personalReward?.style_streak_ready && !(personalReward.claims || []).some((claim) => claim.status === "active" && ["avatar_choice", "theme_choice", "name_effect_choice"].includes(claim.reward_type)) && (
-        <ClayCard color="lime" className="no-print p-4" role="status">
-          <div className="flex items-center gap-3">
-            <Sparkles className="h-7 w-7 shrink-0 text-clay-purple" aria-hidden="true" />
+      {personalStyleReminder && (
+        <ClayCard tone={activeStyleChoice || personalReward?.style_streak_ready ? "green" : "blue"} className="no-print p-3" role="status">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-5 w-5 shrink-0 text-clay-purple" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <p className="font-display font-extrabold">You reached 5 learning actions!</p>
-              <p className="mt-1 text-xs text-ink/65">Your avatar, learner theme, or name style is ready to unlock.</p>
+              <p className="font-display text-sm font-extrabold">Personalize your space</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-ink/65">
+                {activeStyleChoice
+                  ? `A style choice is ready for your ${personalStyleList}.`
+                  : personalReward?.style_streak_ready
+                    ? "You have 5/5 streak points. Unlock a style now."
+                    : `${styleStreakPoints}/5 streak points · present attendance, on-time activity, or teacher mission = 1 point.`}
+              </p>
             </div>
-            <Link to={ROUTES.STUDENT.SETTINGS} className="clay-btn shrink-0 bg-white px-3 py-2 text-xs font-display font-bold text-ink">Customize</Link>
+            <Link to={styleReminderAction.path} className="clay-btn shrink-0 bg-white px-2.5 py-1.5 text-[11px] font-display font-bold text-ink">{styleReminderAction.label}</Link>
           </div>
         </ClayCard>
       )}
