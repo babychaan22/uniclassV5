@@ -16,16 +16,23 @@ export default function AuthCallback() {
       try {
         const params = new URLSearchParams(location.search);
         const code = params.get('code');
+        let session = null;
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(location.search);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(location.search);
           if (error) throw error;
+          session = data.session;
         }
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        if (!session) {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          session = data.session;
+        }
         if (!session) throw new Error('Your sign-in link has expired. Please choose your Google account again.');
         // New Google accounts have no classroom role yet. The home route
-        // deliberately sends them through UniClass role and class setup.
-        navigate(ROUTES.HOME, { replace: true });
+        // deliberately sends them through UniClass role and class setup. A
+        // full return prevents an OAuth callback route from retaining an old
+        // error-boundary state during a first-time account setup.
+        window.location.replace(ROUTES.HOME);
       } catch (error) {
         console.error("Auth callback error:", error);
         setErrorMessage(error?.message || 'Google sign-in could not finish. Please try again.');
