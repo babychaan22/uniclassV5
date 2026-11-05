@@ -119,64 +119,90 @@ export default function TeacherAttendance() {
     }));
   }, [classroom, groups, members]);
 
+  async function saveAttendanceStatus(member, status) {
+    const existing = attendanceByMember[member.id];
+    if (existing) {
+      return db.entities.Attendance.update(existing.id, { status, marked_by: user.id });
+    }
+    try {
+      return await db.entities.Attendance.create({
+        classroom_id: classroom.id,
+        group_id: member.group_id,
+        group_member_id: member.id,
+        attendance_date: selectedDate,
+        status,
+        marked_by: user.id,
+      });
+    } catch (error) {
+      // A representative or another teacher can save in the small gap
+      // between a quiet refresh and this click. The database rightfully
+      // rejects a second row; find that row and apply the teacher's
+      // intended correction instead of leaving the control in an error.
+      if (error?.code !== "23505") throw error;
+      invalidateReadCache("attendances");
+      const matching = await db.entities.Attendance.filter({
+        group_member_id: member.id,
+        attendance_date: selectedDate,
+      });
+      if (!matching[0]) throw error;
+      // Some legacy rows predate the current classroom assignment. Keep
+      // the one-row-per-student-per-day rule, but repair its ownership so
+      // it is visible in the active classroom immediately afterwards.
+      return db.entities.Attendance.update(matching[0].id, {
+        classroom_id: classroom.id,
+        group_id: member.group_id,
+        status,
+        marked_by: user.id,
+      });
+    }
+  }
+
+  function applySavedRecords(savedRecords) {
+    setRecords((current) => {
+      const savedIds = new Set(savedRecords.map((record) => record.id));
+      const savedMemberIds = new Set(savedRecords.map((record) => record.group_member_id));
+      const withoutPrevious = current.filter((record) => !savedIds.has(record.id) && !(savedMemberIds.has(record.group_member_id) && record.attendance_date === selectedDate));
+      return [...withoutPrevious, ...savedRecords];
+    });
+    // Stop any request that started before this confirmed save from putting
+    // an out-of-date snapshot back over the newly coloured row.
+    loadSequenceRef.current += 1;
+    invalidateClassroomDataset();
+  }
+
   async function setStatus(member, status, sourceElement) {
     if (!classroom || savingId) return;
     setSavingId(member.id);
     setMessage("");
     setNoticeAnchor(sourceElement || null);
     try {
-      const existing = attendanceByMember[member.id];
-      let saved;
-      if (existing) {
-        saved = await db.entities.Attendance.update(existing.id, { status, marked_by: user.id });
-      } else {
-        try {
-          saved = await db.entities.Attendance.create({
-            classroom_id: classroom.id,
-            group_id: member.group_id,
-            group_member_id: member.id,
-            attendance_date: selectedDate,
-            status,
-            marked_by: user.id,
-          });
-        } catch (error) {
-          // A representative or another teacher can save in the small gap
-          // between a quiet refresh and this click. The database rightfully
-          // rejects a second row; find that row and apply the teacher's
-          // intended correction instead of leaving the control in an error.
-          if (error?.code !== "23505") throw error;
-          invalidateReadCache("attendances");
-          const matching = await db.entities.Attendance.filter({
-            group_member_id: member.id,
-            attendance_date: selectedDate,
-          });
-          if (!matching[0]) throw error;
-          // Some legacy rows predate the current classroom assignment. Keep
-          // the one-row-per-student-per-day rule, but repair its ownership so
-          // it is visible in the active classroom immediately afterwards.
-          saved = await db.entities.Attendance.update(matching[0].id, {
-            classroom_id: classroom.id,
-            group_id: member.group_id,
-            status,
-            marked_by: user.id,
-          });
-        }
-      }
+      const saved = await saveAttendanceStatus(member, status);
       // Show the confirmed value in this exact row immediately. A quiet
       // background read still reconciles concurrent edits from a student
       // representative or another teacher device, but the teacher never has
       // to wait for it just to see their own edit.
-      setRecords((current) => {
-        const withoutPrevious = current.filter((record) => record.id !== saved.id && !(record.group_member_id === member.id && record.attendance_date === selectedDate));
-        return [...withoutPrevious, saved];
-      });
-      // Stop any request that started before this confirmed save from putting
-      // an out-of-date snapshot back over the newly coloured row.
-      loadSequenceRef.current += 1;
-      invalidateClassroomDataset();
+      applySavedRecords([saved]);
       setMessage(`${fullName(member)} marked ${status}.`);
     } catch (error) {
       setMessage(error?.message || "Attendance could not be saved. Please try again.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function markAllPresent(sourceElement) {
+    if (!classroom || savingId || !members.length) return;
+    setSavingId("all");
+    setMessage("");
+    setNoticeAnchor(sourceElement || null);
+    try {
+      const saved = await Promise.all(members.map((member) => saveAttendanceStatus(member, "present")));
+      applySavedRecords(saved);
+      setMessage(`All ${saved.length} students marked present.`);
+    } catch (error) {
+      setMessage(error?.message || "Attendance could not be saved for every student. Please try again.");
+      invalidateReadCache("attendances");
+      void load({ showSpinner: false });
     } finally {
       setSavingId(null);
     }
@@ -198,7 +224,10 @@ export default function TeacherAttendance() {
           <label className="block text-sm font-display font-bold">Attendance date
             <span className="mt-1 flex items-center gap-2"><CalendarDays className="h-4 w-4 text-clay-purple" /><input aria-label="Attendance date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="clay-input w-auto py-2 text-sm" /></span>
           </label>
-          <button type="button" onClick={load} className="clay-btn bg-cream px-3 py-2 text-sm text-ink" aria-label="Refresh attendance records"><RefreshCw className="h-4 w-4" /> Refresh</button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={(event) => markAllPresent(event.currentTarget)} disabled={!members.length || Boolean(savingId)} className="clay-btn bg-clay-lime px-3 py-2 text-sm text-ink disabled:opacity-60" aria-label="Mark all students present"><Check className="h-4 w-4" /> {savingId === "all" ? "Saving…" : "Mark all present"}</button>
+            <button type="button" onClick={load} disabled={Boolean(savingId)} className="clay-btn bg-cream px-3 py-2 text-sm text-ink disabled:opacity-60" aria-label="Refresh attendance records"><RefreshCw className="h-4 w-4" /> Refresh</button>
+          </div>
         </div>
       </ClayCard>
 
@@ -208,7 +237,7 @@ export default function TeacherAttendance() {
             <div className="mb-3 flex items-center justify-between gap-2"><h2 className="inline-flex items-center gap-1 font-display text-lg font-extrabold">{section.title} <GroupBadgeMarkers groupId={section.groupId} /></h2><ClayChip color="purple">{section.members.length} students</ClayChip></div>
             {section.members.length === 0 ? <p className="py-3 text-sm text-ink/55">No students are in this group yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{section.members.map((member) => {
               const status = attendanceByMember[member.id]?.status;
-              const busy = savingId === member.id;
+              const busy = savingId === member.id || savingId === "all";
               return <div key={member.id} className="flex items-center justify-between gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3">
                 <div className="min-w-0"><p className="truncate text-sm font-display font-bold">{fullName(member)}</p><p className="mt-0.5 text-xs text-ink/55">{status ? "Saved record" : "No record yet"}</p></div>
                 <div className="flex shrink-0 gap-1">
