@@ -20,6 +20,7 @@ const KINDS = {
   gacha_even: { label: "Gacha Draw", color: "sun" },
   penalty: { label: "Penalty", color: "coral" },
   mission_xp: { label: "Mission XP", color: "purple" },
+  xp_adjustment: { label: "XP Adjustment", color: "purple" },
   xp_redeemed: { label: "XP Redeemed", color: "purple" },
   badge_awarded: { label: "Badge Reward", color: "sun" },
   badge_claim: { label: "Badge", color: "sun" },
@@ -131,7 +132,7 @@ const STATUS_LABELS = {
 function matchesFilter(kind, filter) {
   if (filter === "all") return true;
   if (filter === "points") return ["qr_scan", "gacha_win", "gacha_loss", "gacha_even", "penalty", "correction", "xp_redeemed", "manual_award"].includes(kind);
-  if (filter === "xp") return kind === "mission_xp" || kind === "xp_redeemed";
+  if (filter === "xp") return ["mission_xp", "xp_adjustment", "xp_redeemed"].includes(kind);
   if (filter === "attendance") return kind === "attendance";
   if (filter === "scores") return kind === "score_edit";
   if (filter === "awards") return ["badge_awarded", "badge_claim", "reward_request"].includes(kind);
@@ -165,12 +166,13 @@ export default function StudentHistory() {
           if (active) setError("No approved classroom account was found.");
           return;
         }
-        const [history, totalsResult] = await Promise.all([
+        const [history, totalsResult, adjustmentsResult] = await Promise.all([
           supabase.rpc("get_student_account_history", {
             p_classroom_id: account.classroom_id,
             p_limit: PAGE_SIZE,
           }),
           supabase.rpc("get_student_account_totals", { p_classroom_id: account.classroom_id }),
+          supabase.rpc("get_student_xp_adjustment_history", { p_classroom_id: account.classroom_id }),
         ]);
         if (!active) return;
         let rows = history.data || [];
@@ -184,7 +186,25 @@ export default function StudentHistory() {
           usingFallback = true;
           console.warn("[history] using direct account-record fallback", history.error || totalsResult.error);
         }
-        setEntries(rows);
+        // XP adjustments are intentionally append-only accounting records. They
+        // join the same timeline even though they live in a separate protected
+        // table, so the wallet balance always has a matching history entry.
+        const adjustments = (adjustmentsResult.data || []).map((adjustment) => ({
+          entry_id: `xp-adjustment-${adjustment.id}`,
+          kind: "xp_adjustment",
+          title: "XP adjustment",
+          detail: adjustment.reason || "Account adjustment",
+          points: 0,
+          xp_earned: Number(adjustment.amount || 0),
+          xp_spent: 0,
+          scope: "member",
+          status: "awarded",
+          occurred_at: adjustment.created_at,
+        }));
+        const mergedRows = [...rows, ...adjustments]
+          .filter((row, index, all) => all.findIndex((candidate) => candidate.entry_id === row.entry_id) === index)
+          .sort((left, right) => String(right.occurred_at || "").localeCompare(String(left.occurred_at || "")));
+        setEntries(mergedRows);
         if (total) setTotals(total);
         // Direct records are intentionally a complete, bounded rescue view;
         // paging would call the failing legacy report again.
@@ -215,7 +235,8 @@ export default function StudentHistory() {
       const rows = data || [];
       setEntries((current) => {
         const seen = new Set(current.map((row) => row.entry_id));
-        return [...current, ...rows.filter((row) => !seen.has(row.entry_id))];
+        return [...current, ...rows.filter((row) => !seen.has(row.entry_id))]
+          .sort((left, right) => String(right.occurred_at || "").localeCompare(String(left.occurred_at || "")));
       });
       setHasMore(rows.length === PAGE_SIZE);
     } catch (err) {
@@ -232,7 +253,11 @@ export default function StudentHistory() {
   // Personal points and whole-group points are reported separately: group
   // awards belong to the group, so they must not look like the student's own.
   const personalPoints = Number(totals?.personal_points || 0);
-  const groupPoints = Number(totals?.group_points || 0);
+  // These definitions match the teacher leaderboard and reward progress:
+  // personal = this learner's entries, group-only earned = shared awards
+  // before deductions, whole group = every ledger entry in the group.
+  const groupPoints = Number(totals?.full_group_points ?? totals?.group_points ?? 0);
+  const groupOnlyEarned = Number(totals?.group_only_earned ?? totals?.group_points_earned ?? 0);
   const xpAvailable = Number(totals?.xp_available || 0);
   const attendanceRate = totals?.attendance_rate != null ? Math.round(Number(totals.attendance_rate)) : null;
   const visible = entries.filter((row) => matchesFilter(row.kind, filter));
@@ -263,14 +288,18 @@ export default function StudentHistory() {
 
       {error && <ClayCard color="coral" className="p-4 text-sm">{error}</ClayCard>}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         <ClayCard className="p-3 text-center">
           <p className="font-mono text-2xl font-extrabold text-clay-purple">{Math.round(personalPoints)}</p>
           <p className="text-[10px] font-display font-bold text-ink/60">MY CURRENT POINTS</p>
         </ClayCard>
         <ClayCard className="p-3 text-center">
           <p className="font-mono text-2xl font-extrabold text-clay-sky">{Math.round(groupPoints)}</p>
-          <p className="text-[10px] font-display font-bold text-ink/60">MY GROUP'S POINTS</p>
+          <p className="text-[10px] font-display font-bold text-ink/60">WHOLE GROUP TOTAL</p>
+        </ClayCard>
+        <ClayCard className="p-3 text-center">
+          <p className="font-mono text-2xl font-extrabold text-clay-sun">{Math.round(groupOnlyEarned)}</p>
+          <p className="text-[10px] font-display font-bold text-ink/60">GROUP-ONLY EARNED</p>
         </ClayCard>
         <ClayCard className="p-3 text-center">
           <p className="font-mono text-2xl font-extrabold text-clay-lime">{Math.round(xpAvailable)}</p>
@@ -285,8 +314,8 @@ export default function StudentHistory() {
       </div>
 
       <p className="px-1 text-xs text-ink/55">
-        {"My own points"} are the points scored on your account. {"My group's points"} is the shared total for everyone in your group,
-        which includes points your whole group earned together.
+        {"My current points"} are entries recorded just for you. {"Whole group total"} matches the teacher’s group leaderboard and reward progress.
+        {" Group-only earned"} shows shared awards before any shared deductions.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -369,9 +398,9 @@ export default function StudentHistory() {
                             {points > 0 ? "+" : ""}{Math.round(points)}
                           </p>
                         )}
-                        {xpEarned > 0 && (
-                          <p className="flex items-center justify-end gap-1 font-mono font-extrabold text-clay-purple">
-                            <Sparkles className="h-3.5 w-3.5" />+{Math.round(xpEarned)} XP
+                  {xpEarned !== 0 && (
+                    <p className={`flex items-center justify-end gap-1 font-mono font-extrabold ${xpEarned < 0 ? "text-clay-coral" : "text-clay-purple"}`}>
+                      <Sparkles className="h-3.5 w-3.5" />{xpEarned > 0 ? "+" : ""}{Math.round(xpEarned)} XP
                           </p>
                         )}
                         {xpSpent > 0 && (

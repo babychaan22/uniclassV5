@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Lock, Sparkles, Users } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { getActiveStudentAccount } from "@/lib/studentContext";
-import { APP_DATA_CHANGED_EVENT } from "@/api/supabaseClient";
+import { APP_DATA_CHANGED_EVENT, supabase } from "@/api/supabaseClient";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayConfirmDialog from "@/components/ClayConfirmDialog";
@@ -46,13 +46,17 @@ export default function StudentRewards() {
     if (!account) { navigate(ROUTES.STUDENT.ONBOARDING); return; }
     const group = await db.entities.Group.get(account.group_id);
     const classroomId = group.classroom_id;
-    const [rewards, logs, redemptions, personal] = await Promise.all([
+    const [rewards, redemptions, personal, totalsResult] = await Promise.all([
       db.entities.Reward.filter({ is_active: true }),
-      db.entities.ParticipationLog.filter({ classroom_id: classroomId, group_id: group.id }),
       db.entities.RewardRedemption.filter({ group_id: group.id }),
       getPersonalRewardDashboard(classroomId),
+      supabase.rpc("get_student_account_totals", { p_classroom_id: classroomId }),
     ]);
-    const groupPoints = logs.reduce((sum, log) => sum + (log.event_type === "behavior_penalty" ? -Math.abs(log.points_awarded || 0) : log.points_awarded || 0), 0);
+    if (totalsResult.error) throw totalsResult.error;
+    // The shared-goal meter must use the same full group ledger as History and
+    // the teacher's all-time audit, not a separately paged browser read.
+    const total = totalsResult.data?.[0] || {};
+    const groupPoints = Number(total.full_group_points ?? total.group_points ?? 0);
     const groupRewards = rewards.filter((reward) => reward.classroom_id === classroomId || reward.applies_to_all_classes).sort((a, b) => a.cost_points - b.cost_points);
     setData({ group, classroomId, groupPoints, groupRewards, redemptions, personal });
   }

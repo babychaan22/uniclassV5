@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
+import ClayConfirmDialog from "@/components/ClayConfirmDialog";
 import MascotWidget from "@/components/MascotWidget";
 import { Hash, Users, Plus, X, ArrowRight, Star, ShieldCheck, Info } from "lucide-react";
 import { ROUTES } from '@/lib/routes';
@@ -32,6 +33,7 @@ export default function StudentOnboarding() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [existingAccounts, setExistingAccounts] = useState([]);
+  const [confirmMember, setConfirmMember] = useState(null);
 
   useEffect(() => {
     async function check() {
@@ -89,11 +91,18 @@ export default function StudentOnboarding() {
     setTeammates(next);
   }
 
-  async function submit(e) {
-    e.preventDefault();
+  async function submit(e, verifiedMember = false) {
+    e?.preventDefault();
     setError("");
     if (!lastName || !firstName) { setError("Enter your last and first name."); return; }
     if (!email) { setError("Enter your email."); return; }
+    if (selectedMemberId && !verifiedMember) {
+      const member = members.find((row) => row.id === selectedMemberId);
+      if (member) {
+        setConfirmMember(member);
+        return;
+      }
+    }
     setLoading(true);
     const norm = (s) => (s || "").toUpperCase().trim();
 
@@ -282,6 +291,16 @@ export default function StudentOnboarding() {
 
       {error && <div className="flex items-center gap-2 rounded-xl border-2 border-ink bg-clay-sun/40 p-2"><MascotWidget state="error" size="sm" /><p className="text-clay-coral font-display font-bold text-sm">{error}</p></div>}
       <ClayButton color="pink" size="lg" className="w-full" onClick={submit} disabled={loading}>{loading ? "Joining..." : "Join Class"}</ClayButton>
+      <ClayConfirmDialog
+        open={Boolean(confirmMember)}
+        onOpenChange={(open) => { if (!open && !loading) setConfirmMember(null); }}
+        title="Confirm your roster name"
+        description={confirmMember ? `You selected ${confirmMember.last_name}, ${confirmMember.first_name}. Is this your existing class record? Your account will be linked to its points, attendance, learning history, and badges after teacher approval.` : ""}
+        confirmLabel="Yes, this is me"
+        confirmColor="purple"
+        busy={loading}
+        onConfirm={async () => { setConfirmMember(null); await submit(null, true); }}
+      />
     </div>
   );
 }

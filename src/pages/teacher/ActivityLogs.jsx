@@ -4,6 +4,7 @@ const db = globalThis.__B44_DB__;
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/api/supabaseClient";
 import { getTeacherClassroom, getClassroomGroups, getClassroomMembers, invalidateClassroomDataset } from "@/lib/teacherClassroom";
 
 import ClayCard from "@/components/ClayCard";
@@ -42,6 +43,7 @@ const SYNTHETIC_LABELS = {
   attendance: { label: "Attendance", color: "sky" },
   activity_score: { label: "Activity score", color: "purple" },
   mission_xp: { label: "Mission XP", color: "purple" },
+  xp_adjustment: { label: "XP adjustment", color: "purple" },
 };
 
 const labelFor = (type) =>
@@ -72,6 +74,7 @@ export default function ActivityLogs() {
   const [voiding, setVoiding] = useState(null);
   const [notice, setNotice] = useState('');
   const [definitions, setDefinitions] = useState([]);
+  const [pointTotals, setPointTotals] = useState([]);
 
   useEffect(() => {
     load();
@@ -86,7 +89,7 @@ export default function ActivityLogs() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const offset = nextPage * 100;
-    const [logs, redemptions, badges, attendance, activityScores, activities, submissions, missions, groups, members, badgeDefinitions] = await Promise.all([
+    const [logs, redemptions, badges, attendance, activityScores, activities, submissions, missions, groups, members, badgeDefinitions, xpAdjustmentsResult, pointTotalsResult] = await Promise.all([
       db.entities.ParticipationLog.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.RewardRedemption.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.Badge.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
@@ -97,12 +100,16 @@ export default function ActivityLogs() {
       db.entities.Mission.filter({ classroom_id: c.id }),
       getClassroomGroups(c.id), getClassroomMembers(c.id),
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
+      supabase.rpc('get_teacher_xp_adjustment_history', { p_classroom_id: c.id }),
+      supabase.rpc('get_teacher_point_totals', { p_classroom_id: c.id }),
     ]);
     setDefinitions(badgeDefinitions || []);
+    setPointTotals(pointTotalsResult.data || []);
     setGroups(groups || []);
     setHasMore(logs.length === 100 || redemptions.length === 100 || badges.length === 100 || attendance.length === 100 || activityScores.length === 100 || submissions.length === 100);
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `${m.last_name}, ${m.first_name}`]));
+    const memberById = new Map(members.map((member) => [member.id, member]));
     const activityMap = new Map((activities || []).map((activity) => [activity.id, activity]));
     const missionMap = new Map((missions || []).map((mission) => [mission.id, mission]));
     setMembers(members);
@@ -151,7 +158,7 @@ const logEntries = logs.map((l) => {
     }));
 
     const badgeEntries = badges.map((b) => {
-      const definition = definitions.find((item) => item.id === b.badge_definition_id);
+      const definition = (badgeDefinitions || []).find((item) => item.id === b.badge_definition_id);
       const label = definition?.title
         || SYSTEM_BADGE_LABELS[b.badge_type]
         || b.badge_type.replace(/^custom:[0-9a-f-]+(:[0-9a-f-]+)?$/, "Badge").replaceAll("_", " ");
@@ -215,7 +222,25 @@ const logEntries = logs.map((l) => {
       };
     });
 
-    const merged = [...logEntries, ...redemptionEntries, ...badgeEntries, ...attendanceEntries, ...scoreEntries, ...missionEntries].sort(
+    // Adjustments are protected wallet records, so they are supplied by a
+    // teacher-authorized report rather than a direct table read. Showing them
+    // here gives the teacher the same complete XP trail as the student.
+    const xpAdjustmentEntries = (xpAdjustmentsResult.data || []).map((row) => {
+      const member = memberById.get(row.group_member_id);
+      return {
+        id: `xp-adjustment-${row.id}`,
+        type: 'xp_adjustment',
+        points: null,
+        xp: Number(row.amount || 0),
+        groupLabel: gmap[member?.group_id] ? `Group ${gmap[member.group_id]}` : (c.uses_groups ? 'Unassigned group' : 'Whole class'),
+        group_id: member?.group_id || null,
+        memberLabel: mmap[row.group_member_id] || null,
+        note: `XP adjustment · ${row.reason || 'Account adjustment'}`,
+        created_date: row.created_at,
+      };
+    });
+
+    const merged = [...logEntries, ...redemptionEntries, ...badgeEntries, ...attendanceEntries, ...scoreEntries, ...missionEntries, ...xpAdjustmentEntries].sort(
       (a, b) => (b.created_date || "").localeCompare(a.created_date || "")
     );
 
@@ -286,6 +311,22 @@ const logEntries = logs.map((l) => {
         <p className="text-ink/60 text-sm">Attendance, activity scores, mission XP, points, scans, gacha results, rewards, and badges—newest first.</p>
       </div>
       <FloatingNotice notice={notice ? { ok: !notice.toLowerCase().includes("could not"), text: notice } : null} onDismiss={() => setNotice('')} />
+
+      {pointTotals.length > 0 && (
+        <section aria-label="All-time point totals" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {pointTotals.map((total) => {
+            const groupNumber = groups.find((group) => group.id === total.group_id)?.group_number;
+            return <ClayCard key={total.group_id} className="p-3">
+              <p className="font-display font-extrabold">Group {groupNumber ?? '—'} · all-time ledger</p>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                <div><p className="font-mono font-extrabold text-clay-purple">{formatAmount(total.personal_points)}</p><p className="text-[10px] text-ink/55">personal</p></div>
+                <div><p className="font-mono font-extrabold text-clay-sun">{formatAmount(total.group_only_earned)}</p><p className="text-[10px] text-ink/55">group-only earned</p></div>
+                <div><p className="font-mono font-extrabold text-clay-sky">{formatAmount(total.full_group_points)}</p><p className="text-[10px] text-ink/55">whole group</p></div>
+              </div>
+            </ClayCard>;
+          })}
+        </section>
+      )}
 
       <PointsAward
         groups={groups}
@@ -363,7 +404,7 @@ const logEntries = logs.map((l) => {
                           </p>
                         )}
                         {e.xp != null && (
-                          <p className="shrink-0 font-mono font-extrabold text-clay-purple">+{formatAmount(e.xp)} XP</p>
+                          <p className={`shrink-0 font-mono font-extrabold ${e.xp < 0 ? 'text-clay-coral' : 'text-clay-purple'}`}>{e.xp > 0 ? '+' : ''}{formatAmount(e.xp)} XP</p>
                         )}
                       </div>
                       {(e.correctable || e.voidable) && (
