@@ -108,6 +108,19 @@ function createEntityHelper(tableName) {
       return { rows, limit, offset, hasMore: rows.length === limit };
     },
 
+    /** Fetch a complete scoped dataset without relying on PostgREST's row cap. */
+    async listAll(conditions = {}, options = {}) {
+      const limit = Math.max(1, Math.min(options.pageSize || 500, 500));
+      const rows = [];
+      let offset = 0;
+      while (true) {
+        const page = await this.filter(conditions, { ...options, limit, offset });
+        rows.push(...page);
+        if (page.length < limit) return rows;
+        offset += page.length;
+      }
+    },
+
     /** Return a single row by primary key. */
     async get(id) {
       const { data, error } = await supabase

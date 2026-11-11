@@ -118,11 +118,11 @@ export default function StudentDashboard() {
       // select the fields this panel renders. They hydrate independently, so a
       // delayed historical dataset cannot make the page appear broken.
       Promise.all([
-        db.entities.Attendance.filter({ group_id: group.id }, { columns: 'group_member_id,status,attendance_date' }),
-        db.entities.ActivityScore.filter({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,is_absent,created_date' }),
-        db.entities.Activity.filter({ classroom_id: classroomId }, { columns: 'id,title,max_score,is_published,deadline,created_date' }),
-        db.entities.ParticipationLog.filter({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
-        db.entities.MissionSubmission.filter({ group_id: group.id }, { columns: 'mission_id,group_id,group_member_id,created_date' }),
+        db.entities.Attendance.listAll({ group_id: group.id }, { columns: 'group_member_id,status,attendance_date' }),
+        db.entities.ActivityScore.listAll({ group_id: group.id }, { columns: 'group_member_id,activity_id,score,is_absent,created_date' }),
+        db.entities.Activity.listAll({ classroom_id: classroomId }, { columns: 'id,title,max_score,is_published,deadline,created_date' }),
+        db.entities.ParticipationLog.listAll({ group_id: group.id }, { columns: 'group_member_id,points_awarded,event_type,created_date' }),
+        db.entities.MissionSubmission.listAll({ group_id: group.id }, { columns: 'mission_id,group_id,group_member_id,created_date' }),
         supabase.rpc('get_classroom_student_avatars', { p_classroom_id: classroomId }),
       ]).then(([attendance, scores, activities, logs, missionSubmissions, avatarResult]) => {
         if (!active || avatarResult.error) return;

@@ -75,6 +75,7 @@ export default function ActivityLogs() {
   const [notice, setNotice] = useState('');
   const [definitions, setDefinitions] = useState([]);
   const [pointTotals, setPointTotals] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     load();
@@ -86,10 +87,16 @@ export default function ActivityLogs() {
   async function load(nextPage = 0) {
     if (!user) return;
     if (nextPage > 0) setLoadingMore(true);
-    const c = await getTeacherClassroom(user.id);
+    setLoadError('');
+    let c;
+    try { c = await getTeacherClassroom(user.id); } catch (err) {
+      setLoadError(err?.message || 'Activity history could not be loaded.');
+      setLoading(false); setLoadingMore(false); return;
+    }
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const offset = nextPage * 100;
-    const [logs, redemptions, badges, attendance, activityScores, activities, submissions, missions, groups, members, badgeDefinitions, xpAdjustmentsResult, pointTotalsResult] = await Promise.all([
+    let results;
+    try { results = await Promise.all([
       db.entities.ParticipationLog.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.RewardRedemption.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
       db.entities.Badge.filter({ classroom_id: c.id }, { orderBy: 'created_date', ascending: false, limit: 100, offset }),
@@ -102,7 +109,14 @@ export default function ActivityLogs() {
       db.entities.BadgeDefinition.filter({ classroom_id: c.id }),
       supabase.rpc('get_teacher_xp_adjustment_history', { p_classroom_id: c.id }),
       supabase.rpc('get_teacher_point_totals', { p_classroom_id: c.id }),
-    ]);
+    ]); } catch (err) {
+      setLoadError(err?.message || 'Activity history could not be loaded.');
+      setLoading(false); setLoadingMore(false); return;
+    }
+    const [logs, redemptions, badges, attendance, activityScores, activities, submissions, missions, groups, members, badgeDefinitions, xpAdjustmentsResult, pointTotalsResult] = results;
+    if (xpAdjustmentsResult.error || pointTotalsResult.error) {
+      setLoadError((xpAdjustmentsResult.error || pointTotalsResult.error).message || 'Ledger summaries could not be loaded.');
+    }
     setDefinitions(badgeDefinitions || []);
     setPointTotals(pointTotalsResult.data || []);
     setGroups(groups || []);
@@ -311,6 +325,7 @@ const logEntries = logs.map((l) => {
         <p className="text-ink/60 text-sm">Attendance, activity scores, mission XP, points, scans, gacha results, rewards, and badges—newest first.</p>
       </div>
       <FloatingNotice notice={notice ? { ok: !notice.toLowerCase().includes("could not"), text: notice } : null} onDismiss={() => setNotice('')} />
+      {loadError && <ClayCard color="coral" className="p-3 text-sm" role="alert">{loadError}</ClayCard>}
 
       {pointTotals.length > 0 && (
         <section aria-label="All-time point totals" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

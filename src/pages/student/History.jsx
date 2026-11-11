@@ -180,6 +180,11 @@ export default function StudentHistory() {
         let usingFallback = false;
         if (history.error || totalsResult.error) {
           const fallback = await loadDirectHistory(account);
+          const adjustmentTotal = (adjustmentsResult.data || []).reduce(
+            (sum, adjustment) => sum + Number(adjustment.amount || 0), 0
+          );
+          fallback.totals.xp_earned += adjustmentTotal;
+          fallback.totals.xp_available = Math.max(0, fallback.totals.xp_earned - fallback.totals.xp_spent);
           if (!active) return;
           rows = fallback.rows;
           total = fallback.totals;
