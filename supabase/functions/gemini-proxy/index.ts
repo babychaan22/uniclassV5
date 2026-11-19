@@ -97,6 +97,8 @@ Deno.serve(async (req: Request) => {
   const modelChain = await getModelChain(apiKey);
   let lastError = 'No Gemini model with generateContent is available for this API key.';
   for (const model of modelChain) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -113,7 +115,13 @@ Deno.serve(async (req: Request) => {
           responseMimeType: 'application/json',
         },
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+    if (controller.signal.aborted) {
+      lastError = `Gemini model ${model} timed out after 10s.`;
+      continue;
+    }
 
     if (!response.ok) {
       lastError = `Gemini model ${model} returned HTTP ${response.status}: ${await response.text()}`;

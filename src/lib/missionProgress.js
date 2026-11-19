@@ -16,6 +16,7 @@ export function manilaDateKey(date = new Date()) {
 // retain the teacher's existing group-grade workflow. A member id is also used
 // as a safe fallback for older individual records.
 export function missionUsesIndividualProgress(mission, submissions = []) {
+  if (mission?.formative_type === "manual") return false;
   if (mission?.formative_type && mission.formative_type !== "manual") return true;
   return submissions.some((submission) => submission.mission_id === mission?.id && !!submission.group_member_id);
 }

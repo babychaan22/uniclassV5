@@ -70,6 +70,8 @@ async function getFreeModelChain(apiKey: string): Promise<string[]> {
 async function generateImage(apiKey: string, prompt: string, draftKey: string, userId: string, supabaseClient: ReturnType<typeof createClient>): Promise<Response> {
   let response: Response;
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     response = await fetch(OPENROUTER_URL, {
       method: 'POST',
       headers: {
@@ -84,7 +86,9 @@ async function generateImage(apiKey: string, prompt: string, draftKey: string, u
         modalities: ['text', 'image'],
         image_config: { aspect_ratio: '16:9', image_size: '1K' },
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
   } catch (error) {
     return json({ error: `Network error reaching OpenRouter image generation: ${(error as Error).message}` }, 502);
   }
@@ -196,6 +200,8 @@ Deno.serve(async (req: Request) => {
       lastError = model.slice('__catalog_error__:'.length);
       continue;
     }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     let response: Response;
     try {
       response = await fetch(OPENROUTER_URL, {
@@ -221,10 +227,18 @@ Deno.serve(async (req: Request) => {
           ],
           temperature: 0.7,
         }),
+        signal: controller.signal,
       });
     } catch (networkErr) {
+      clearTimeout(timeoutId);
+      if ((networkErr as Error).name === 'AbortError') {
+        lastError = `Model "${model}" timed out after 10s.`;
+        continue;
+      }
       lastError = `Network error reaching OpenRouter: ${(networkErr as Error).message}`;
       continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     // Retriable statuses → try the next model

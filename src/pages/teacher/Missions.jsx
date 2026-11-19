@@ -443,21 +443,23 @@ export default function TeacherMissions() {
   async function saveGrade(e, m, g) {
     e.preventDefault();
     const score = Number(gradeVal);
-    if (gradeVal === "" || Number.isNaN(score)) { cancelGrade(); return; }
+    if (gradeVal === "" || !Number.isFinite(score) || score < 0 || score > Number(m.max_score)) { setReviewMsg('Enter a score between zero and the maximum score.'); return; }
     setSavingGrade(true);
-    const xp = Math.max(0, Math.round((score / m.max_score) * m.xp_reward));
-    const existing = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id);
-    if (existing) {
-      await db.entities.MissionSubmission.update(existing.id, { score, xp_earned: xp, graded_by: user.id });
-    } else {
-      await db.entities.MissionSubmission.create({
-        mission_id: m.id, group_id: g.id, classroom_id: classroom.id, score, xp_earned: xp, graded_by: user.id,
-      });
+    try {
+      const { data: result, error } = await supabase.rpc('grade_manual_mission_group', { p_mission_id: m.id, p_group_id: g.id, p_score: score });
+      if (error) throw error;
+      cancelGrade();
+      invalidateClassroomDataset();
+      setReviewMsg(`Grade saved: ${result.xpPerStudent} XP for each of ${result.students} group members.`);
+      try { await load(); } catch (refreshError) {
+        console.error('[missions] refresh after grading failed:', refreshError);
+        setReviewMsg('Grade saved, but the list could not refresh. Reopen this page to see it.');
+      }
+    } catch (error) {
+      setReviewMsg(`Could not save the grade: ${error?.message || 'Please try again.'}`);
+    } finally {
+      setSavingGrade(false);
     }
-    setSavingGrade(false);
-    cancelGrade();
-    invalidateClassroomDataset();
-    load();
   }
 
   if (!classroom) return <PanelSkeleton cards={3} />;
@@ -863,7 +865,7 @@ export default function TeacherMissions() {
                     <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2"><div><p className="font-display font-bold text-clay-lime">Answered ({answered.length})</p><p className="text-ink/65">{answered.length ? answered.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'None yet'}</p></div><div><p className="font-display font-bold text-clay-coral">Not answered ({waiting.length})</p><p className="text-ink/65">{waiting.length ? waiting.map((member) => `${member.last_name}, ${member.first_name}`).join(' · ') : 'Everyone has responded'}</p></div></div>
                   </details>;
                 }
-                const sub = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id);
+                const sub = submissions.find((s) => s.mission_id === m.id && s.group_id === g.id && (isAi || !s.group_member_id));
                 const groupMembers = members.filter((member) => member.group_id === g.id);
                 const groupSubmissions = submissions.filter((submission) => submission.mission_id === m.id && submission.group_id === g.id && submission.group_member_id);
                 const isGradingThis = grading?.missionId === m.id && grading?.groupId === g.id;
@@ -882,6 +884,7 @@ export default function TeacherMissions() {
                           <ClayButton type="submit" color="lime" size="sm" disabled={savingGrade}>{savingGrade ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</ClayButton>
                           <ClayButton type="button" color="cream" size="sm" onClick={cancelGrade}>✕</ClayButton>
                         </form>
+                        <p className="text-xs text-ink/60">This score and its XP will be recorded for every current member of this group.</p>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 flex-1">

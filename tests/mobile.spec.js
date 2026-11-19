@@ -333,13 +333,21 @@ test.describe('teacher mobile flows', () => {
     expect(errors.filter((error) => !error.includes('favicon'))).toEqual([]);
   });
 
-  test('teacher can save and correct attendance in place', async ({ page }) => {
+  test('teacher can mark every learner present and correct attendance in place', async ({ page }) => {
     await login(page, teacherEmail, teacherPassword, '/teacher/attendance', 'uniclass.teacher.activeClassroomId');
+    const markAllPresent = page.getByRole('button', { name: 'Mark all students present', exact: true });
+    await expect(markAllPresent).toBeVisible({ timeout: 20_000 });
+    const saveAll = page.waitForResponse((response) => (
+      response.url().includes('/rest/v1/attendances')
+      && ['POST', 'PATCH'].includes(response.request().method())
+    ));
+    await markAllPresent.click({ force: true });
+    expect((await saveAll).ok()).toBeTruthy();
+    await expect(page.getByText(/All \d+ students marked present/i)).toBeVisible({ timeout: 15_000 });
+
     const present = page.getByRole('button', { name: /Mark TEST, STUDENT present/i });
     await expect(present).toBeVisible({ timeout: 20_000 });
-    await present.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.getByText(/TEST, STUDENT marked present/i)).toBeVisible({ timeout: 15_000 });
+    await expect(present).toHaveClass(/bg-clay-lime/);
     const absent = page.getByRole('button', { name: /Mark TEST, STUDENT absent/i });
     await absent.focus();
     await page.keyboard.press('Enter');
