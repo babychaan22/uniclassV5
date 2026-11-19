@@ -56,3 +56,11 @@ project-ui-refactor/
 # Supabase CLI local metadata, at any depth
 supabase/.temp/
 **/supabase/.temp/
+
+# Local asset staging and generated previews, not app-referenced
+/output/
+/public/ui-kit/3d/
+/public/ui-kit/free-icons/
+name-style-effects-preview.svg
+student-20xp-style-preview.png
+student-custom-dashboard-preview.png
