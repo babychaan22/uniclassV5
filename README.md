@@ -76,6 +76,20 @@ Set `APP_ORIGIN` as a Supabase secret to the exact deployed app origin before
 deploying the AI edge functions. The functions reject oversized prompts and
 should be protected with a per-user rate limit at the edge or gateway.
 
+## Record transfers and onboarding reclaim
+
+Run `supabase/migrations/20261222_reclaim_existing_roster_names.sql` and
+`supabase/migrations/20261223_records_move_without_mission_guards.sql` on an
+existing project. Together they:
+
+- Let a student who created a second sign-in select their already-enrolled
+  roster name during onboarding. The request lands in the teacher's
+  Student Management pending list; approving it links the new login to the
+  existing record so points, attendance, badges and mission history follow.
+- Keep the teacher's roster record transfer free of mission blockers: moved
+  submissions follow the destination student's group, and any mission-data
+  conflict is preserved on the archived record instead of aborting the merge.
+
 ## Build for production
 
 ```bash
