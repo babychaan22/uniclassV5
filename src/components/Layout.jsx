@@ -232,8 +232,8 @@ export default function Layout() {
     <div className={`min-h-screen bg-[var(--uc-bg)] ${canvasTheme}`}>
       <a href="#main-content" className="uc-skip-link">Skip to main content</a>
       <OfflineStatus />
-      <header className="sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
-        <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
+      <header className="uc-safe-top sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
+        <div className="uc-safe-right uc-safe-left mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
           <Link to={isTeacher ? ROUTES.TEACHER.DASHBOARD : ROUTES.STUDENT.DASHBOARD} className="flex items-center gap-2">
             <BrandMark />
             <span className="font-display text-xl font-extrabold tracking-tight text-[var(--uc-navy-950)] sm:text-2xl">UniClass</span>
@@ -253,7 +253,7 @@ export default function Layout() {
 
       <div className="mx-auto flex max-w-[1440px] gap-6 px-4 py-5 sm:px-6 lg:py-7">
         <aside className="hidden w-56 shrink-0 lg:block no-print">
-          <nav className="sticky top-[5.75rem] flex max-h-[calc(100vh-7rem)] flex-col gap-3 overflow-y-auto rounded-[22px] border border-[rgba(16,32,101,.06)] bg-white/85 p-3 shadow-[var(--uc-shadow-sm)]">
+          <nav className="sticky top-[5.75rem] flex max-h-[calc(100dvh-7rem)] flex-col gap-3 overflow-y-auto rounded-[22px] border border-[rgba(16,32,101,.06)] bg-white/85 p-3 shadow-[var(--uc-shadow-sm)]">
             {isTeacher ? (
               TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} />)
             ) : (
@@ -269,7 +269,7 @@ export default function Layout() {
 
         {open && (
           <div className="fixed inset-0 top-16 z-30 bg-[var(--uc-bg)]/95 backdrop-blur lg:hidden no-print" onClick={() => setOpen(false)}>
-            <nav ref={mobileMenuRef} id="mobile-navigation" aria-label="Mobile navigation" className="mx-auto flex max-h-[calc(100vh-4rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
+            <nav ref={mobileMenuRef} id="mobile-navigation" aria-label="Mobile navigation" className="mx-auto flex max-h-[calc(100dvh-6rem)] max-w-2xl flex-col gap-2 overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
               {isTeacher ? (
                 TEACHER_NAV_SECTIONS.map((section) => <SectionMenu key={section.label} section={section} hideIcon />)
               ) : (

@@ -701,3 +701,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: transform .15s ease;
 }
 .uc-skip-link:focus-visible { transform: translateY(0); }
+
+/* ── Small-screen resilience ────────────────────────────────────────────── */
+/* Form fields sized for their container inherit the 16px browser minimum on
+   phones, but smaller explicit widths (score boxes, join code) stay compact.
+   Anything below 16px would make iOS Safari zoom the page on focus. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+}
+
+/* Notched devices: keep sticky chrome away from the sensor housing when the
+   page is installed or opened with viewport-fit=cover. */
+.uc-safe-top { padding-top: max(0px, env(safe-area-inset-top)); }
+.uc-safe-right { padding-right: max(0px, env(safe-area-inset-right)); }
+.uc-safe-left { padding-left: max(0px, env(safe-area-inset-left)); }
+
+/* Overflowing content clips at the viewport edge instead of stretching the
+   page sideways; clip (not hidden) keeps position:sticky working. */
+html, body { overflow-x: clip; }

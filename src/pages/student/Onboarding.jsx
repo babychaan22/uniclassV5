@@ -82,6 +82,16 @@ export default function StudentOnboarding() {
 
   const repForGroup = (groupId) => accounts.find((a) => a.group_id === groupId && a.is_representative);
   const memberCountForGroup = (groupId) => accounts.filter((a) => a.group_id === groupId).length;
+  // A selected roster name can belong to a record that already has a sign-in
+  // (for example after a forgotten password). That is supported: the account
+  // links to the existing record once the teacher approves the request.
+  const isReclaim = Boolean(selectedMemberId && members.find((m) => m.id === selectedMemberId)?.claimed);
+  const usesGroups = classroom ? classroom.uses_groups !== false : true;
+  // Roster rows belong to groups in grouped classes, but every member of the
+  // class is selectable when the class has no groups.
+  const rosterMembers = classroom
+    ? (usesGroups && selectedGroup ? members.filter((m) => m.group_id === selectedGroup.id) : members)
+    : [];
 
   function addTeammate() { setTeammates([...teammates, { last_name: "", first_name: "" }]); }
   function removeTeammate(i) { setTeammates(teammates.filter((_, idx) => idx !== i)); }
@@ -89,6 +99,18 @@ export default function StudentOnboarding() {
     const next = [...teammates];
     next[i][field] = val.toUpperCase();
     setTeammates(next);
+  }
+
+  function ForgotPasswordLink() {
+    const text = (error || '').toLowerCase();
+    const relevant = text.includes('already') || text.includes('sign-in') || text.includes('enroll');
+    if (!relevant) return null;
+    return (
+      <p className="text-xs text-ink/60">
+        Forgot the password of your old account?{' '}
+        <Link className="text-clay-purple underline" to={ROUTES.FORGOT_PASSWORD}>Recover it here</Link> instead of creating a second record.
+      </p>
+    );
   }
 
   async function submit(e, verifiedMember = false) {
@@ -139,6 +161,7 @@ export default function StudentOnboarding() {
               <input className="clay-input text-center text-2xl font-mono tracking-widest" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={6} placeholder="ABC123" required />
             </div>
             {error && <div className="flex items-center gap-2 rounded-xl border-2 border-ink bg-clay-sun/40 p-2"><MascotWidget state="error" size="sm" /><p className="text-clay-coral font-display font-bold text-sm">{error}</p></div>}
+      <ForgotPasswordLink />
             <ClayButton type="submit" color="purple" size="lg" className="w-full" disabled={loading}>Find Class <ArrowRight className="w-5 h-5" /></ClayButton>
           </form>
         </ClayCard>
@@ -188,7 +211,6 @@ export default function StudentOnboarding() {
   // Every student on this group's roster, including any who have already
   // enrolled. A returning student needs to see their own row here, marked as
   // taken, so they know to ask their teacher rather than create a twin.
-  const groupMembers = members.filter((m) => m.group_id === selectedGroup?.id);
 
   return (
     <div className="max-w-lg mx-auto space-y-5">
@@ -200,7 +222,7 @@ export default function StudentOnboarding() {
 
       <ClayCard className="p-5">
         <p className="font-display font-bold mb-3">Your name</p>
-        {classroom.uses_groups !== false && groupMembers.length > 0 && (
+        {rosterMembers.length > 0 && (
           <div className="mb-4 rounded-xl border-2 border-ink bg-clay-sky/30 p-3">
             <p className="text-sm font-display font-bold mb-1">Is your name already on this class roster?</p>
             <p className="text-xs text-ink/60 mb-2">
@@ -208,36 +230,38 @@ export default function StudentOnboarding() {
               attendance and badges follow you instead of starting again.
             </p>
             <div className="space-y-2">
-              {groupMembers.map((member) => (
+              {rosterMembers.map((member) => (
                 <button
                   key={member.id}
                   type="button"
                   onClick={() => pickExistingMember(member)}
-                  disabled={member.claimed}
+                  aria-pressed={selectedMemberId === member.id}
                   className={`clay-btn w-full text-left px-3 py-2 flex items-center justify-between gap-2 ${
                     selectedMemberId === member.id
                       ? "bg-clay-purple text-white"
                       : member.claimed
-                        ? "bg-cream/50 text-ink/40 cursor-not-allowed"
+                        ? "bg-clay-sky/25 text-ink"
                         : "bg-cream text-ink"
+
                   }`}
                 >
                   <span>{member.last_name}, {member.first_name}</span>
                   {member.claimed && (
                     <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide">
-                      Already enrolled
+                      {member.active_login ? 'Already enrolled - select to link' : 'On roster'}
                     </span>
                   )}
                 </button>
               ))}
             </div>
-            {selectedMemberId && <div className="mt-2 flex items-center justify-between gap-2"><p className="text-xs font-display font-bold text-clay-purple">Existing member selected. Your account will be linked after teacher approval.</p><button type="button" className="text-xs underline shrink-0" onClick={() => { setSelectedMemberId(null); setLastName(""); setFirstName(""); }}>Use a new name</button></div>}
+            {selectedMemberId && <div className="mt-2 flex items-center justify-between gap-2"><p className="text-xs font-display font-bold text-clay-purple">{isReclaim ? 'This name already has a sign-in. After your teacher approves, this account links to its points, attendance and badges.' : 'Existing member selected. Your account will be linked after teacher approval.'}</p><button type="button" className="text-xs underline shrink-0" onClick={() => { setSelectedMemberId(null); setLastName(""); setFirstName(""); }}>Use a new name</button></div>}
           </div>
         )}
-        {classroom.uses_groups !== false && groupMembers.length > 0 && !selectedMemberId && (
+        {rosterMembers.length > 0 && (
           <p className="text-xs text-ink/50 mb-2">
-            Not listed? Enter your name below and your teacher will review it. If you have joined
-            this class before under a different account, ask your teacher to move that record for you.
+            Forgot the password of your old account? Recover it from the log-in screen, or select
+            your name above to send your teacher a link request. Not listed? Enter your name below
+            and your teacher will review it.
           </p>
         )}
         <div className="flex gap-2">

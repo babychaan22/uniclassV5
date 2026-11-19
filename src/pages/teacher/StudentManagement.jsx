@@ -134,6 +134,7 @@ export default function TeacherStudentManagement() {
               <div className="flex min-w-0 items-center gap-3"><UserAvatar name={a.email || `${a.last_name}-${a.first_name}`} size="sm" /><div>
                 <p className="font-display font-bold flex items-center gap-2">
                   {a.last_name}, {a.first_name}
+                  {a.is_reclaim_request && <ClayChip color="sky">Linking to existing record</ClayChip>}
                   {a.is_representative && <ClayChip color="purple">Rep</ClayChip>}
                 </p>
                 <p className="text-xs text-ink/60 font-mono">Group {gnum(a)} · Role: {a.is_representative ? "Representative" : "Member"}{a.email ? ` · ${a.email}` : ""}</p>

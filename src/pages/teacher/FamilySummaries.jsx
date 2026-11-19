@@ -9,7 +9,6 @@ import { ROUTES } from '@/lib/routes';
 import { SYSTEM_BADGES } from '@/lib/groupBadges';
 import ClayButton from '@/components/ClayButton';
 import ClayCard from '@/components/ClayCard';
-import ClayChip from '@/components/ClayChip';
 
 function displayName(member) {
   return `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Student';

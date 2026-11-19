@@ -242,8 +242,8 @@ export default function Roster() {
                   <div key={mem.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-ink/5 bg-[var(--uc-bg)] p-3">
                     {editing ? (
                       <>
-                        <input className="clay-input text-sm w-32" value={v.last_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, last_name: e.target.value.toUpperCase() } })} placeholder="LAST" />
-                        <input className="clay-input text-sm w-32" value={v.first_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, first_name: e.target.value.toUpperCase() } })} placeholder="FIRST" />
+                        <input className="clay-input text-sm w-full max-w-40 flex-1 sm:w-32 sm:flex-none" value={v.last_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, last_name: e.target.value.toUpperCase() } })} placeholder="LAST" />
+                        <input className="clay-input text-sm w-full max-w-40 flex-1 sm:w-32 sm:flex-none" value={v.first_name} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, first_name: e.target.value.toUpperCase() } })} placeholder="FIRST" />
                         <select className="clay-input text-sm w-28" value={v.group_id} onChange={(e) => setEdit({ ...edit, [mem.id]: { ...v, group_id: e.target.value } })}>
                           {groups.map((gg) => <option key={gg.id} value={gg.id}>G{gg.group_number}</option>)}
                         </select>
@@ -305,7 +305,7 @@ export default function Roster() {
             className="absolute inset-0 cursor-default bg-ink/40"
             onClick={() => setTransferTarget(null)}
           />
-          <ClayCard role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" style={transferDialogPosition || undefined} className={`fixed flex w-[calc(100%-2rem)] max-w-lg max-h-[85vh] flex-col overflow-hidden p-0 ${transferDialogPosition ? "" : "bottom-4 left-4 right-4 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"}`}>
+          <ClayCard role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" style={transferDialogPosition || undefined} className={`fixed flex w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] flex-col overflow-hidden p-0 ${transferDialogPosition ? "" : "bottom-4 left-4 right-4 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"}`}>
             <div className="shrink-0 border-b border-ink/10 bg-[var(--uc-bg)] p-5 pb-4">
               <h3 id="transfer-dialog-title" className="font-display font-extrabold text-lg">Move records into</h3>
               <div className="mt-3 flex items-center gap-3 rounded-2xl border-2 border-clay-purple bg-clay-purple/10 p-3">
