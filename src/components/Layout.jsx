@@ -127,6 +127,15 @@ const STUDENT_NAV = [
   { label: "Help",            path: ROUTES.STUDENT.HELP,       icon: HelpCircle },
 ];
 
+// The four actions learners use most, pinned to the mobile bottom bar;
+// everything else lives behind the "More" sheet, like the teacher bar.
+const STUDENT_MOBILE_NAV = [
+  { label: "Home",            path: ROUTES.STUDENT.DASHBOARD,   icon: Home },
+  { label: "Attendance",      path: ROUTES.STUDENT.ATTENDANCE,  icon: ClipboardCheck },
+  { label: "Scan QR",         path: ROUTES.STUDENT.SCAN,        icon: QrCode },
+  { label: "Missions",        path: ROUTES.STUDENT.MISSIONS,    icon: Target },
+];
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -145,7 +154,7 @@ export default function Layout() {
         { label: "Missions", path: ROUTES.TEACHER.MISSIONS, icon: Target },
         { label: "QR", path: ROUTES.TEACHER.QR_GENERATOR, icon: QrCode },
       ]
-    : STUDENT_NAV;
+    : STUDENT_MOBILE_NAV;
   const learnerTheme = !isTeacher && user?.banner_theme ? `uc-theme-${user.banner_theme}` : "";
   const canvasTheme = learnerTheme || "uc-app-background";
 
@@ -300,10 +309,10 @@ export default function Layout() {
               </Link>
             );
           })}
-          {isTeacher && <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
+          <button type="button" onClick={() => setOpen(true)} aria-expanded={open} aria-label="Open more navigation options" className={`flex min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-center ${open ? "bg-clay-purple/10 text-clay-purple" : "text-ink/55"}`}>
             <UIAsset name="menu" className="h-7 w-7" />
             <span className="text-[10px] font-display font-bold">More</span>
-          </button>}
+          </button>
         </div>
       </nav>
     </div>
