@@ -18,6 +18,7 @@ import {
 
 import AuthLayout from "@/components/AuthLayout";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { friendlyLoginError } from "@/pages/Login";
 import { toast } from "@/components/ui/use-toast";
 
 export default function Register() {
@@ -87,8 +88,7 @@ export default function Register() {
 
       setRegistered(true);
     } catch (err) {
-      console.error("Signup error:", err);
-      setError(err?.message || "Registration failed. Check console for details.");
+      setError(friendlyLoginError(err));
     } finally {
       setLoading(false);
     }

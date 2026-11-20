@@ -8,6 +8,33 @@ import { LogIn, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 
+// Teachers and students hit these on flaky school Wi-Fi or after mistyping a
+// password several times. Map Supabase's technical messages to plain language
+// with the next step — no "check console for details" for a phone user.
+export function friendlyLoginError(err) {
+  const raw = String(err?.message || err || '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('not confirmed') || lower.includes('confirm your email')) {
+    return 'Please confirm your email first. Check your inbox (and spam folder) for the confirmation link.';
+  }
+  if (lower.includes('invalid login credentials')) {
+    return 'Email or password is incorrect. Check the email you enrolled with, or ask your teacher to reset it.';
+  }
+  if (lower.includes('rate limit') || lower.includes('too many request') || err?.status === 429 || err?.code === 429) {
+    return 'Too many attempts. Please wait a minute before trying again.';
+  }
+  if (lower.includes('failed to fetch') || lower.includes('fetch failed') || lower.includes('network')) {
+    return 'No internet connection. Check your Wi-Fi or data, then try again.';
+  }
+  if (lower.includes('expired')) {
+    return 'That link or session has expired. Request a new one.';
+  }
+  if (lower.includes('password login disabled') || lower.includes('signups not allowed')) {
+    return 'This sign-in method is turned off for this class. Ask your teacher how to join.';
+  }
+  return raw || 'Could not log in. Please try again.';
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,12 +54,7 @@ export default function Login() {
       const safeReturn = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/";
       window.location.href = safeReturn;
     } catch (err) {
-      console.error('Login error:', err);
-      if (err?.message?.includes("not confirmed") || err?.message?.includes("email")) {
-        setError("Please confirm your email first. Check your inbox for the confirmation link.");
-      } else {
-        setError(err?.message || "Invalid email or password. Check console for details.");
-      }
+      setError(friendlyLoginError(err));
     } finally {
       setLoading(false);
     }
