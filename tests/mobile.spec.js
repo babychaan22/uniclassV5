@@ -302,6 +302,10 @@ test.describe('teacher mobile flows', () => {
   });
 
   test('teacher can send support reminders and extend an overdue mission', async ({ page, browser }) => {
+    // Two full UI logins (teacher + student in a second context) can each burn
+    // up to the login-retry budget when Supabase throttles the IP, which
+    // exceeds the 60s default.
+    test.setTimeout(180_000);
     await login(page, teacherEmail, teacherPassword, '/teacher/dashboard', 'uniclass.teacher.activeClassroomId');
     await expect(page.getByRole('heading', { name: /Needs Support/i })).toBeVisible({ timeout: 20_000 });
 

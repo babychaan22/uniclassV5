@@ -31,10 +31,10 @@ export default function TeacherClassSwitcher({ user }) {
   }
 
   return (
-    <label className="flex items-center gap-2 rounded-xl border-2 border-ink/20 bg-cream px-3 py-2 text-ink shadow-[2px_2px_0_rgba(23,22,43,0.2)]">
-      <Layers className="h-4 w-4 shrink-0" aria-hidden="true" />
+    <label className="flex items-center gap-2 rounded-xl border-2 border-ink/20 bg-cream px-2 py-2 text-ink shadow-[2px_2px_0_rgba(23,22,43,0.2)] sm:px-3">
+      <Layers className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
       <span className="sr-only">Active class</span>
-      <select aria-label="Active class" value={activeId} onChange={handleChange} className="min-w-0 max-w-[13rem] bg-transparent text-sm font-display font-extrabold outline-none">
+      <select aria-label="Active class" value={activeId} onChange={handleChange} className="min-w-0 max-w-[9.5rem] bg-transparent text-sm font-display font-extrabold outline-none sm:max-w-[13rem]">
         {classrooms.map((classroom) => (
           <option key={classroom.id} value={classroom.id}>
             {classroom.grade_level} · {classroom.section}{classroom.subject ? ` · ${classroom.subject}` : ''}

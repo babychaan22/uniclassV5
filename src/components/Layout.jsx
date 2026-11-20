@@ -243,16 +243,16 @@ export default function Layout() {
       <OfflineStatus />
       <header className="uc-safe-top sticky top-0 z-40 border-b border-ink/5 bg-white/90 text-ink shadow-[0_2px_14px_rgba(29,38,88,.04)] backdrop-blur no-print">
         <div className="uc-safe-right uc-safe-left mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6">
-          <Link to={isTeacher ? ROUTES.TEACHER.DASHBOARD : ROUTES.STUDENT.DASHBOARD} className="flex items-center gap-2">
+          <Link to={isTeacher ? ROUTES.TEACHER.DASHBOARD : ROUTES.STUDENT.DASHBOARD} aria-label="UniClass" className="flex items-center gap-2">
             <BrandMark />
-            <span className="font-display text-xl font-extrabold tracking-tight text-[var(--uc-navy-950)] sm:text-2xl">UniClass</span>
+            <span className="hidden font-display text-xl font-extrabold tracking-tight text-[var(--uc-navy-950)] sm:block sm:text-2xl">UniClass</span>
           </Link>
           <p className="hidden flex-1 text-center text-sm font-medium text-ink/60 lg:block">{isTeacher ? "Teacher workspace" : "Your learning space"}</p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {isTeacher ? <TeacherClassSwitcher user={user} /> : <StudentClassSwitcher user={user} />}
             <NotificationBell teacher={isTeacher} />
             <span className="hidden sm:flex"><UserAvatar name={user?.email} avatarKey={isTeacher ? user?.avatar_key : studentAvatarKey || user?.avatar_key} frameKey={user?.avatar_frame} size="md" /></span>
-            <ThemeToggle />
+            <span className="hidden sm:flex"><ThemeToggle /></span>
             <button ref={menuButtonRef} onClick={() => setOpen(!open)} className="lg:hidden clay-btn bg-clay-purple text-white px-2 py-2" aria-label="Menu" aria-expanded={open} aria-controls="mobile-navigation">
               {open ? <X className="w-6 h-6" /> : <UIAsset name="menu" className="h-6 w-6" />}
             </button>
@@ -284,6 +284,9 @@ export default function Layout() {
               ) : (
                 STUDENT_NAV.map((item) => <NavItem key={item.path} item={item} hideIcon />)
               )}
+              {/* The theme toggle leaves the header on phones (it does not fit
+                  beside the class switcher), so it lives here. */}
+              <div className="flex min-h-11 items-center px-3"><ThemeToggle /></div>
               <button onClick={handleLogout} className="mt-4 flex min-h-11 items-center gap-2 rounded-xl bg-clay-coral px-4 py-3 text-sm font-display font-bold text-white">
                 <LogOut className="w-5 h-5" /> Log out
               </button>
