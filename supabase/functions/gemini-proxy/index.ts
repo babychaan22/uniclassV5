@@ -94,6 +94,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Prompt is too long.' }, 413);
   }
 
+  // ── Per-user rate limit ─────────────────────────────────────────────────────
+  // Burst + daily caps enforced atomically in Postgres. The caller's own JWT
+  // authorizes the RPC, so limits are tied to the verified account.
+  const { error: rateLimitError } = await supabaseClient.rpc('consume_ai_call_quota', { p_kind: 'text' });
+  if (rateLimitError) {
+    return json({ error: rateLimitError.message }, 429);
+  }
+
   const modelChain = await getModelChain(apiKey);
   let lastError = 'No Gemini model with generateContent is available for this API key.';
   for (const model of modelChain) {

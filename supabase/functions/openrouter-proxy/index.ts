@@ -185,6 +185,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Prompt is too long.' }, 413);
   }
 
+  // ── Per-user rate limit ─────────────────────────────────────────────────────
+  // Burst + daily caps enforced atomically in Postgres via the caller's own
+  // JWT, so limits are tied to the verified account. Image generation keeps
+  // its own stricter quota (consume_ai_image_quota) inside generateImage();
+  // the burst-only cap here just stops request hammering.
+  const { error: rateLimitError } = await supabaseClient.rpc('consume_ai_call_quota', { p_kind: kind });
+  if (rateLimitError) {
+    return json({ error: rateLimitError.message }, 429);
+  }
+
   if (kind === 'image') {
     if (!draftKey) return json({ error: 'draftKey is required for image generation.' }, 400);
     return generateImage(apiKey, prompt, draftKey, user.id, supabaseClient);
