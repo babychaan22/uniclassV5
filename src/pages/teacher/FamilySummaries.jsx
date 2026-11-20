@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Copy, HeartHandshake, Printer } from 'lucide-react';
+import QRCode from 'qrcode';
+import { CheckCheck, Copy, HandHelping, HeartHandshake, HelpCircle, Printer, QrCode, RefreshCw, ShieldCheck } from 'lucide-react';
 const db = globalThis.__B44_DB__;
+import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getClassroomDataset, getTeacherClassroom } from '@/lib/teacherClassroom';
 import { getTodayManila, getWeekStartManila } from '@/lib/week';
@@ -38,6 +40,12 @@ export default function FamilySummaries() {
   const [memberId, setMemberId] = useState('');
   const [period, setPeriod] = useState('week');
   const [copied, setCopied] = useState(false);
+  const [guardianPanel, setGuardianPanel] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [inviteQr, setInviteQr] = useState('');
+  const [inviteMsg, setInviteMsg] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [replies, setReplies] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -141,6 +149,54 @@ export default function FamilySummaries() {
     return { member, group, start, end, periodLabel, periodTitle, attendance, attendanceRate, scores, activityRecords, activityRate, missionSubmissions, teacherMissionSubmissions, missionMastery, teacherMissionCompletion, teacherMissions, dueThisWeek, missed, achievements, personalClassPoints, nextStep };
   }, [data, memberId, period]);
 
+  // A new learner or period changes which share link applies; drop the stale one.
+  useEffect(() => { setInviteUrl(''); setInviteQr(''); setInviteMsg(''); }, [memberId, period]);
+
+  async function ensureInvite() {
+    if (!summary) return;
+    setInviteMsg('');
+    try {
+      const { data: inviteData, error } = await supabase.rpc('create_family_summary_invite', {
+        p_member_id: summary.member.id,
+        p_period_kind: period,
+        p_period_label: summary.periodLabel,
+        p_period_start: summary.start,
+        p_period_end: summary.end,
+      });
+      if (error) throw error;
+      const url = `${window.location.origin}/family-reply/${inviteData.shareToken}`;
+      setInviteUrl(url);
+      setInviteQr(await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: '#000000', light: '#ffffff' } }));
+    } catch (err) {
+      setInviteMsg(err.message || 'Could not create the reply link.');
+    }
+  }
+
+  async function loadReplies() {
+    const { data: replyData, error } = await supabase.rpc('list_family_summary_replies');
+    if (error) { setInviteMsg(error.message || 'Could not load guardian replies.'); return; }
+    setReplies(replyData || []);
+  }
+
+  function toggleGuardianPanel() {
+    const opening = !guardianPanel;
+    setGuardianPanel(opening);
+    if (opening && !inviteUrl) ensureInvite();
+    if (opening) loadReplies();
+  }
+
+  async function copyReplyLink() {
+    if (!inviteUrl) return;
+    await navigator.clipboard?.writeText(inviteUrl);
+    setCopiedLink(true);
+    window.setTimeout(() => setCopiedLink(false), 2500);
+  }
+
+  const memberReplies = useMemo(
+    () => (replies || []).filter((r) => r.member_id === memberId && r.reaction),
+    [replies, memberId],
+  );
+
   async function copySummary() {
     if (!summary) return;
     const lines = [
@@ -153,6 +209,7 @@ export default function FamilySummaries() {
       `Achievements: ${summary.achievements.length ? summary.achievements.map((achievement) => `${achievement.name} (${achievement.earnedDate})`).join(', ') : 'No badge earned in this period.'}`,
       `Next step: ${summary.nextStep}`,
     ];
+    if (inviteUrl) lines.push(`Reply to this update: ${inviteUrl} (no account needed)`);
     await navigator.clipboard?.writeText(lines.join('\n'));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2500);
@@ -163,7 +220,7 @@ export default function FamilySummaries() {
   return <div className="mx-auto max-w-3xl space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h1 className="flex items-center gap-2 text-2xl font-display font-extrabold"><HeartHandshake className="h-6 w-6" /> Family summaries</h1><p className="mt-1 text-sm text-ink/60">A simple, read-only weekly, monthly, or term update a teacher can print or share with a family.</p></div>
-      <div className="flex gap-2"><ClayButton color="cream" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</ClayButton><ClayButton color="sky" size="sm" onClick={copySummary}><Copy className="h-4 w-4" /> {copied ? 'Copied' : 'Copy update'}</ClayButton></div>
+      <div className="flex gap-2"><ClayButton color="cream" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</ClayButton><ClayButton color="cream" size="sm" onClick={toggleGuardianPanel}><QrCode className="h-4 w-4" /> Guardian replies {memberReplies.length > 0 && <span className="ml-1 rounded-full bg-clay-purple px-1.5 py-px text-[10px] font-extrabold text-white">{memberReplies.length}</span>}</ClayButton><ClayButton color="sky" size="sm" onClick={copySummary}><Copy className="h-4 w-4" /> {copied ? 'Copied' : 'Copy update'}</ClayButton></div>
     </div>
 
     <ClayCard className="space-y-4 p-4 no-print"><div><p className="text-sm font-display font-bold">Summary period</p><div className="mt-2 grid grid-cols-3 gap-2">{[['week', 'Weekly'], ['month', 'Monthly'], ['term', 'Term']].map(([value, label]) => <button key={value} type="button" onClick={() => setPeriod(value)} className={`clay-btn justify-center px-2 py-2 text-sm ${period === value ? 'bg-clay-purple text-white' : 'bg-cream text-ink/70'}`}>{label}</button>)}</div>{period === 'term' && !(data.terms || []).some((item) => item.is_active || (item.start_date && item.end_date)) && <p className="mt-2 text-xs text-clay-coral">Set an active term in Class Setup to create a term summary.</p>}</div><label className="block text-sm font-display font-bold">Choose a learner<select aria-label="Choose learner for family summary" className="clay-input mt-2 w-full" value={memberId} onChange={(event) => setMemberId(event.target.value)}>{data.members.map((member) => <option key={member.id} value={member.id}>{displayName(member)}{data.groups.find((group) => group.id === member.group_id) ? ` · Group ${data.groups.find((group) => group.id === member.group_id).group_number}` : ''}</option>)}</select></label></ClayCard>
@@ -185,7 +242,34 @@ export default function FamilySummaries() {
       <div><div className="flex items-baseline justify-between gap-2"><p className="font-display text-sm font-extrabold">Recorded activity scores</p><p className="text-[10px] text-ink/60">{summary.periodLabel}</p></div>{summary.activityRecords.length ? <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">{summary.activityRecords.map((record) => { const max = Number(record.activity?.max_score || 0); const scoreRate = percent(Number(record.score || 0), max); return <div key={record.id} className="flex items-center justify-between gap-2 rounded-lg border border-ink/10 bg-white px-2.5 py-1.5"><div className="min-w-0"><p className="truncate text-xs font-display font-extrabold">{record.activity?.title || `Activity ${record.activity?.activity_number || ''}`}</p><p className="text-[10px] text-ink/55">Activity {record.activity?.activity_number || '—'}</p></div><div className="shrink-0 text-right"><p className="font-mono text-xs font-extrabold text-[var(--uc-navy-950)]">{record.score}/{max || '—'}</p><p className="text-[9px] text-ink/55">{scoreRate === null ? '—' : `${scoreRate}%`}</p></div></div>; })}</div> : <p className="mt-1.5 text-xs text-ink/60">No activity score was recorded in this period.</p>}</div>
       <div className="grid gap-2 sm:grid-cols-2"><SummaryBlock title="Completed work" lines={[`${summary.attendance.filter((item) => item.status === 'present').length} attendance record${summary.attendance.filter((item) => item.status === 'present').length === 1 ? '' : 's'} marked present.`, `${summary.scores.length} activity score${summary.scores.length === 1 ? '' : 's'} recorded.`, `${summary.missionSubmissions.length} mission${summary.missionSubmissions.length === 1 ? '' : 's'} completed.`]} /><SummaryBlock title="Needs attention" lines={summary.missed.length ? summary.missed.slice(0, 3).map((item) => `Mission: ${item.title || 'Untitled mission'}`) : [`No teacher-assigned mission is due in ${summary.periodLabel.toLowerCase()}.`]} /></div>
       <div><p className="font-display text-sm font-extrabold">Achievements</p><div className="mt-1.5 flex flex-wrap gap-1.5">{summary.achievements.length ? summary.achievements.map((achievement) => <div key={achievement.id} className="inline-flex items-center gap-1.5 rounded-lg border border-clay-sun/35 bg-clay-sun/15 px-2 py-1"><span role="img" aria-label={achievement.name} className="text-base">{achievement.icon}</span><span><span className="block text-[11px] font-display font-extrabold text-ink">{achievement.name}</span><span className="block text-[9px] text-ink/60">Earned {achievement.earnedDate}</span></span></div>) : <p className="text-xs text-ink/60">No badge was earned in this period yet.</p>}</div></div>
-      <p className="border-t border-ink/10 pt-2 text-[10px] leading-relaxed text-ink/55">This update is a classroom learning summary. It is read-only and contains no account settings, private messages, or other learners’ records.</p>
+      <p className="border-t border-ink/10 pt-2 text-[10px] leading-relaxed text-ink/55">This update is a classroom learning summary. It is read-only and contains no account settings, private messages, or other learners’ records. Families may respond through the reply link or QR shared by the teacher.</p>
+    </ClayCard>}
+
+    {summary && guardianPanel && <ClayCard className="space-y-3.5 p-4 sm:p-5">
+      <div><p className="font-display text-sm font-extrabold">Guardian replies</p><p className="mt-0.5 text-xs text-ink/60">Share this update with a family and include the reply link or QR. Guardians reply without an account — their message lands here.</p></div>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-clay-purple/20 bg-clay-purple/10 p-3">
+        {inviteQr ? <img src={inviteQr} alt="Guardian reply QR code" className="h-28 w-28 rounded-lg border border-ink/10 bg-white" /> : <div className="flex h-28 w-28 items-center justify-center rounded-lg border border-ink/10 bg-white text-ink/30"><QrCode className="h-8 w-8" /></div>}
+        <div className="min-w-[12rem] flex-1 space-y-2">
+          <p className="text-xs leading-relaxed text-ink/70">Reply link for {displayName(summary.member)} · {summary.periodLabel}:</p>
+          {inviteUrl ? <div className="flex flex-wrap items-center gap-2"><code className="max-w-full truncate rounded bg-white px-2 py-1 text-[11px]">{inviteUrl}</code><ClayButton color="sky" size="sm" onClick={copyReplyLink}><Copy className="h-3.5 w-3.5" /> {copiedLink ? 'Copied' : 'Copy link'}</ClayButton></div> : <p className="text-xs text-ink/50">Creating link…</p>}
+          <p className="flex items-center gap-1 text-[10px] text-ink/50"><ShieldCheck className="h-3 w-3" /> Guardians see only this learner's name, class, and period. No account, no records.</p>
+        </div>
+      </div>
+      {inviteMsg && <p className="rounded-lg bg-clay-coral/15 px-3 py-2 text-xs text-clay-coral">{inviteMsg}</p>}
+      <div>
+        <div className="flex items-center justify-between gap-2"><p className="font-display text-sm font-extrabold">Inbox{summary ? ` · ${displayName(summary.member)}` : ''}</p><ClayButton color="cream" size="sm" onClick={loadReplies}><RefreshCw className="h-3.5 w-3.5" /> Refresh</ClayButton></div>
+        {memberReplies.length ? <ul className="mt-2 space-y-2">{memberReplies.map((reply) => {
+          const tone = reply.reaction === 'needs_help' ? { bg: 'bg-clay-coral/10', icon: HandHelping, label: 'Needs help' }
+            : reply.reaction === 'question' ? { bg: 'bg-clay-sky/10', icon: HelpCircle, label: 'Question' }
+            : { bg: 'bg-clay-lime/10', icon: CheckCheck, label: 'Read it' };
+          const Icon = tone.icon;
+          return <li key={reply.invite_id + String(reply.reply_at)} className={`rounded-xl border border-ink/10 p-3 ${tone.bg}`}>
+            <p className="flex items-center gap-1.5 font-display text-xs font-extrabold"><Icon className="h-3.5 w-3.5" /> {tone.label} · {reply.guardian_name || 'Family member'} · {reply.period_label}</p>
+            {reply.note && <p className="mt-1 text-xs leading-relaxed text-ink/75">{reply.note}</p>}
+            <p className="mt-1 text-[10px] text-ink/45">{reply.reply_at ? new Date(reply.reply_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</p>
+          </li>;
+        })}</ul> : <p className="mt-2 text-xs text-ink/60">No replies yet. Share the update with the reply link or QR above.</p>}
+      </div>
     </ClayCard>}
   </div>;
 }

@@ -7,6 +7,7 @@ const pagesToCheck = [
   { path: "/login", expect: /Log in|Welcome back|password/i },
   { path: "/register", expect: /create|register|sign/i },
   { path: "/forgot-password", expect: /reset|email/i },
+  { path: "/family-reply/00000000-0000-0000-0000-000000000000", expect: /not valid|could not/i },
 ];
 
 const browser = await chromium.launch();
@@ -25,7 +26,10 @@ for (const { path, expect } of pagesToCheck) {
   } catch (err) { console.error(`FAIL ${path}: ${err.message.split("\n")[0]}`); failures++; }
 }
 
-const filtered = errors.filter((e) => !e.includes("favicon"));
+// A rejected invalid family-reply token intentionally produces a 404 from
+// PostgREST; the browser logs it as a resource error even though the page
+// itself handles it. Ignore only those resource lines.
+const filtered = errors.filter((e) => !e.includes("favicon") && !/Failed to load resource.*\b404\b/.test(e));
 console.log(`console/page errors: ${filtered.length}`);
 for (const e of filtered.slice(0, 10)) console.error(e);
 await browser.close();

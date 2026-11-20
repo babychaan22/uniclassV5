@@ -8,6 +8,7 @@ export const ROUTES = {
   RESET_PASSWORD:  '/reset-password',
   CHECK_EMAIL:     '/check-email',
   AUTH_CALLBACK:   '/auth/callback',
+  FAMILY_REPLY:    '/family-reply/:token',
   HOME:            '/',
   WAITING_APPROVAL:'/waiting-approval',
   LEADERBOARD:     '/leaderboard',
