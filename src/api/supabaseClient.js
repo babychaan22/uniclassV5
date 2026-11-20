@@ -27,6 +27,7 @@ const ENTITY_TABLE_MAP = {
   GroupMember:        'group_members',
   Mission:            'missions',
   MissionSubmission:  'mission_submissions',
+  MissionTemplate:    'mission_templates',
   ParticipationLog:   'participation_logs',
   QRCode:             'qr_codes',
   Reward:             'rewards',

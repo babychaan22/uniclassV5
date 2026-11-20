@@ -11,7 +11,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import { Switch } from "@/components/ui/switch";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
-import { Plus, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Loader2, Sparkles, Upload, X, Pencil, Check, RotateCcw, Archive, ArchiveRestore, BookmarkPlus, Trash2 } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
 import { setMissionApproval, approvePowerUpForAllClasses, updateMission, generatePendingPowerUps, archiveMission as archiveMissionRpc } from "@/lib/secureActions";
 import MissionPreview from "@/components/teacher/MissionPreview";
@@ -167,6 +167,10 @@ export default function TeacherMissions() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  // The teacher's reusable quiz shelf: any mission can be bookmarked as a
+  // template, and a template prefills the creation form below.
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   useEffect(() => {
     const intervention = location.state?.intervention;
@@ -220,6 +224,90 @@ export default function TeacherMissions() {
     setSubmissions(ds.submissions);
     setTeacherClasses(classes);
     setTargetClassIds((current) => current.length ? current : [c.id]);
+  }
+
+  async function loadTemplates() {
+    if (!user) return;
+    try {
+      const rows = await db.entities.MissionTemplate.filter({});
+      setTemplates([...(rows || [])].sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+    } catch (err) {
+      // A missing template shelf must never block the missions page.
+      console.warn('[missions] templates unavailable:', err?.message || err);
+    }
+  }
+
+  useEffect(() => { loadTemplates(); }, [user]);
+
+  // A template prefills the creation form with its saved structure: title,
+  // scoring, learning objective and — for AI-assessed formats — the full
+  // question set with answers, ready to review before publishing.
+  async function loadTemplate(t) {
+    let content = {}; try { content = JSON.parse(t.ai_content || "{}"); } catch {}
+    let key = {}; try { key = JSON.parse(t.answer_key || "{}"); } catch {}
+    const isAi = t.formative_type !== "manual";
+    const merged = { ...content, answers: key.answers ?? content.answers };
+    setForm((current) => ({
+      ...current,
+      title: t.title || current.title,
+      description: t.formative_type === "manual" ? (t.description || "") : current.description,
+      xp_reward: String(t.xp_reward ?? current.xp_reward),
+      max_score: String(t.max_score ?? current.max_score),
+      formative_type: t.formative_type || current.formative_type,
+      learning_target: content.learning_target || "",
+      success_criteria: Array.isArray(content.success_criteria) ? content.success_criteria.join("\n") : (content.success_criteria || ""),
+      assessment_purpose: content.assessment_purpose || "quick_check",
+      student_instructions: content.student_instructions || content.learner_instructions || "",
+      prior_knowledge: content.prior_knowledge || "",
+      intervention_context: content.intervention_context ?? null,
+      content: !isAi ? (content.content || t.description || "") : current.content,
+    }));
+    setAiContent(isAi ? merged : null);
+    if (Array.isArray(t.target_statuses) && t.target_statuses.length) setTargetStatuses(t.target_statuses);
+    setGenMsg(`Template loaded: ${t.title}. Review it, adjust the questions, then create the mission.`);
+    db.entities.MissionTemplate.update(t.id, { use_count: (t.use_count || 0) + 1 })
+      .then(() => loadTemplates()).catch(() => { /* usage count is best-effort */ });
+  }
+
+  // The bookmark button on a mission card saves its structure for reuse. Only
+  // the reusable parts are copied: no class targeting, deadline, or student
+  // submissions follow the template.
+  async function saveAsTemplate(m) {
+    setLoadingTemplates(true);
+    setReviewMsg(null);
+    try {
+      await db.entities.MissionTemplate.create({
+        teacher_id: user.id,
+        title: m.title,
+        description: m.description || null,
+        formative_type: m.formative_type || "manual",
+        xp_reward: m.xp_reward ?? 100,
+        max_score: m.max_score ?? 10,
+        ai_content: m.ai_content || null,
+        answer_key: m.answer_key || null,
+        target_statuses: m.target_statuses ?? ["On Track", "Developing", "At Risk", "Not enough data"],
+        subject: m.subject || null,
+      });
+      setReviewMsg(`Saved "${m.title}" as a reusable template. Start your next mission from it any time.`);
+      await loadTemplates();
+    } catch (err) {
+      setReviewMsg(`Could not save the template: ${err?.message || "Please try again."}`);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }
+
+  async function deleteTemplate(t) {
+    setLoadingTemplates(true);
+    setReviewMsg(null);
+    try {
+      await db.entities.MissionTemplate.delete(t.id);
+      await loadTemplates();
+    } catch (err) {
+      setReviewMsg(`Could not remove the template: ${err?.message || "Please try again."}`);
+    } finally {
+      setLoadingTemplates(false);
+    }
   }
 
   async function createMission(e) {
@@ -481,6 +569,25 @@ export default function TeacherMissions() {
 
       <ClayCard className="p-5">
         <div className="mb-4 flex items-center gap-3"><UIAsset name="assessment" className="h-12 w-12" /><div><h2 className="font-display text-xl font-extrabold text-[var(--uc-navy-950)]">Mission details</h2><p className="text-sm text-ink/60">Start with the learning target students should practice.</p></div></div>
+        {templates.length > 0 && (
+          <div className="mb-4 rounded-xl border border-ink/10 bg-cream/70 p-3">
+            <p className="font-display font-bold text-xs">Start from a saved template</p>
+            <p className="text-[11px] text-ink/55 mt-0.5">Your reusable quizzes and drills. Tap one to fill this form with its questions and scoring.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {templates.map((t) => (
+                <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-white border border-ink/10 pl-1 pr-1 py-1 shadow-sm">
+                  <button type="button" onClick={() => loadTemplate(t)} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-display font-bold text-[var(--uc-navy-950)] hover:bg-clay-purple/10" title="Load this template into the form">
+                    {t.title}
+                    <span className="text-[10px] font-bold text-ink/45">{(t.formative_type || '').replace('_', ' ')}{t.use_count ? ` · used ${t.use_count}×` : ''}</span>
+                  </button>
+                  <button type="button" onClick={() => deleteTemplate(t)} disabled={loadingTemplates} className="rounded-full p-1 text-ink/40 hover:text-clay-coral hover:bg-clay-coral/10" title="Delete this template" aria-label={`Delete template ${t.title}`}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <form onSubmit={createMission} className="space-y-3">
           <div>
             <label className="font-display font-bold text-xs mb-1 block">Title</label>
@@ -781,6 +888,11 @@ export default function TeacherMissions() {
                     </>
                   ) : (
                     m.mission_source !== 'daily_foundation' && <button onClick={() => startEdit(m)} className="clay-btn bg-clay-sky px-2 py-2" title="Edit this mission" aria-label={`Edit ${m.title}`}><Pencil className="w-4 h-4" /></button>
+                  )}
+                  {m.mission_source !== 'daily_foundation' && (
+                    <button onClick={() => saveAsTemplate(m)} disabled={loadingTemplates} className="clay-btn bg-cream px-2 py-2" title="Save as a reusable template" aria-label={`Save ${m.title} as a reusable template`}>
+                      <BookmarkPlus className="w-4 h-4" />
+                    </button>
                   )}
                   {approval !== 'approved' && (
                     <button onClick={() => reviewMission(m, approval === 'rejected' ? 'pending' : 'rejected')} disabled={reviewingId === m.id} className="clay-btn bg-clay-sun px-2 py-2" title={approval === 'rejected' ? 'Send back for review' : 'Withhold from students'}>
