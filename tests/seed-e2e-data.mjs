@@ -46,6 +46,11 @@ async function insert(table, row) {
 const teacher = await ensureUser(teacherEmail, 'teacher');
 const student = await ensureUser(studentEmail, 'student');
 const pendingStudent = await ensureUser(`e2e-pending-${teacher.id.slice(0, 8)}@example.test`, 'student');
+// Reclaim fixture: LEGACY, ACCOUNT holds the record with an old working login
+// (the "forgotten" one), and reclaimStudent is the fresh sign-up that claims
+// the same roster name. Both login with TEST_E2E_PASSWORD.
+const legacyUser = await ensureUser(`e2e-legacy-${teacher.id.slice(0, 8)}@example.test`, 'student');
+const reclaimStudent = await ensureUser(`e2e-reclaim-${teacher.id.slice(0, 8)}@example.test`, 'student');
 const { error: studentLoginError } = await studentSession.auth.signInWithPassword({ email: studentEmail, password });
 if (studentLoginError) throw new Error(`Could not authenticate the E2E student: ${studentLoginError.message}`);
 
@@ -53,19 +58,49 @@ if (studentLoginError) throw new Error(`Could not authenticate the E2E student: 
 // manually tested class. Clear only its account links before recreating the
 // isolated E2E classes, otherwise the student app can restore an unrelated
 // classroom and never see these fixtures.
-const staleAccounts = await admin.from('group_accounts').delete().eq('user_id', student.id);
+const staleAccounts = await admin.from('group_accounts').delete().in('user_id', [student.id, legacyUser.id, reclaimStudent.id]);
 if (staleAccounts.error) throw staleAccounts.error;
 
 const old = await admin.from('classrooms').select('id').eq('teacher_id', teacher.id).like('section', 'E2E-%');
 if (old.error) throw old.error;
 if (old.data.length) {
-  const { error } = await admin.from('classrooms').delete().in('id', old.data.map((row) => row.id));
+  // Child rows do not all cascade (lessons learned 2026-12-02), so purge them
+  // in dependency order before removing the classrooms, then verify nothing
+  // survived. A silent orphan (e.g. an old classroom keeping its missions)
+  // breaks fixtures such as the overdue-mission deadline.
+  const ids = old.data.map((row) => row.id);
+  for (const table of [
+    'mission_submissions', 'activity_submissions', 'participation_logs', 'wallet_transactions',
+    'notifications', 'qr_codes', 'points',
+  ]) {
+    const { error } = await admin.from(table).delete().in('classroom_id', ids);
+    if (error && !/does not exist|Could not find the (table|'classroom_id' column)/.test(error.message)) throw new Error(`${table}: ${error.message}`);
+  }
+  // wallet rows and member-scoped rows hang off group_members, not classrooms.
+  const { data: members } = await admin.from('group_members').select('id').in('classroom_id', ids);
+  const memberIds = (members || []).map((row) => row.id);
+  if (memberIds.length) {
+    for (const table of ['wallets', 'student_badges', 'claimes', 'rewards']) {
+      const { error } = await admin.from(table).delete().in('group_member_id', memberIds);
+      if (error && !/does not exist|Could not find the (table|'group_member_id' column)/.test(error.message)) throw new Error(`${table}: ${error.message}`);
+    }
+    await admin.from('group_accounts').delete().in('group_member_id', memberIds);
+    await admin.from('group_members').delete().in('id', memberIds);
+  }
+  await admin.from('group_accounts').delete().in('classroom_id', ids);
+  await admin.from('groups').delete().in('classroom_id', ids);
+  await admin.from('activities').delete().in('classroom_id', ids);
+  await admin.from('missions').delete().in('classroom_id', ids);
+  const { error } = await admin.from('classrooms').delete().in('id', ids);
   if (error) throw error;
+  const { data: survivors } = await admin.from('classrooms').select('id').in('id', ids);
+  if (survivors?.length) throw new Error(`Old E2E classrooms survived cleanup: ${survivors.length} rows.`);
 }
 
-// Join codes are globally unique. Tie the disposable classrooms to their
-// dedicated teacher identity so another test environment cannot collide with
-// this seed's previous fixed E2E01A/E2E02B codes.
+// Join codes are globally unique and MUST be typable: the onboarding input caps
+// codes at 6 characters (maxLength={6}). Tie the disposable classrooms to their
+// dedicated teacher identity (last 4 uuid chars + classroom digit = 6 chars) so
+// environments cannot collide.
 const joinCodePrefix = teacher.id.replace(/-/g, '').slice(0, 8).toUpperCase();
 // Reset the one deterministic test-only Gacha code so its one-time-use rule
 // can be verified on every CI run without relying on a real classroom code.
@@ -89,7 +124,7 @@ for (const index of [0, 1]) {
     school_year: '2026-2027',
     num_groups: 1,
     uses_groups: true,
-    join_code: `E2E${joinCodePrefix}${index + 1}`,
+    join_code: `E${joinCodePrefix.slice(-4)}${index + 1}`,
   });
   const group = await insert('groups', { classroom_id: classroom.id, group_number: 1, group_name: 'E2E Group 1' });
   const member = await insert('group_members', {
@@ -116,6 +151,25 @@ for (const index of [0, 1]) {
     group_id: group.id,
     last_name: 'PENDING',
     first_name: 'LEARNER',
+  });
+  // The reclaim target: an approved record held by the legacy login.
+  const legacyMember = await insert('group_members', {
+    classroom_id: classroom.id,
+    group_id: group.id,
+    last_name: 'LEGACY',
+    first_name: 'ACCOUNT',
+    is_account_holder: true,
+  });
+  await insert('group_accounts', {
+    user_id: legacyUser.id,
+    classroom_id: classroom.id,
+    group_id: group.id,
+    group_member_id: legacyMember.id,
+    last_name: 'LEGACY',
+    first_name: 'ACCOUNT',
+    email: legacyUser.email,
+    is_approved: true,
+    is_representative: false,
   });
   await insert('group_accounts', {
     user_id: student.id,

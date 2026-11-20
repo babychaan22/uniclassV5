@@ -34,10 +34,15 @@ async function login(page, email, password, path, activeClassKey) {
     await page.addInitScript(({ key, id }) => window.localStorage.setItem(key, id), { key: activeClassKey, id: e2eClassroomId });
   }
   await page.goto(`${baseUrl}/login?returnUrl=${encodeURIComponent(path)}`);
-  await page.getByLabel('Email').fill(email);
-  await page.getByRole('textbox', { name: 'Password' }).fill(password);
-  await page.getByRole('button', { name: 'Log in' }).click();
-  await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 20_000 });
+  // Supabase throttles repeated sign-ins from one IP; a brief retry survives
+  // a throttled attempt without masking a real credential failure.
+  await expect(async () => {
+    await page.goto(`${baseUrl}/login?returnUrl=${encodeURIComponent(path)}`);
+    await page.getByLabel('Email').fill(email);
+    await page.getByRole('textbox', { name: 'Password' }).fill(password);
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 20_000 });
+  }).toPass({ timeout: 50_000, intervals: [1_000, 4_000, 10_000] });
 }
 
 function collectBrowserErrors(page) {
@@ -226,8 +231,27 @@ test.describe('student mobile flows', () => {
     await fileInput.setInputFiles(await createProofFixture(testInfo));
     await expect(page.getByText(/group proof image.*uploaded/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/No group proof images have been uploaded/i)).toHaveCount(0);
+    // The score card lists every non-transferred member of the student's
+    // group; the seed's roster (and later tests' transfers) changes that
+    // count, so derive it from the classroom instead of hard-coding it.
+    const adminScore = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: scoreAccounts, error: accountError } = await adminScore.from('group_accounts')
+      .select('id, group_id')
+      .eq('classroom_id', e2eClassroomId)
+      .eq('last_name', 'TEST')
+      .eq('first_name', 'STUDENT');
+    if (accountError) throw accountError;
+    const scoreGroup = scoreAccounts[0]?.group_id;
+    if (!scoreGroup) throw new Error('The TEST, STUDENT account was not seeded into the E2E-1 group.');
+    const { data: scoreRoster, error: rosterError } = await adminScore.from('group_members')
+      .select('id')
+      .eq('group_id', scoreGroup)
+      .neq('is_transferred', true);
+    if (rosterError) throw rosterError;
+    const expectedInputs = scoreRoster.length;
+
     const scoreInputs = page.getByLabel(/^Score for /);
-    await expect(scoreInputs).toHaveCount(4, { timeout: 20_000 });
+    await expect(scoreInputs).toHaveCount(expectedInputs, { timeout: 20_000 });
     for (let index = 0; index < await scoreInputs.count(); index += 1) {
       await scoreInputs.nth(index).fill('0');
       await expect(scoreInputs.nth(index)).toHaveValue('0');

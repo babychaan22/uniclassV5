@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Local runs keep their credentials out of the shell: node >= 20.12 can inline
+// this, and the guard keeps CI (which injects exact same variables) working.
+try { process.loadEnvFile('.env.e2e'); } catch { /* no local env file; CI supplies the values */ }
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
