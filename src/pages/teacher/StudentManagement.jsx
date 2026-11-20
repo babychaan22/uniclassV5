@@ -66,12 +66,29 @@ export default function TeacherStudentManagement() {
 
   async function approve(a) {
     setBusy(true); setActionError('');
-    try { await db.entities.GroupAccount.update(a.id, { is_approved: true }); invalidateClassroomDataset(); await load(); }
+    // Approving a reclaim request grants the new login to the existing record;
+    // the remembered previous holder is no longer needed.
+    const reclaimClear = a.is_reclaim_request
+      ? { is_reclaim_request: false, previous_user_id: null, previous_email: null, previous_is_approved: null }
+      : {};
+    try { await db.entities.GroupAccount.update(a.id, { is_approved: true, ...reclaimClear }); invalidateClassroomDataset(); await load(); }
     catch (err) { setActionError(err?.message || 'The student could not be approved. Please try again.'); }
     finally { setBusy(false); }
   }
   async function deletePendingRequest(a) {
-    await removeStudent(a);
+    // Rejecting a pending request never destroys learner data: a reclaim
+    // request restores the previous holder's sign-in, and a fresh join
+    // request only drops the pending login. (remove_student_from_class wipes
+    // the member's whole history and must stay reserved for removing an
+    // approved record.)
+    setBusy(true); setActionError('');
+    try {
+      const { error } = await supabase.rpc('reject_group_account_request', { p_group_account_id: a.id });
+      if (error) throw error;
+      invalidateClassroomDataset();
+      await load();
+    } catch (err) { setActionError(err?.message || 'The request could not be rejected. Please try again.'); }
+    finally { setBusy(false); }
   }
   async function bulkApprove() {
     setBusy(true); setActionError('');

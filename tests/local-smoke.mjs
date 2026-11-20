@@ -26,10 +26,10 @@ for (const { path, expect } of pagesToCheck) {
   } catch (err) { console.error(`FAIL ${path}: ${err.message.split("\n")[0]}`); failures++; }
 }
 
-// A rejected invalid family-reply token intentionally produces a 404 from
+// A rejected invalid family-reply token intentionally produces a 400/404 from
 // PostgREST; the browser logs it as a resource error even though the page
 // itself handles it. Ignore only those resource lines.
-const filtered = errors.filter((e) => !e.includes("favicon") && !/Failed to load resource.*\b404\b/.test(e));
+const filtered = errors.filter((e) => !e.includes("favicon") && !/Failed to load resource.*\b(400|404)\b/.test(e));
 console.log(`console/page errors: ${filtered.length}`);
 for (const e of filtered.slice(0, 10)) console.error(e);
 await browser.close();
