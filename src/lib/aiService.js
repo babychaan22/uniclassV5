@@ -12,6 +12,29 @@
 
 import { supabase } from '@/api/supabaseClient';
 
+// Successful prompts are cached in-session: teachers regenerate near-identical
+// assessments often, and a hit returns instantly instead of queueing on the
+// AI providers again. Keyed by the exact prompt string.
+const AI_CACHE_TTL_MS = 10 * 60 * 1000;
+const responseCache = new Map(); // prompt -> { at, value }
+
+// The edge functions already abort their upstream calls after 10s, but if a
+// function itself hangs (cold start, network dead), the UI spinner never
+// clears. Race every invoke against a client-side clock.
+const AI_CALL_TIMEOUT_MS = 20_000;
+
+export function clearAiCache() {
+  responseCache.clear();
+}
+
+function withTimeout(promise, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), AI_CALL_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Ask the AI to return a JSON response.
  * Identical call-site API to the old direct-OpenRouter version — every page
@@ -22,6 +45,9 @@ import { supabase } from '@/api/supabaseClient';
  * @returns {Promise<Object>} Parsed JSON object from the model.
  */
 export async function invokeLLM({ prompt }) {
+  const cached = responseCache.get(prompt);
+  if (cached && Date.now() - cached.at < AI_CACHE_TTL_MS) return cached.value;
+
   const errors = [];
 
   const providers = [
@@ -35,9 +61,10 @@ export async function invokeLLM({ prompt }) {
 
   for (const provider of providers) {
     try {
-      const { data, error } = await supabase.functions.invoke(provider.name, {
-        body: { prompt },
-      });
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke(provider.name, { body: { prompt } }),
+        provider.label,
+      );
 
       if (error) {
         let detail = '';
@@ -59,7 +86,9 @@ export async function invokeLLM({ prompt }) {
         continue;
       }
 
-      return parseJsonFromModel(data.text);
+      const parsed = parseJsonFromModel(data.text);
+      responseCache.set(prompt, { at: Date.now(), value: parsed });
+      return parsed;
     } catch (err) {
       errors.push(`${provider.label}: ${err.message}`);
       continue;
