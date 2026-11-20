@@ -55,6 +55,7 @@ const StudentSettings = lazy(() => import('./pages/student/Settings'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const CheckEmail = lazy(() => import('./pages/CheckEmail'));
 const FamilyReply = lazy(() => import('./pages/FamilyReply'));
+const FamilyStandingReply = lazy(() => import('./pages/FamilyStandingReply'));
 const Leaderboard = lazy(() => import('./pages/Leaderboard'));
 const StudentLeaderboard = lazy(() => import('./pages/student/Leaderboard'));
 
@@ -115,6 +116,7 @@ const AuthenticatedApp = () => {
       <Route path={ROUTES.AUTH_CALLBACK} element={<AuthCallback />} />
       {/* Guardian reply page — no login, opened through the summary share token */}
       <Route path={ROUTES.FAMILY_REPLY} element={<FamilyReply />} />
+      <Route path={ROUTES.FAMILY_LINK} element={<FamilyStandingReply />} />
 
       {/* Protected routes — require authentication */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to={ROUTES.LOGIN} replace />} />}>

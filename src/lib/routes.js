@@ -9,6 +9,7 @@ export const ROUTES = {
   CHECK_EMAIL:     '/check-email',
   AUTH_CALLBACK:   '/auth/callback',
   FAMILY_REPLY:    '/family-reply/:token',
+  FAMILY_LINK:     '/family/:token',
   HOME:            '/',
   WAITING_APPROVAL:'/waiting-approval',
   LEADERBOARD:     '/leaderboard',

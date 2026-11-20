@@ -45,6 +45,10 @@ export default function FamilySummaries() {
   const [inviteQr, setInviteQr] = useState('');
   const [inviteMsg, setInviteMsg] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [standingUrl, setStandingUrl] = useState('');
+  const [standingQr, setStandingQr] = useState('');
+  const [standingMsg, setStandingMsg] = useState('');
+  const [copiedStanding, setCopiedStanding] = useState(false);
   const [replies, setReplies] = useState(null);
 
   useEffect(() => {
@@ -150,7 +154,26 @@ export default function FamilySummaries() {
   }, [data, memberId, period]);
 
   // A new learner or period changes which share link applies; drop the stale one.
-  useEffect(() => { setInviteUrl(''); setInviteQr(''); setInviteMsg(''); }, [memberId, period]);
+  useEffect(() => {
+    setInviteUrl(''); setInviteQr(''); setInviteMsg('');
+    setStandingUrl(''); setStandingQr(''); setStandingMsg('');
+  }, [memberId, period]);
+
+  async function ensureStandingLink() {
+    if (!summary || standingUrl) return;
+    setStandingMsg('');
+    try {
+      const { data: linkData, error } = await supabase.rpc('ensure_family_member_link', {
+        p_member_id: summary.member.id,
+      });
+      if (error) throw error;
+      const url = `${window.location.origin}/family/${linkData.shareToken}`;
+      setStandingUrl(url);
+      setStandingQr(await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: '#000000', light: '#ffffff' } }));
+    } catch (err) {
+      setStandingMsg(err.message || 'Could not create the standing family link.');
+    }
+  }
 
   async function ensureInvite() {
     if (!summary) return;
@@ -182,7 +205,14 @@ export default function FamilySummaries() {
     const opening = !guardianPanel;
     setGuardianPanel(opening);
     if (opening && !inviteUrl) ensureInvite();
-    if (opening) loadReplies();
+    if (opening) { ensureStandingLink(); loadReplies(); }
+  }
+
+  async function copyStandingLink() {
+    if (!standingUrl) return;
+    await navigator.clipboard?.writeText(standingUrl);
+    setCopiedStanding(true);
+    window.setTimeout(() => setCopiedStanding(false), 2500);
   }
 
   async function copyReplyLink() {
@@ -210,6 +240,7 @@ export default function FamilySummaries() {
       `Next step: ${summary.nextStep}`,
     ];
     if (inviteUrl) lines.push(`Reply to this update: ${inviteUrl} (no account needed)`);
+    if (standingUrl) lines.push(`Standing family page (works all term): ${standingUrl} (no account needed)`);
     await navigator.clipboard?.writeText(lines.join('\n'));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2500);
@@ -255,7 +286,17 @@ export default function FamilySummaries() {
           <p className="flex items-center gap-1 text-[10px] text-ink/50"><ShieldCheck className="h-3 w-3" /> Guardians see only this learner's name, class, and period. No account, no records.</p>
         </div>
       </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-clay-sun/30 bg-clay-sun/10 p-3">
+        {standingQr ? <img src={standingQr} alt="Standing family QR code" className="h-28 w-28 rounded-lg border border-ink/10 bg-white" /> : <div className="flex h-28 w-28 items-center justify-center rounded-lg border border-ink/10 bg-white text-ink/30"><QrCode className="h-8 w-8" /></div>}
+        <div className="min-w-[12rem] flex-1 space-y-2">
+          <p className="text-xs font-display font-extrabold">Standing family link · works all term</p>
+          <p className="text-xs leading-relaxed text-ink/70">Scan this once and save it — it always reaches {displayName(summary.member)}'s current week. Print it on the class roster QR sheet or share it in your class chat.</p>
+          {standingUrl ? <div className="flex flex-wrap items-center gap-2"><code className="max-w-full truncate rounded bg-white px-2 py-1 text-[11px]">{standingUrl}</code><ClayButton color="sky" size="sm" onClick={copyStandingLink}><Copy className="h-3.5 w-3.5" /> {copiedStanding ? 'Copied' : 'Copy link'}</ClayButton></div> : <p className="text-xs text-ink/50">Creating standing link…</p>}
+          <p className="flex items-center gap-1 text-[10px] text-ink/50"><ShieldCheck className="h-3 w-3" /> Replies through it land in this inbox under the learner's current week. Same privacy as the weekly reply link.</p>
+        </div>
+      </div>
       {inviteMsg && <p className="rounded-lg bg-clay-coral/15 px-3 py-2 text-xs text-clay-coral">{inviteMsg}</p>}
+      {standingMsg && <p className="rounded-lg bg-clay-coral/15 px-3 py-2 text-xs text-clay-coral">{standingMsg}</p>}
       <div>
         <div className="flex items-center justify-between gap-2"><p className="font-display text-sm font-extrabold">Inbox{summary ? ` · ${displayName(summary.member)}` : ''}</p><ClayButton color="cream" size="sm" onClick={loadReplies}><RefreshCw className="h-3.5 w-3.5" /> Refresh</ClayButton></div>
         {memberReplies.length ? <ul className="mt-2 space-y-2">{memberReplies.map((reply) => {

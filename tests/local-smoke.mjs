@@ -8,6 +8,7 @@ const pagesToCheck = [
   { path: "/register", expect: /create|register|sign/i },
   { path: "/forgot-password", expect: /reset|email/i },
   { path: "/family-reply/00000000-0000-0000-0000-000000000000", expect: /not valid|could not/i },
+  { path: "/family/00000000-0000-0000-0000-000000000000", expect: /not valid|could not/i },
 ];
 
 const browser = await chromium.launch();
