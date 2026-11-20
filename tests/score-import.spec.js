@@ -89,7 +89,7 @@ test('re-uploading a score updates it through the preview instead of duplicating
   }
 
   await loginViaUi(page);
-  await page.getByLabel('Class').selectOption({ label: 'Grade 8 · E2E-2 · Test Mathematics' });
+  await page.getByLabel('Class', { exact: true }).selectOption({ label: 'Grade 8 · E2E-2 · Test Mathematics' });
   // Wait for the roster to finish loading before uploading anything.
   await expect(page.getByText('5 students')).toBeVisible({ timeout: 30_000 });
 

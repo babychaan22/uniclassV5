@@ -50,11 +50,17 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   // Restore the fixture: delete the rows this spec created for today.
+  // The app saves attendance with the LOCAL date, so clean both the local
+  // and the UTC rendering of "today" (they differ around local midnight).
   if (!admin || !memberId) return;
-  await admin.from('attendances')
-    .delete()
-    .eq('group_member_id', memberId)
-    .eq('attendance_date', new Date().toISOString().slice(0, 10));
+  const localToday = new Date().toLocaleDateString('en-CA');
+  const utcToday = new Date().toISOString().slice(0, 10);
+  for (const date of new Set([localToday, utcToday])) {
+    await admin.from('attendances')
+      .delete()
+      .eq('group_member_id', memberId)
+      .eq('attendance_date', date);
+  }
 });
 
 test('attendance marked offline is queued and syncs on reconnect', async ({ page }) => {
@@ -89,7 +95,9 @@ test('attendance marked offline is queued and syncs on reconnect', async ({ page
 
   // Restore connectivity; the queue replays and the row lands in Supabase.
   await page.context().setOffline(false);
-  const today = new Date().toISOString().slice(0, 10);
+  // The app saves attendance with the LOCAL date (the roster's selectedDate),
+  // which differs from the UTC date around local midnight.
+  const today = new Date().toLocaleDateString('en-CA');
   await expect.poll(async () => {
     const { data } = await admin.from('attendances')
       .select('status')
