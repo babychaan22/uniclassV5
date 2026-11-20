@@ -86,24 +86,36 @@ export default function TeacherAttendance() {
         setMessage(error?.message || "Attendance could not be refreshed. Please try again.");
       });
     };
-    window.addEventListener('uniclass-connection-restored', refreshInPlace);
-    window.addEventListener('focus', refreshInPlace);
     // Replaying queued offline saves must finish before the refresh, so the
     // freshly reloaded roster already shows what was stored on this device.
     const flushAndRefresh = () => {
       void flushAttendanceQueue().finally(refreshInPlace);
     };
+    const onWindowFocus = () => {
+      // Refocusing a laptop that silently reconnected is the most common
+      // "no online event" path for missed offline attendance.
+      if (navigator.onLine && readAttendanceQueue().length) flushAndRefresh();
+      else refreshInPlace();
+    };
+    window.addEventListener('uniclass-connection-restored', refreshInPlace);
+    window.addEventListener('focus', onWindowFocus);
     window.addEventListener('online', flushAndRefresh);
     // Realtime is immediate when available. This quiet, visible-page fallback
     // keeps the roster in sync when a network is restored without a browser
     // online event, or when a browser blocks realtime — but never while the
     // device is actually offline, where each attempt would just error.
+    // When offline saves are still queued, the fallback also replays them:
+    // a missed 'online' event (or a first flush that raced the reconnect)
+    // must never strand a teacher's attendance marks forever.
     const syncTimer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine) refreshInPlace();
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        if (readAttendanceQueue().length) flushAndRefresh();
+        else refreshInPlace();
+      }
     }, 15000);
     return () => {
       window.removeEventListener('uniclass-connection-restored', refreshInPlace);
-      window.removeEventListener('focus', refreshInPlace);
+      window.removeEventListener('focus', onWindowFocus);
       window.removeEventListener('online', flushAndRefresh);
       window.clearInterval(syncTimer);
     };

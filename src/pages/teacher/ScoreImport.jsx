@@ -210,8 +210,8 @@ export default function ScoreImport() {
       <div className="grid gap-4 lg:grid-cols-[.95fr_1.05fr]">
       <ClayCard className="p-5">
         <div className="mb-4 flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-clay-purple text-sm font-display font-bold text-white">1</span><div><h2 className="font-display font-bold text-lg">Select class</h2><p className="text-xs text-ink/55">Choose the roster for this import.</p></div></div>
-        <label className="font-display font-bold text-xs mb-1 block">Class</label>
-        <select className="clay-input" value={selectedId} onChange={onChangeClass}>
+        <label htmlFor="score-import-class" className="font-display font-bold text-xs mb-1 block">Class</label>
+        <select id="score-import-class" className="clay-input" value={selectedId} onChange={onChangeClass}>
           {classrooms.map((c) => <option key={c.id} value={c.id}>{c.grade_level} · {c.section}{c.subject ? ` · ${c.subject}` : ""}</option>)}
         </select>
         {selectedClassroom && (
