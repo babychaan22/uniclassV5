@@ -11,6 +11,7 @@ import ClayCard from "@/components/ClayCard";
 import ClayChip from "@/components/ClayChip";
 import GroupBadgeMarkers from "@/components/GroupBadgeMarkers";
 import FloatingNotice from "@/components/FloatingNotice";
+import { ATTENDANCE_QUEUE_EVENT, enqueueAttendanceWrite, flushAttendanceQueue, isOfflineNetworkError, readAttendanceQueue } from "@/lib/offlineAttendance";
 import { CalendarDays, Check, ClipboardCheck, RefreshCw, X } from "lucide-react";
 
 const fullName = (member) => [member?.last_name, member?.first_name].filter(Boolean).join(", ") || "Student";
@@ -27,7 +28,16 @@ export default function TeacherAttendance() {
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
   const [noticeAnchor, setNoticeAnchor] = useState(null);
+  const [pendingQueue, setPendingQueue] = useState(() => readAttendanceQueue());
   const loadSequenceRef = useRef(0);
+
+  // Keep the "waiting to sync" hints in step with the durable queue, which
+  // can also change from this page (save while offline) or its flush.
+  useEffect(() => {
+    const syncQueue = () => setPendingQueue(readAttendanceQueue());
+    window.addEventListener(ATTENDANCE_QUEUE_EVENT, syncQueue);
+    return () => window.removeEventListener(ATTENDANCE_QUEUE_EVENT, syncQueue);
+  }, []);
 
   async function load({ showSpinner = true } = {}) {
     const sequence = ++loadSequenceRef.current;
@@ -53,7 +63,12 @@ export default function TeacherAttendance() {
       setMembers((dataset.members || []).slice().sort((a, b) => fullName(a).localeCompare(fullName(b))));
       setRecords(attendance || []);
     } catch (error) {
-      if (sequence === loadSequenceRef.current) setMessage(error?.message || 'Attendance could not load. Please try again.');
+      // Offline, the roster keeps its last synced view; a load failure here
+      // is expected and must not clobber a queued-save message.
+      if (sequence === loadSequenceRef.current) {
+        if (!isOfflineNetworkError(error)) setMessage(error?.message || 'Attendance could not load. Please try again.');
+        setLoading(false);
+      }
     } finally {
       if (sequence === loadSequenceRef.current) setLoading(false);
     }
@@ -73,14 +88,23 @@ export default function TeacherAttendance() {
     };
     window.addEventListener('uniclass-connection-restored', refreshInPlace);
     window.addEventListener('focus', refreshInPlace);
+    // Replaying queued offline saves must finish before the refresh, so the
+    // freshly reloaded roster already shows what was stored on this device.
+    const flushAndRefresh = () => {
+      void flushAttendanceQueue().finally(refreshInPlace);
+    };
+    window.addEventListener('online', flushAndRefresh);
     // Realtime is immediate when available. This quiet, visible-page fallback
-    // keeps the roster in sync when a browser or network blocks realtime.
+    // keeps the roster in sync when a network is restored without a browser
+    // online event, or when a browser blocks realtime — but never while the
+    // device is actually offline, where each attempt would just error.
     const syncTimer = window.setInterval(() => {
-      if (document.visibilityState === "visible") refreshInPlace();
+      if (document.visibilityState === "visible" && navigator.onLine) refreshInPlace();
     }, 15000);
     return () => {
       window.removeEventListener('uniclass-connection-restored', refreshInPlace);
       window.removeEventListener('focus', refreshInPlace);
+      window.removeEventListener('online', flushAndRefresh);
       window.clearInterval(syncTimer);
     };
   }, [user, selectedDate]);
@@ -170,6 +194,33 @@ export default function TeacherAttendance() {
     invalidateClassroomDataset();
   }
 
+  function queueOfflineSave(member, status) {
+    const existing = attendanceByMember[member.id];
+    enqueueAttendanceWrite({
+      kind: existing ? 'update' : 'create',
+      id: existing?.id || null,
+      payload: {
+        classroom_id: classroom.id,
+        group_id: member.group_id,
+        group_member_id: member.id,
+        attendance_date: selectedDate,
+        status,
+        marked_by: user.id,
+      },
+    });
+    // Optimistic row so the roster reflects the teacher's intent immediately.
+    const pseudoRecord = {
+      id: existing?.id || `offline-${member.id}`,
+      group_id: member.group_id,
+      group_member_id: member.id,
+      attendance_date: selectedDate,
+      status,
+    };
+    applySavedRecords([pseudoRecord]);
+    setPendingQueue(readAttendanceQueue());
+    setMessage(`${fullName(member)} marked ${status}. Saved on this device — it will sync when you're back online.`);
+  }
+
   async function setStatus(member, status, sourceElement) {
     if (!classroom || savingId) return;
     setSavingId(member.id);
@@ -184,7 +235,13 @@ export default function TeacherAttendance() {
       applySavedRecords([saved]);
       setMessage(`${fullName(member)} marked ${status}.`);
     } catch (error) {
-      setMessage(error?.message || "Attendance could not be saved. Please try again.");
+      if (isOfflineNetworkError(error)) {
+        // The device is offline (or the network failed mid-request): keep
+        // the teacher's intent durably and replay it on reconnect.
+        queueOfflineSave(member, status);
+      } else {
+        setMessage(error?.message || "Attendance could not be saved. Please try again.");
+      }
     } finally {
       setSavingId(null);
     }
@@ -196,9 +253,24 @@ export default function TeacherAttendance() {
     setMessage("");
     setNoticeAnchor(sourceElement || null);
     try {
-      const saved = await Promise.all(members.map((member) => saveAttendanceStatus(member, "present")));
-      applySavedRecords(saved);
-      setMessage(`All ${saved.length} students marked present.`);
+      const saved = [];
+      let offlineQueued = 0;
+      for (const member of members) {
+        try {
+          saved.push(await saveAttendanceStatus(member, "present"));
+        } catch (error) {
+          if (isOfflineNetworkError(error)) {
+            queueOfflineSave(member, "present");
+            offlineQueued += 1;
+          } else {
+            throw error;
+          }
+        }
+      }
+      if (saved.length) applySavedRecords(saved);
+      setMessage(offlineQueued
+        ? `${saved.length} students saved, ${offlineQueued} queued on this device — they will sync when you're back online.`
+        : `All ${saved.length} students marked present.`);
     } catch (error) {
       setMessage(error?.message || "Attendance could not be saved for every student. Please try again.");
       invalidateReadCache("attendances");
@@ -236,10 +308,10 @@ export default function TeacherAttendance() {
           <ClayCard key={section.id} className="p-4">
             <div className="mb-3 flex items-center justify-between gap-2"><h2 className="inline-flex items-center gap-1 font-display text-lg font-extrabold">{section.title} <GroupBadgeMarkers groupId={section.groupId} /></h2><ClayChip color="purple">{section.members.length} students</ClayChip></div>
             {section.members.length === 0 ? <p className="py-3 text-sm text-ink/55">No students are in this group yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{section.members.map((member) => {
-              const status = attendanceByMember[member.id]?.status;
+              const status = attendanceByMember[member.id]?.status || (pendingQueue.find((entry) => entry.payload?.group_member_id === member.id && entry.payload?.attendance_date === selectedDate)?.payload?.status);
               const busy = savingId === member.id || savingId === "all";
               return <div key={member.id} className="flex items-center justify-between gap-2 rounded-xl border-2 border-ink/10 bg-cream p-3">
-                <div className="min-w-0"><p className="truncate text-sm font-display font-bold">{fullName(member)}</p><p className="mt-0.5 text-xs text-ink/55">{status ? "Saved record" : "No record yet"}</p></div>
+                <div className="min-w-0"><p className="truncate text-sm font-display font-bold">{fullName(member)}</p><p className="mt-0.5 text-xs text-ink/55">{pendingQueue.some((entry) => entry.payload?.group_member_id === member.id && entry.payload?.attendance_date === selectedDate) && !attendanceByMember[member.id] ? "Waiting to sync" : status ? "Saved record" : "No record yet"}</p></div>
                 <div className="flex shrink-0 gap-1">
                   <button type="button" disabled={busy} onClick={(event) => setStatus(member, "present", event.currentTarget)} className={`clay-btn px-2.5 py-2 text-xs ${status === "present" ? "bg-clay-lime text-ink" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} present`}><Check className="h-4 w-4" /> Present</button>
                   <button type="button" disabled={busy} onClick={(event) => setStatus(member, "absent", event.currentTarget)} className={`clay-btn px-2.5 py-2 text-xs ${status === "absent" ? "bg-clay-coral text-white" : "bg-cream text-ink/70"}`} aria-label={`Mark ${fullName(member)} absent`}><X className="h-4 w-4" /> Absent</button>

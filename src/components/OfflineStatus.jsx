@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Cloud, CloudOff } from 'lucide-react';
+import { ATTENDANCE_QUEUE_EVENT, readAttendanceQueue } from '@/lib/offlineAttendance';
 
 export default function OfflineStatus() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [wasOffline, setWasOffline] = useState(false);
+  const [pendingCount, setPendingCount] = useState(() => readAttendanceQueue().length);
 
   useEffect(() => {
-    const handleOffline = () => { setOnline(false); setWasOffline(true); };
+    const handleOffline = () => { setOnline(false); setWasOffline(true); setPendingCount(readAttendanceQueue().length); };
     const handleOnline = () => { setOnline(true); };
+    const handleQueue = (event) => setPendingCount(event?.detail?.count ?? readAttendanceQueue().length);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
+    window.addEventListener(ATTENDANCE_QUEUE_EVENT, handleQueue);
     return () => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener(ATTENDANCE_QUEUE_EVENT, handleQueue);
     };
   }, []);
 
@@ -31,7 +36,9 @@ export default function OfflineStatus() {
   return (
     <div className={`fixed bottom-3 left-3 right-3 z-[70] mx-auto max-w-md rounded-2xl border-2 border-ink px-3 py-2 text-xs font-display font-bold shadow-[3px_3px_0_#17162B] ${online ? 'bg-clay-lime text-ink' : 'bg-clay-sun text-ink'}`} role="status">
       {online ? <Cloud className="mr-1 inline h-4 w-4" /> : <CloudOff className="mr-1 inline h-4 w-4" />}
-      {online ? 'Back online — your open screen stayed in place.' : 'Offline — opened pages stay available. Reconnect before scanning, uploading, or saving points.'}
+      {online
+        ? 'Back online — your open screen stayed in place.'
+        : `Offline${pendingCount ? ` — ${pendingCount} attendance mark${pendingCount === 1 ? '' : 's'} waiting on this device to sync.` : ' — opened pages stay available. Reconnect before scanning, uploading, or saving points.'}`}
     </div>
   );
 }
