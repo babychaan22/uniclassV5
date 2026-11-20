@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
+const TeacherRouteGuard = lazy(() => import('@/components/TeacherRouteGuard'));
 import { ROUTES } from '@/lib/routes';
 import PanelSkeleton from '@/components/PanelSkeleton';
 import PageErrorBoundary from '@/components/PageErrorBoundary';
@@ -123,6 +124,10 @@ const AuthenticatedApp = () => {
         <Route element={<ResilientLayout />}>
           <Route path={ROUTES.WAITING_APPROVAL} element={<WaitingApproval />} />
           <Route path={ROUTES.TEACHER.ONBOARDING} element={<TeacherOnboarding />} />
+          {/* Teacher pages sit behind a server-checked role guard: a student
+              following a /teacher link lands in their own workspace instead
+              of a broken teacher shell. */}
+          <Route element={<TeacherRouteGuard />}>
           <Route path={ROUTES.TEACHER.DASHBOARD} element={<TeacherDashboard />} />
           <Route path={ROUTES.TEACHER.QR_GENERATOR} element={<TeacherQRGenerator />} />
           <Route path={ROUTES.TEACHER.MISSIONS} element={<TeacherMissions />} />
@@ -141,6 +146,7 @@ const AuthenticatedApp = () => {
           <Route path={ROUTES.TEACHER.EXPORT_DATA} element={<TeacherExportData />} />
           <Route path={ROUTES.TEACHER.FAMILY_SUMMARIES} element={<TeacherFamilySummaries />} />
           <Route path={ROUTES.TEACHER.HELP_GUIDE} element={<TeacherHelpGuide />} />
+          </Route>
           <Route path={ROUTES.LEADERBOARD} element={<Leaderboard />} />
           <Route path={ROUTES.STUDENT.ONBOARDING} element={<StudentOnboarding />} />
           <Route path={ROUTES.STUDENT.DASHBOARD} element={<StudentDashboard />} />
