@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getTeacherClassroom, invalidateTeacherClassroom } from "@/lib/teacherClassroom";
+import { supabase } from "@/api/supabaseClient";
 
 import ClayButton from "@/components/ClayButton";
 import ClayCard from "@/components/ClayCard";
@@ -145,29 +146,59 @@ export default function TeacherSettings() {
   async function createTerm(e) {
     e.preventDefault();
     setSaving("term");
-    for (const t of terms) { if (t.is_active) await db.entities.GradingTerm.update(t.id, { is_active: false }); }
-    await db.entities.GradingTerm.create({
-      classroom_id: classroom.id,
-      term_label: termForm.term_label,
-      start_date: termForm.start_date,
-      end_date: termForm.end_date,
-      is_active: true,
-    });
-    setTermForm({ term_label: `Term ${terms.length + 2}`, start_date: "", end_date: "" });
-    setSaving(null);
-    flash(true, "Term created and set active.");
-    load();
+    try {
+      // Insert inert first, then atomically activate. If anything fails in
+      // between, the class ends up with NO active term (easy to see and fix)
+      // instead of two active terms (which silently misroutes scores).
+      const { data: created, error: createError } = await supabase
+        .from('grading_terms')
+        .insert({
+          classroom_id: classroom.id,
+          term_label: termForm.term_label,
+          start_date: termForm.start_date,
+          end_date: termForm.end_date,
+          is_active: false,
+        })
+        .select()
+        .single();
+      if (createError) throw createError;
+      const { error: activateError } = await supabase.rpc('set_active_grading_term', { p_term_id: created.id });
+      if (activateError) throw activateError;
+      setTermForm({ term_label: `Term ${terms.length + 2}`, start_date: "", end_date: "" });
+      flash(true, "Term created and set active.");
+      load();
+    } catch (err) {
+      flash(false, err?.message || "The term could not be created. Please try again.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function setActiveTerm(t) {
-    for (const x of terms) { if (x.is_active && x.id !== t.id) await db.entities.GradingTerm.update(x.id, { is_active: false }); }
-    await db.entities.GradingTerm.update(t.id, { is_active: true });
-    load();
+    setSaving("term");
+    try {
+      const { error } = await supabase.rpc('set_active_grading_term', { p_term_id: t.id });
+      if (error) throw error;
+      flash(true, `${t.term_label || 'Term'} is now the active term.`);
+      load();
+    } catch (err) {
+      flash(false, err?.message || "The active term could not be changed. Please try again.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function removeTerm(id) {
-    await db.entities.GradingTerm.delete(id);
-    load();
+    setSaving("term");
+    try {
+      const { error } = await supabase.from('grading_terms').delete().eq('id', id);
+      if (error) throw error;
+      load();
+    } catch (err) {
+      flash(false, err?.message || "The term could not be removed. Please try again.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;

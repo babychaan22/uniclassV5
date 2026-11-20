@@ -21,6 +21,51 @@ export default function TeacherAnnouncements() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: "", body: "" });
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+
+  async function guard(action, work) {
+    setError("");
+    try {
+      await work();
+    } catch (err) {
+      // A failed write must never strand the form or its typed content.
+      setError(err?.message || "That change could not be saved. Please try again.");
+    } finally {
+      action?.();
+    }
+  }
+
+  function create(e) {
+    e.preventDefault();
+    setCreating(true);
+    guard(() => setCreating(false), async () => {
+      await db.entities.Announcement.create({
+        classroom_id: classroom.id,
+        title: form.title,
+        body: form.body,
+        is_pinned: true,
+        created_by: user.id,
+      });
+      setForm({ title: "", body: "" });
+      invalidateClassroomDataset();
+      load();
+    });
+  }
+
+  function togglePin(a) {
+    guard(null, async () => {
+      await db.entities.Announcement.update(a.id, { is_pinned: !a.is_pinned });
+      invalidateClassroomDataset();
+      load();
+    });
+  }
+  function remove(id) {
+    guard(null, async () => {
+      await db.entities.Announcement.delete(id);
+      invalidateClassroomDataset();
+      load();
+    });
+  }
 
   useEffect(() => { load(); }, [user]);
 
@@ -31,33 +76,6 @@ export default function TeacherAnnouncements() {
     setClassroom(c);
     const ds = await getClassroomDataset(c.id, ['announcements']);
     setItems([...ds.announcements].sort((x, y) => (y.created_date || "").localeCompare(x.created_date || "")));
-  }
-
-  async function create(e) {
-    e.preventDefault();
-    setCreating(true);
-    await db.entities.Announcement.create({
-      classroom_id: classroom.id,
-      title: form.title,
-      body: form.body,
-      is_pinned: true,
-      created_by: user.id,
-    });
-    setForm({ title: "", body: "" });
-    setCreating(false);
-    invalidateClassroomDataset();
-    load();
-  }
-
-  async function togglePin(a) {
-    await db.entities.Announcement.update(a.id, { is_pinned: !a.is_pinned });
-    invalidateClassroomDataset();
-    load();
-  }
-  async function remove(id) {
-    await db.entities.Announcement.delete(id);
-    invalidateClassroomDataset();
-    load();
   }
 
   if (!classroom) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-clay-purple border-t-transparent rounded-full animate-spin" /></div>;
@@ -77,6 +95,7 @@ export default function TeacherAnnouncements() {
             <label className="font-display font-bold text-xs mb-1 block">Message</label>
             <textarea className="clay-input min-h-[80px]" placeholder="Write your announcement..." value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required />
           </div>
+          {error && <p className="rounded-lg bg-clay-coral/15 px-3 py-2 text-xs text-clay-coral" role="alert">{error}</p>}
           <ClayButton type="submit" color="purple" size="md" disabled={creating}>
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4" /> Post &amp; Pin</>}
           </ClayButton>

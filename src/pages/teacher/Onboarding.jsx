@@ -112,8 +112,13 @@ export default function TeacherOnboarding() {
   }
 
   async function approve(account) {
-    await db.entities.GroupAccount.update(account.id, { is_approved: true });
-    if (activeId) loadDetails(activeId);
+    setError("");
+    try {
+      await db.entities.GroupAccount.update(account.id, { is_approved: true });
+      if (activeId) loadDetails(activeId);
+    } catch (err) {
+      setError(err?.message || "The student could not be approved. Please try again.");
+    }
   }
   async function copyJoinCode() {
     await navigator.clipboard.writeText(active.join_code);
@@ -121,8 +126,13 @@ export default function TeacherOnboarding() {
     setTimeout(() => setCopied(false), 1600);
   }
   async function reject(account) {
-    await db.entities.GroupAccount.delete(account.id);
-    if (activeId) loadDetails(activeId);
+    setError("");
+    try {
+      await db.entities.GroupAccount.delete(account.id);
+      if (activeId) loadDetails(activeId);
+    } catch (err) {
+      setError(err?.message || "The request could not be removed. Please try again.");
+    }
   }
 
   async function removeClass(classroom) {

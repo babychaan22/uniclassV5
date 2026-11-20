@@ -104,11 +104,20 @@ export default function Roster() {
   async function save(mem) {
     const v = edit[mem.id];
     setSaving(mem.id);
-    await db.entities.GroupMember.update(mem.id, { last_name: v.last_name.toUpperCase(), first_name: v.first_name.toUpperCase(), group_id: v.group_id });
-    invalidateClassroomContext();
-    setSaving(null);
-    cancel(mem.id);
-    load();
+    setActionError("");
+    setActionNotice("");
+    try {
+      await db.entities.GroupMember.update(mem.id, { last_name: v.last_name.toUpperCase(), first_name: v.first_name.toUpperCase(), group_id: v.group_id });
+      invalidateClassroomContext();
+      cancel(mem.id);
+      await load();
+      setActionNotice(`${v.last_name.toUpperCase()}, ${v.first_name.toUpperCase()} was updated.`);
+    } catch (err) {
+      // Keep the editing panel open with every typed value intact.
+      setActionError(err?.message || "This student's record could not be saved. Please try again.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function removeMember(mem) {
