@@ -59,6 +59,7 @@ export default function ScoreImport() {
   const [members, setMembers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [loadingClass, setLoadingClass] = useState(true);
 
   useEffect(() => { loadClassrooms(); }, [user]);
@@ -89,6 +90,7 @@ export default function ScoreImport() {
     const id = e.target.value;
     setSelectedId(id);
     setResult(null);
+    setPreview(null);
     loadClass(id);
   }
 
@@ -107,36 +109,89 @@ export default function ScoreImport() {
     URL.revokeObjectURL(url);
   }
 
+  const importKey = (row) => `${row.group_member_id}|${row.category}|${String(row.item_label || "").trim().toLowerCase()}`;
+
+  async function buildPreview(rows) {
+    const norm = (s) => (s || "").toString().toUpperCase().trim();
+    const failMatching = [];
+    const matched = [];
+    for (const r of rows) {
+      const mem = members.find((m) =>
+        groups.find((g) => g.id === m.group_id)?.group_number === Number(r.group_number) &&
+        norm(m.last_name) === norm(r.last_name) && norm(m.first_name) === norm(r.first_name)
+      );
+      if (!mem) { failMatching.push(r); continue; }
+      matched.push({
+        group_member_id: mem.id,
+        group_id: mem.group_id,
+        classroom_id: selectedId,
+        category: CATEGORIES.includes(String(r.category).toLowerCase()) ? String(r.category).toLowerCase() : "quiz",
+        item_label: String(r.item_label || ""),
+        score: Number(r.score) || 0,
+        max_score: Number(r.max_score) || 0,
+        encoded_by: user.id,
+      });
+    }
+    // Dedupe within the CSV itself — the last row for the same
+    // member + category + item wins, earlier repeats are skipped.
+    const byKey = new Map();
+    let dupes = 0;
+    for (const row of matched) {
+      const key = importKey(row);
+      if (byKey.has(key)) dupes++;
+      byKey.set(key, row);
+    }
+    // Split against what the class already has on file.
+    const existingRows = selectedId
+      ? await db.entities.TeacherAssessment.filter({ classroom_id: selectedId })
+      : [];
+    const existingByKey = new Map(existingRows.map((r) => [importKey(r), r]));
+    const toCreate = [];
+    const toUpdate = [];
+    const updateInfo = [];
+    for (const row of byKey.values()) {
+      const prior = existingByKey.get(importKey(row));
+      if (prior) {
+        toUpdate.push({ id: prior.id, score: row.score, max_score: row.max_score, encoded_by: user.id });
+        updateInfo.push({ label: labelFor(row), category: row.category, oldScore: prior.score ?? 0, newScore: row.score, newMax: row.max_score });
+      } else {
+        toCreate.push(row);
+      }
+    }
+    return { toCreate, toUpdate, updateInfo, dupes, fail: failMatching.length };
+  }
+
+  function labelFor(row) {
+    const mem = members.find((m) => m.id === row.group_member_id);
+    return mem ? `${mem.last_name}, ${mem.first_name}` : "Student";
+  }
+
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
     setResult(null);
+    setPreview(null);
     try {
       const rows = await parseScoreCsv(file);
-      const norm = (s) => (s || "").toString().toUpperCase().trim();
-      let ok = 0, fail = 0;
-      const toCreate = [];
-      for (const r of rows) {
-        const mem = members.find((m) =>
-          groups.find((g) => g.id === m.group_id)?.group_number === Number(r.group_number) &&
-          norm(m.last_name) === norm(r.last_name) && norm(m.first_name) === norm(r.first_name)
-        );
-        if (!mem) { fail++; continue; }
-        toCreate.push({
-          group_member_id: mem.id,
-          group_id: mem.group_id,
-          classroom_id: selectedId,
-          category: CATEGORIES.includes(String(r.category).toLowerCase()) ? String(r.category).toLowerCase() : "quiz",
-          item_label: String(r.item_label || ""),
-          score: Number(r.score) || 0,
-          max_score: Number(r.max_score) || 0,
-          encoded_by: user.id,
-        });
-        ok++;
-      }
+      const next = await buildPreview(rows);
+      setPreview(next);
+    } catch (err) {
+      setResult({ ok: 0, fail: 0, error: err.message || "Import failed" });
+    }
+    e.target.value = "";
+    setBusy(false);
+  }
+
+  async function applyImport() {
+    if (!preview) return;
+    setBusy(true);
+    try {
+      const { toCreate, toUpdate } = preview;
       if (toCreate.length) await db.entities.TeacherAssessment.bulkCreate(toCreate);
-      setResult({ ok, fail });
+      if (toUpdate.length) await db.entities.TeacherAssessment.bulkUpdate(toUpdate);
+      setResult({ ok: toCreate.length, updated: toUpdate.length, fail: preview.fail + preview.dupes });
+      setPreview(null);
     } catch (err) {
       setResult({ ok: 0, fail: 0, error: err.message || "Import failed" });
     }
@@ -187,12 +242,42 @@ export default function ScoreImport() {
             ) : (
               <div className="flex items-center gap-3 rounded-xl border border-[rgba(16,32,101,.08)] bg-clay-lime/5 p-3">
                 <Nova variant="celebrate" size="sm" className="h-10 w-10" />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <ClayChip color="lime"><CheckCircle2 className="w-3 h-3" /> {result.ok} imported</ClayChip>
+                  {result.updated > 0 && <ClayChip color="sky">{result.updated} updated</ClayChip>}
                   {result.fail > 0 && <ClayChip color="coral">{result.fail} unmatched</ClayChip>}
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {preview && !busy && (
+          <div className="mt-3 rounded-xl border border-[rgba(16,32,101,.12)] bg-white/50 p-4 space-y-3" data-testid="score-import-preview">
+            <div className="flex flex-wrap items-center gap-2">
+              <ClayChip color="lime">{preview.toCreate.length} new</ClayChip>
+              {preview.toUpdate.length > 0 && <ClayChip color="sky">{preview.toUpdate.length} to update</ClayChip>}
+              {preview.dupes > 0 && <ClayChip color="cream">{preview.dupes} duplicate rows skipped</ClayChip>}
+              {preview.fail > 0 && <ClayChip color="coral">{preview.fail} unmatched</ClayChip>}
+              {preview.toCreate.length === 0 && preview.toUpdate.length === 0 && <ClayChip color="cream">Nothing to import</ClayChip>}
+            </div>
+            {preview.updateInfo.length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-[rgba(16,32,101,.08)] text-xs divide-y divide-[rgba(16,32,101,.06)]">
+                {preview.updateInfo.map((u, i) => (
+                  <div key={`${u.label}-${u.category}-${i}`} className="flex flex-wrap items-center gap-x-2 px-3 py-2">
+                    <span className="font-display font-bold">{u.label}</span>
+                    <span className="text-ink/50">{u.category.replace("_", " ")}</span>
+                    <span className="ml-auto text-ink/70">{u.oldScore} → <span className="font-bold">{u.newScore}</span> / {u.newMax}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-ink/55">Scores already on file for the same category + item are updated, not duplicated.</p>
+            <div className="flex flex-wrap gap-2">
+              <ClayButton color="lime" size="sm" onClick={applyImport} disabled={preview.toCreate.length === 0 && preview.toUpdate.length === 0}>
+                <CheckCircle2 className="w-4 h-4" /> Import {preview.toCreate.length} new{preview.toUpdate.length ? ` · update ${preview.toUpdate.length}` : ""}
+              </ClayButton>
+              <ClayButton color="cream" size="sm" onClick={() => setPreview(null)} disabled={busy}>Cancel</ClayButton>
+            </div>
           </div>
         )}
       </ClayCard>
