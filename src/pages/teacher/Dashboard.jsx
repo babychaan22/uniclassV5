@@ -61,12 +61,12 @@ export default function TeacherDashboard() {
       const classroom = await getTeacherClassroom(user.id);
       if (!classroom) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
       const [ds, teacherClasses, badgeDefinitions, scoreEditsResult] = await Promise.all([
-        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges','missions','submissions']),
+        getClassroomDataset(classroom.id, ['groups','members','settings','terms','attendance','scores','activities','assessments','logs','groupAccounts','badges','missionsLite','submissionsLite']),
         getTeacherClassrooms(user.id),
         db.entities.BadgeDefinition.filter({ classroom_id: classroom.id }),
         supabase.from('activity_score_edit_requests').select('*').eq('classroom_id', classroom.id).eq('status', 'pending'),
       ]);
-      const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts, missions, submissions } = ds;
+      const { groups, members, settings, terms, attendance, scores, activities, assessments, logs, groupAccounts, missionsLite: missions, submissionsLite: submissions } = ds;
       const pendingAccounts = groupAccounts.filter((a) => !a.is_approved && !a.transferred_at);
       const term = terms.find((t) => t.is_active) || terms[0] || null;
       const weights = settings[0] || {};

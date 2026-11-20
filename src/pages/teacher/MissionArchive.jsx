@@ -30,11 +30,11 @@ export default function MissionArchive() {
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
     const [ds, catalog] = await Promise.all([
-      getClassroomDataset(c.id, ['groups','members','submissions']),
+      getClassroomDataset(c.id, ['groups','members','submissionsLite']),
       db.entities.Mission.filter({ created_by: user.id }),
     ]);
     setMissions(catalog.filter((mission) => missionTargetsClass(mission, c.id)).sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
-    setSubmissions(ds.submissions);
+    setSubmissions(ds.submissionsLite);
     setGroups(ds.groups);
     setMembers(ds.members);
     setLoading(false);

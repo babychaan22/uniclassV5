@@ -33,10 +33,10 @@ export default function ExportData() {
     if (!user) return;
     const c = await getTeacherClassroom(user.id);
     if (!c) { navigate(ROUTES.TEACHER.ONBOARDING); return; }
-    const ds = await getClassroomDataset(c.id, ['groups', 'members', 'attendance', 'assessments', 'missions', 'submissions']);
-    const { members, groups, attendance, missions } = ds;
+    const ds = await getClassroomDataset(c.id, ['groups', 'members', 'attendance', 'assessments', 'missionsLite', 'submissionsLite']);
+    const { members, groups, attendance, missionsLite: missions } = ds;
     const scores = ds.assessments;
-    const subs = ds.submissions;
+    const subs = ds.submissionsLite;
     const gmap = Object.fromEntries(groups.map((g) => [g.id, g.group_number]));
     const mmap = Object.fromEntries(members.map((m) => [m.id, `G${gmap[m.group_id] ?? "?"} ${m.last_name}, ${m.first_name}`]));
     const mimap = Object.fromEntries(missions.map((m) => [m.id, m.title]));
